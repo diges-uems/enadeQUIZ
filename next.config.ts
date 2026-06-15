@@ -102,9 +102,9 @@ const nextConfig: NextConfig = {
   // ─── Dev Cross-Origin ─────────────────────────────────────────────
   // Permite acesso ao HMR/Turbopack a partir do preview do sandbox.
   allowedDevOrigins: [
-    /\.space-z\.ai$/,
     "localhost",
     "127.0.0.1",
+    "preview-chat-09f5e437-d332-4ecc-93b9-1d57c80c7cbe.space-z.ai",
   ],
 };
 
