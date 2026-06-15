@@ -201,7 +201,7 @@ function QuestionFormDialog({
   onSave: () => void
 }) {
   const [text, setText] = useState('')
-  const [year, setYear] = useState('2024')
+  const [year, setYear] = useState('2025')
   const [course, setCourse] = useState('')
   const [altA, setAltA] = useState('')
   const [altB, setAltB] = useState('')
@@ -227,7 +227,7 @@ function QuestionFormDialog({
         setCorrectAnswer(question.correctAnswer)
       } else {
         setText('')
-        setYear('2024')
+        setYear('2025')
         setCourse('')
         setAltA('')
         setAltB('')
@@ -296,7 +296,7 @@ function QuestionFormDialog({
     }
   }
 
-  const years = Array.from({ length: 10 }, (_, i) => 2015 + i)
+  const years = Array.from({ length: 11 }, (_, i) => 2015 + i)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1145,7 +1145,7 @@ export default function AdminPage() {
               <Label htmlFor="session-title">Título da Sessão *</Label>
               <Input
                 id="session-title"
-                placeholder="Ex: Simulado ENADE 2024 — Administração"
+                placeholder="Ex: Simulado ENADE 2025 — Administração"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 onKeyDown={(e) => {
