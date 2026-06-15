@@ -1,0 +1,146 @@
+# =============================================================================
+# Deployment — Next.js 16 standalone web application
+# =============================================================================
+# Key design decisions:
+#
+# 1. Resource limits are conservative (512Mi / 500m CPU) — this is a quiz app,
+#    not a data pipeline. The standalone output is ~50MB; Prisma + SQLite add
+#    ~30MB overhead. 512Mi is more than enough.
+#
+# 2. Startup probe with failureThreshold=12 @ 5s intervals = 60s grace period
+#    for cold starts (Prisma client init, SQLite file checks).
+#
+# 3. SQLite PVC is mounted ReadWriteOnce — only ONE replica can write safely.
+#    For a quiz app, this is acceptable. If multi-writer is needed later,
+#    migrate to PostgreSQL.
+#
+# 4. The standalone server.js from Next.js handles graceful shutdown on SIGTERM.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enade-quiz
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: web
+    app.kubernetes.io/name: enade-quiz
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: enade-quiz
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: enade-quiz
+      component: web
+  # Rolling update strategy — ensure at least 2 pods are always available
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: enade-quiz
+        component: web
+      annotations:
+        # Force pod restart on config change
+        kubectl.kubernetes.io/restartedAt: ""
+    spec:
+      # Graceful shutdown — wait up to 30s for in-flight requests
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: enade-quiz-web
+          image: enade-quiz:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          # ── Environment Variables ──────────────────────────────────────────
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            # Admin secret — loaded from Kubernetes Secret
+            - name: ADMIN_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: enade-quiz-secrets
+                  key: ADMIN_SECRET_KEY
+            # Database URL — loaded from Kubernetes Secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: enade-quiz-secrets
+                  key: DATABASE_URL
+            # Socket.io server URL (internal cluster service)
+            - name: NEXT_PUBLIC_SOCKET_URL
+              value: "http://enade-quiz-socket.enade-quiz.svc.cluster.local:3003"
+
+          # ── Resource Limits ───────────────────────────────────────────────
+          # Production-proven: 512Mi is plenty for Next.js standalone + Prisma.
+          # CPU burst to 500m allows handling traffic spikes.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # ── Probes ────────────────────────────────────────────────────────
+          # Startup probe: gives 60s (12 × 5s) for initial startup before
+          # liveness/readiness probes kick in. Prevents premature restarts.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12  # 5s × 12 = 60s max startup time
+
+          # Liveness probe: restart the pod if it becomes unresponsive
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10  # Wait for startup probe to pass first
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe: remove pod from Service endpoints if unhealthy
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # ── Volume Mounts ─────────────────────────────────────────────────
+          volumeMounts:
+            # SQLite database — persistent across pod restarts
+            - name: db-storage
+              mountPath: /app/prisma
+              subPath: prisma-data
+            # Uploaded images — persistent across pod restarts
+            - name: uploads-storage
+              mountPath: /app/public/uploads
+
+      # ── Volumes ───────────────────────────────────────────────────────────
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: enade-quiz-db-pvc
+        - name: uploads-storage
+          persistentVolumeClaim:
+            claimName: enade-quiz-uploads-pvc

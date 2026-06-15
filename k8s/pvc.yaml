@@ -1,0 +1,52 @@
+# =============================================================================
+# PersistentVolumeClaims — Durable storage for SQLite DB and uploaded files
+# =============================================================================
+# SQLite requires ReadWriteOnce (RWO) access since only one pod can write
+# to a SQLite file at a time. This is a key constraint:
+#
+#   ⚠️  SQLite is NOT suitable for multi-writer scenarios.
+#   With 3 replicas, only ONE pod should write to the DB.
+#   Consider:
+#     a) Using a single replica for the web deployment (simpler)
+#     b) Migrating to PostgreSQL for multi-replica writes
+#     c) Using a leader-election pattern (complex)
+#
+# For now, the PVC is shared within the pod mount, and the HPA scales
+# read-heavy workloads. The Socket.io service does NOT write to the DB
+# (it's in-memory), so it doesn't need a DB volume mount.
+# =============================================================================
+---
+# SQLite database — 1Gi is generous for a quiz app; monitor and adjust
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: enade-quiz-db-pvc
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: db-storage
+spec:
+  accessModes:
+    - ReadWriteOnce  # Required for SQLite — single writer
+  resources:
+    requests:
+      storage: 1Gi
+  # Uncomment to use a specific StorageClass:
+  # storageClassName: standard
+---
+# Uploaded images — 5Gi for quiz question images, logos, etc.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: enade-quiz-uploads-pvc
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: upload-storage
+spec:
+  accessModes:
+    - ReadWriteOnce  # Single writer for file uploads
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: standard

@@ -3,12 +3,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { QRCode } from 'react-qrcode-logo'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-} from 'recharts'
 import { Users } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -712,59 +706,87 @@ export default function ApresentacaoPage({
               >
                 <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
                   {pieData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius="80%"
-                          innerRadius="45%"
-                          dataKey="value"
-                          labelLine={false}
-                          label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }: {
-                            cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; name: string; percent: number
-                          }) => {
-                            if (percent < 0.05) return null
-                            const RADIAN = Math.PI / 180
-                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN)
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN)
-                            return (
-                              <text
-                                x={x}
-                                y={y}
-                                fill="#E8EDFF"
-                                textAnchor="middle"
-                                dominantBaseline="central"
-                                fontSize={18}
-                                fontWeight="bold"
-                                style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                              >
-                                <tspan x={x} dy="-0.5em">{name}</tspan>
-                                <tspan x={x} dy="1.2em">{`${(percent * 100).toFixed(0)}%`}</tspan>
-                              </text>
-                            )
-                          }}
-                          isAnimationActive={true}
-                          animationDuration={600}
-                          animationEasing="ease-out"
-                        >
-                          {pieData.map((entry, index) => {
-                            const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
-                            return (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={entry.color}
-                                stroke={isCorrect ? '#C8A84B' : 'transparent'}
-                                strokeWidth={isCorrect ? 4 : 0}
-                                opacity={revealed && !isCorrect ? 0.35 : 1}
-                              />
-                            )
-                          })}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <svg viewBox="0 0 200 200" className="w-full h-full">
+                      {(() => {
+                        const R = 70
+                        const circumference = 2 * Math.PI * R
+                        const cx = 100
+                        const cy = 100
+                        const strokeWidth = 35
+                        let cumulativeOffset = 0
+
+                        return (
+                          <>
+                            {pieData.map((entry, i) => {
+                              const pct = entry.value / totalVotes
+                              const sliceLength = pct * circumference
+                              const rotation = (cumulativeOffset / circumference) * 360 - 90
+                              cumulativeOffset += entry.value
+
+                              const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+                              const midAngleDeg = rotation + (pct * 360) / 2
+                              const RADIAN = Math.PI / 180
+                              const labelR = R
+                              const lx = cx + labelR * Math.cos(-midAngleDeg * RADIAN)
+                              const ly = cy + labelR * Math.sin(-midAngleDeg * RADIAN)
+
+                              return (
+                                <g key={`slice-${i}`}>
+                                  <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r={R}
+                                    fill="none"
+                                    stroke={entry.color}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+                                    strokeDashoffset={0}
+                                    strokeLinecap="butt"
+                                    transform={`rotate(${rotation} ${cx} ${cy})`}
+                                    opacity={revealed && !isCorrect ? 0.35 : 1}
+                                    style={{ transition: 'opacity 0.6s ease-out, stroke 0.4s ease-out' }}
+                                  />
+                                  {isCorrect && (
+                                    <circle
+                                      cx={cx}
+                                      cy={cy}
+                                      r={R}
+                                      fill="none"
+                                      stroke="#C8A84B"
+                                      strokeWidth={strokeWidth + 4}
+                                      strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+                                      strokeDashoffset={0}
+                                      strokeLinecap="butt"
+                                      transform={`rotate(${rotation} ${cx} ${cy})`}
+                                      style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
+                                    />
+                                  )}
+                                  {pct >= 0.05 && (
+                                    <text
+                                      x={lx}
+                                      y={ly}
+                                      fill="#E8EDFF"
+                                      textAnchor="middle"
+                                      dominantBaseline="central"
+                                      fontSize="11"
+                                      fontWeight="bold"
+                                      opacity={revealed && !isCorrect ? 0.35 : 1}
+                                      style={{
+                                        fontFamily: 'var(--font-space-grotesk)',
+                                        transition: 'opacity 0.6s ease-out',
+                                      }}
+                                    >
+                                      <tspan x={lx} dy="-0.5em">{entry.name}</tspan>
+                                      <tspan x={lx} dy="1.2em">{`${(pct * 100).toFixed(0)}%`}</tspan>
+                                    </text>
+                                  )}
+                                </g>
+                              )
+                            })}
+                          </>
+                        )
+                      })()}
+                    </svg>
                   ) : (
                     <motion.div
                       className="h-full flex items-center justify-center"

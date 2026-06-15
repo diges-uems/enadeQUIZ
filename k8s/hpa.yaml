@@ -1,0 +1,64 @@
+# =============================================================================
+# HorizontalPodAutoscaler — Auto-scale based on CPU and Memory
+# =============================================================================
+# Scales the enade-quiz deployment between 3 and 10 replicas based on:
+#   - CPU utilization: target 70% (scale up when pods are CPU-bound)
+#   - Memory utilization: target 80% (scale up before OOM kills)
+#
+# Stabilization windows prevent flapping:
+#   - Scale-up: 60s (react reasonably fast to load spikes)
+#   - Scale-down: 300s (don't thrash during short traffic dips)
+#
+# NOTE: With SQLite (ReadWriteOnce PVC), scaling horizontally has caveats:
+#   - Only the pod with the RWO volume mount can access the DB
+#   - For true horizontal scaling, migrate to PostgreSQL
+#   - The HPA is still useful for handling CPU-bound request surges
+#     where reads can be served from cached/stale data
+# =============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: enade-quiz-hpa
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: enade-quiz
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    # Scale-up behavior — respond to load increases
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100   # Double the replicas at most per adjustment
+          periodSeconds: 60
+        - type: Pods
+          value: 2     # Or add 2 pods at most per 60s
+          periodSeconds: 60
+      selectPolicy: Max  # Use the more aggressive of the two policies
+    # Scale-down behavior — don't rush to remove capacity
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25    # Remove 25% of replicas at most per adjustment
+          periodSeconds: 60
+      selectPolicy: Min  # Use the less aggressive policy

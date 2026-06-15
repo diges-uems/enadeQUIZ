@@ -1,0 +1,28 @@
+# =============================================================================
+# Service — ClusterIP for the Next.js web application
+# =============================================================================
+# Exposes the web deployment within the cluster on port 80, routing
+# traffic to container port 3000. The Ingress forwards external traffic
+# to this Service.
+#
+# Using ClusterIP (not LoadBalancer) because the nginx Ingress
+# Controller handles external traffic and TLS termination.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: enade-quiz
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: enade-quiz
+    component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http  # References the named port "http" (3000) in the container
+      protocol: TCP

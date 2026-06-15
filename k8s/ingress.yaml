@@ -1,0 +1,87 @@
+# =============================================================================
+# Ingress — nginx Ingress for enade.uems.br
+# =============================================================================
+# Key annotations explained:
+#
+# 1. proxy-buffer-size / proxy-buffers:
+#    Next.js can send large response headers (especially with SSR + cookies).
+#    Default nginx buffer (4k) is too small → 502 errors.
+#    16k handles most cases comfortably.
+#
+# 2. websocket support (Socket.io):
+#    Socket.io upgrades HTTP to WebSocket. The nginx Ingress must NOT
+#    buffer or time out these long-lived connections.
+#    - proxy-read-timeout: 3600s = 1 hour (matches Socket.io pingTimeout)
+#    - proxy-send-timeout: 3600s = 1 hour
+#    This path is configured for the /socket.io/ endpoint specifically.
+#
+# 3. proxy-body-size:
+#    Allows file uploads up to 20MB (for quiz question images).
+#
+# 4. TLS:
+#    Enabled for enade.uems.br. The TLS secret should be provisioned by
+#    cert-manager with a ClusterIssuer (e.g., Let's Encrypt).
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: enade-quiz-ingress
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+  annotations:
+    # ── nginx proxy configuration ─────────────────────────────────────────
+    # Increase buffer sizes for Next.js SSR headers (default 4k is too small)
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers: "4 16k"
+
+    # Allow file uploads up to 20MB (for question images)
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+
+    # ── WebSocket / Socket.io support ─────────────────────────────────────
+    # These timeout values are applied to the /socket.io/ path specifically.
+    # 3600s = 1 hour, matching the Socket.io pingTimeout of 60s + margin.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+    # Enable WebSocket upgrade for Socket.io
+    nginx.ingress.kubernetes.io/websocket-services: "enade-quiz-socket"
+
+    # ── TLS via cert-manager (uncomment when cert-manager is installed) ───
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # cert-manager.io/issuer: "letsencrypt-prod"
+
+spec:
+  ingressClassName: nginx
+
+  # TLS configuration — terminate TLS at the Ingress Controller
+  tls:
+    - hosts:
+        - enade.uems.br
+      secretName: enade-quiz-tls
+
+  rules:
+    - host: enade.uems.br
+      http:
+        paths:
+          # ── Socket.io WebSocket path ──────────────────────────────────────
+          # Route /socket.io/ to the Socket.io service (port 3003)
+          # This MUST come before the catch-all / path for proper routing
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: enade-quiz-socket
+                port:
+                  number: 3003
+
+          # ── Main Next.js application ──────────────────────────────────────
+          # All other traffic goes to the Next.js web service (port 80 → 3000)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: enade-quiz
+                port:
+                  number: 80

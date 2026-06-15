@@ -1,0 +1,67 @@
+# =============================================================================
+# .dockerignore — Exclude unnecessary files from Docker build context
+# =============================================================================
+# Keeping the build context small means faster builds and smaller layers.
+
+# ── Dependencies (installed fresh inside container) ──
+node_modules
+**/node_modules
+
+# ── Next.js build artifacts (rebuilt in container) ──
+.next
+out
+
+# ── Version control ──
+.git
+.gitignore
+.gitattributes
+
+# ── IDE / Editor ──
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+
+# ── Logs ──
+*.log
+dev.log
+server.log
+npm-debug.log*
+bun-debug.log*
+
+# ── Database files (should be mounted via PVC in production) ──
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+db/*.db
+
+# ── Uploaded files (should be mounted via PVC in production) ──
+public/uploads
+
+# ── Docker / K8s (no need to copy deployment files into image) ──
+Dockerfile
+docker-compose*.yml
+.dockerignore
+k8s/
+
+# ── Documentation ──
+README.md
+WORKLOG.md
+worklog.md
+docs/
+
+# ── Misc build / temp ──
+tool-results/
+agent-ctx/
+download/
+examples/
+*.tgz
+*.tar.gz
+.env
+.env.*
+!.env.example

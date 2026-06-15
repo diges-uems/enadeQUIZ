@@ -1,0 +1,15 @@
+# =============================================================================
+# Namespace — Isolates all ENADE Quiz resources
+# =============================================================================
+# Using a dedicated namespace makes it easy to:
+#   - Apply RBAC policies per application
+#   - Delete all resources with `kubectl delete namespace enade-quiz`
+#   - Set resource quotas at the namespace level
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: enade-quiz
+  labels:
+    name: enade-quiz
+    app.kubernetes.io/part-of: enade-quiz

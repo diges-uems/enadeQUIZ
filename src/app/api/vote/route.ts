@@ -1,6 +1,9 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Votos são mutáveis e em tempo real — nunca cachear no servidor
+export const dynamic = 'force-dynamic'
+
 // POST /api/vote - Submit a vote (backup endpoint for non-socket clients)
 export async function POST(request: NextRequest) {
   try {

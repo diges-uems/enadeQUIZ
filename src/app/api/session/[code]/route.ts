@@ -1,6 +1,9 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Forçar rota dinâmica — sessões mudam frequentemente via Socket.io
+export const dynamic = 'force-dynamic'
+
 // GET /api/session/[code] - Get session by code
 export async function GET(
   _request: NextRequest,
@@ -21,10 +24,19 @@ export async function GET(
     })
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
-    return NextResponse.json(session)
+    // Cache curto: sessão muda quando questões são ativadas/gabarito revelado
+    // stale-while-revalidate permite resposta instantânea enquanto revalida
+    return NextResponse.json(session, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=30',
+      },
+    })
   } catch (error) {
     console.error('Error fetching session:', error)
     return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 })

@@ -1,0 +1,141 @@
+# =============================================================================
+# Deployment + Service — Socket.io real-time mini-service
+# =============================================================================
+# The Socket.io server is deployed as a separate process because:
+#
+#   1. It has different resource requirements (lower CPU/memory than the
+#      Next.js SSR server — it's mostly I/O bound with in-memory state).
+#
+#   2. It needs different scaling behavior (WebSocket connections are
+#      long-lived and sticky; scaling requires careful handling).
+#
+#   3. It runs on port 3003 with its own health checks.
+#
+# NOTE: This service uses in-memory state (Maps) for real-time data.
+# With multiple replicas, state is NOT shared between pods. For true
+# horizontal scaling, use Redis as a Socket.io adapter:
+#   import { createAdapter } from '@socket.io/redis-adapter'
+# For now, a single replica is fine for a quiz app.
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enade-quiz-socket
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: socket
+    app.kubernetes.io/name: enade-quiz-socket
+    app.kubernetes.io/component: socket
+    app.kubernetes.io/part-of: enade-quiz
+spec:
+  # Single replica — in-memory state is not shared across pods.
+  # Scale to 2+ only after adding a Redis adapter for Socket.io.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enade-quiz
+      component: socket
+  strategy:
+    type: Recreate  # Don't run two pods simultaneously (state conflict)
+  template:
+    metadata:
+      labels:
+        app: enade-quiz
+        component: socket
+    spec:
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: enade-quiz-socket
+          # Reuse the same image — the socket service is in the repo
+          # but we override the command to run the socket server instead.
+          image: enade-quiz:latest
+          imagePullPolicy: IfNotPresent
+
+          # Override the default CMD to run the Socket.io service with Bun
+          command: ["bun", "run", "mini-services/enade-quiz/index.ts"]
+
+          ports:
+            - name: socket
+              containerPort: 3003
+              protocol: TCP
+
+          # ── Environment Variables ──────────────────────────────────────────
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3003"
+            # Database URL — loaded from Secret (for future DB reads)
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: enade-quiz-secrets
+                  key: DATABASE_URL
+
+          # ── Resource Limits ───────────────────────────────────────────────
+          # Socket.io is I/O bound, not CPU/Memory intensive.
+          # In-memory state for ~1000 concurrent connections ≈ 50MB.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+          # ── Probes ────────────────────────────────────────────────────────
+          # Socket.io doesn't have a health endpoint by default.
+          # We check the HTTP upgrade handshake path.
+          startupProbe:
+            httpGet:
+              path: /
+              port: socket
+            periodSeconds: 5
+            failureThreshold: 12  # 60s max startup
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: socket
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: socket
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+---
+# =============================================================================
+# Service — ClusterIP for the Socket.io real-time service
+# =============================================================================
+# Exposed on port 3003 within the cluster. The Ingress routes
+# /socket.io/ traffic to this service for WebSocket upgrades.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: enade-quiz-socket
+  namespace: enade-quiz
+  labels:
+    app: enade-quiz
+    component: socket
+spec:
+  type: ClusterIP
+  selector:
+    app: enade-quiz
+    component: socket
+  ports:
+    - name: socket
+      port: 3003
+      targetPort: socket  # References the named port "socket" (3003) in the container
+      protocol: TCP
