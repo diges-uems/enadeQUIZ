@@ -7,5 +7,6 @@
   },
   "dependencies": {
     "socket.io": "^4.8.3"
-  }
+  },
+  "type": "module"
 }

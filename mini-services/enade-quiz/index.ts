@@ -22,6 +22,24 @@ const sessionVotingPaused = new Map<string, boolean>()
 // Map of `${sessionCode}:${questionId}` -> vote counts
 const sessionVoteCounts = new Map<string, { A: number; B: number; C: number; D: number; E: number; total: number }>()
 
+// ── Student tracking ────────────────────────────────────────────────────────
+// Map of socket ID -> student info
+const studentBySocket = new Map<string, { name: string; rgm: string; sessionCode: string }>()
+
+// ── Score tracking ──────────────────────────────────────────────────────────
+// Map of sessionCode -> Map of studentId (rgm) -> score info
+interface StudentScore {
+  name: string
+  rgm: string
+  score: number
+  answers: number
+  corrects: number
+}
+const sessionScores = new Map<string, Map<string, StudentScore>>()
+
+// ── Track which question each socket has already voted on (anti-double-vote) ─
+const socketVotedQuestions = new Map<string, Set<string>>()
+
 function getVoteKey(sessionCode: string, questionId: string) {
   return `${sessionCode}:${questionId}`
 }
@@ -34,12 +52,18 @@ function initVoteCounts(sessionCode: string, questionId: string) {
   return sessionVoteCounts.get(key)!
 }
 
+function getRanking(sessionCode: string): StudentScore[] {
+  const scoreMap = sessionScores.get(sessionCode)
+  if (!scoreMap) return []
+  return Array.from(scoreMap.values()).sort((a, b) => b.score - a.score)
+}
+
 io.on('connection', (socket) => {
   console.log(`Connected: ${socket.id}`)
 
   // Join a session room
-  socket.on('join-session', (data: { sessionCode: string; role: 'presenter' | 'student' }) => {
-    const { sessionCode, role } = data
+  socket.on('join-session', (data: { sessionCode: string; role: 'presenter' | 'student'; name?: string; rgm?: string }) => {
+    const { sessionCode, role, name, rgm } = data
     socket.join(`session:${sessionCode}`)
     
     if (!sessionParticipants.has(sessionCode)) {
@@ -48,6 +72,11 @@ io.on('connection', (socket) => {
     
     if (role === 'student') {
       sessionParticipants.get(sessionCode)!.add(socket.id)
+
+      // If name and rgm provided, associate with socket
+      if (name && rgm) {
+        studentBySocket.set(socket.id, { name, rgm, sessionCode })
+      }
     }
     
     // Send current state to the newly joined client
@@ -61,6 +90,24 @@ io.on('connection', (socket) => {
     // Broadcast updated participant count
     io.to(`session:${sessionCode}`).emit('participant-count', participantCount)
     console.log(`${role} joined session ${sessionCode}, participants: ${participantCount}`)
+  })
+
+  // Register student info
+  socket.on('register-student', (data: { sessionCode: string; name: string; rgm: string }) => {
+    const { sessionCode, name, rgm } = data
+    studentBySocket.set(socket.id, { name, rgm, sessionCode })
+
+    // Initialize score tracking if not exists
+    if (!sessionScores.has(sessionCode)) {
+      sessionScores.set(sessionCode, new Map())
+    }
+    const scoreMap = sessionScores.get(sessionCode)!
+    if (!scoreMap.has(rgm)) {
+      scoreMap.set(rgm, { name, rgm, score: 0, answers: 0, corrects: 0 })
+    }
+
+    socket.emit('student-registered', { success: true })
+    console.log(`Student registered: ${name} (${rgm}) in session ${sessionCode}`)
   })
 
   // Leave a session
@@ -100,8 +147,8 @@ io.on('connection', (socket) => {
   })
 
   // Student submits a vote
-  socket.on('submit-vote', (data: { sessionCode: string; questionId: string; choice: 'A' | 'B' | 'C' | 'D' | 'E' }) => {
-    const { sessionCode, questionId, choice } = data
+  socket.on('submit-vote', (data: { sessionCode: string; questionId: string; choice: 'A' | 'B' | 'C' | 'D' | 'E'; correctAnswer?: string; studentId?: string }) => {
+    const { sessionCode, questionId, choice, correctAnswer, studentId } = data
     
     // Check if voting is paused
     if (sessionVotingPaused.get(sessionCode)) {
@@ -115,11 +162,47 @@ io.on('connection', (socket) => {
       socket.emit('vote-rejected', { reason: 'This question is not active' })
       return
     }
+
+    // Anti-double-vote: check if this socket already voted on this question
+    if (!socketVotedQuestions.has(socket.id)) {
+      socketVotedQuestions.set(socket.id, new Set())
+    }
+    const votedSet = socketVotedQuestions.get(socket.id)!
+    if (votedSet.has(questionId)) {
+      socket.emit('vote-rejected', { reason: 'You already voted on this question' })
+      return
+    }
+    votedSet.add(questionId)
     
     // Update vote counts
     const counts = initVoteCounts(sessionCode, questionId)
     counts[choice]++
     counts.total++
+
+    // Track score for student
+    if (studentId) {
+      if (!sessionScores.has(sessionCode)) {
+        sessionScores.set(sessionCode, new Map())
+      }
+      const scoreMap = sessionScores.get(sessionCode)!
+      if (!scoreMap.has(studentId)) {
+        // Try to get name from socket mapping
+        const socketInfo = studentBySocket.get(socket.id)
+        scoreMap.set(studentId, {
+          name: socketInfo?.name || 'Unknown',
+          rgm: studentId,
+          score: 0,
+          answers: 0,
+          corrects: 0,
+        })
+      }
+      const studentScore = scoreMap.get(studentId)!
+      studentScore.answers++
+      if (correctAnswer && choice === correctAnswer) {
+        studentScore.score++
+        studentScore.corrects++
+      }
+    }
     
     // Acknowledge the vote to the student
     socket.emit('vote-accepted', { choice, questionId })
@@ -142,13 +225,33 @@ io.on('connection', (socket) => {
   // Presenter reveals the answer
   socket.on('reveal-answer', (data: { sessionCode: string; questionId: string; correctAnswer: string }) => {
     const { sessionCode, questionId, correctAnswer } = data
+
+    // Update scores for students who voted on this question
+    const scoreMap = sessionScores.get(sessionCode)
+    if (scoreMap) {
+      for (const [, studentScore] of scoreMap) {
+        // Only update if student hasn't already been scored for this question
+        // (score is incremented at vote time if correctAnswer was provided)
+        // If correctAnswer wasn't provided at vote time, we can't retroactively fix
+        // So we rely on correctAnswer being sent at vote time for real-time scoring
+      }
+    }
     
+    // Broadcast the answer with ranking
+    const ranking = getRanking(sessionCode)
     io.to(`session:${sessionCode}`).emit('answer-revealed', {
       questionId,
       correctAnswer,
+      ranking,
     })
     
     console.log(`Answer revealed for question ${questionId} in session ${sessionCode}: ${correctAnswer}`)
+  })
+
+  // Get ranking for a session
+  socket.on('get-ranking', (data: { sessionCode: string }) => {
+    const ranking = getRanking(data.sessionCode)
+    socket.emit('ranking-data', ranking)
   })
 
   // Presenter moves to next question
@@ -187,6 +290,9 @@ io.on('connection', (socket) => {
 
   // Handle disconnect
   socket.on('disconnect', () => {
+    // Get student info before cleaning up
+    const studentInfo = studentBySocket.get(socket.id)
+
     // Remove from all sessions
     for (const [sessionCode, participants] of sessionParticipants.entries()) {
       if (participants.has(socket.id)) {
@@ -195,7 +301,12 @@ io.on('connection', (socket) => {
         io.to(`session:${sessionCode}`).emit('participant-count', count)
       }
     }
-    console.log(`Disconnected: ${socket.id}`)
+
+    // Clean up socket-based maps
+    studentBySocket.delete(socket.id)
+    socketVotedQuestions.delete(socket.id)
+
+    console.log(`Disconnected: ${socket.id}${studentInfo ? ` (${studentInfo.name})` : ''}`)
   })
 
   socket.on('error', (error) => {

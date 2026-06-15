@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { sessionCode, questionId, choice } = body
+    const { sessionCode, questionId, choice, studentId } = body
 
     if (!sessionCode || !questionId || !choice) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -32,13 +32,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 })
     }
 
+    // Determine if the answer is correct
+    const isCorrect = choice === question.correctAnswer
+
     // Create vote
     const vote = await db.vote.create({
       data: {
         questionId,
         choice,
+        isCorrect,
+        studentId: studentId || null,
       }
     })
+
+    // Update student score if studentId is provided
+    if (studentId) {
+      await db.student.update({
+        where: { id: studentId },
+        data: {
+          answers: { increment: 1 },
+          ...(isCorrect
+            ? { corrects: { increment: 1 }, score: { increment: 1 } }
+            : {}),
+        },
+      })
+    }
 
     // Get total votes for this question
     const votes = await db.vote.findMany({
@@ -65,7 +83,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const questionId = request.nextUrl.searchParams.get('questionId')
-    
+
     if (!questionId) {
       return NextResponse.json({ error: 'questionId is required' }, { status: 400 })
     }

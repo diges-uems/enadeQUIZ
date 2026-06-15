@@ -16,6 +16,7 @@ model Session {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   questions         Question[]
+  students          Student[]
 }
 
 model Question {
@@ -24,7 +25,7 @@ model Question {
   session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text          String
   year          Int
-  course        String
+  course        String   @default("Formação Geral")
   altA          String
   altB          String
   altC          String
@@ -41,12 +42,32 @@ model Question {
   @@index([sessionId])
 }
 
+model Student {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name      String
+  rgm       String
+  score     Int      @default(0)
+  answers   Int      @default(0)
+  corrects  Int      @default(0)
+  joinedAt  DateTime @default(now())
+  votes     Vote[]
+
+  @@unique([sessionId, rgm])
+  @@index([sessionId])
+}
+
 model Vote {
   id         String   @id @default(cuid())
   questionId String
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  studentId  String?
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
   choice     String
+  isCorrect  Boolean  @default(false)
   votedAt    DateTime @default(now())
 
   @@index([questionId])
+  @@index([studentId])
 }

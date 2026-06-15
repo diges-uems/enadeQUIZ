@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { GraduationCap, ArrowRight, Shield, Zap, Users } from 'lucide-react'
+import { ArrowRight, Shield, Zap, Users } from 'lucide-react'
 
 export default function Home() {
   const router = useRouter()
@@ -46,15 +46,15 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: 'easeOut' }}
           >
-            {/* Logo circle */}
-            <motion.div
-              className="w-24 h-24 rounded-full bg-[#0D1B3E] border border-[#1A2A5E] flex items-center justify-center shadow-lg shadow-[#00338C]/20"
+            {/* Logo */}
+            <motion.img
+              src="/logo.svg"
+              alt="UEMS"
+              className="w-20 h-20 object-contain drop-shadow-[0_0_24px_rgba(200,168,75,0.3)]"
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.6, ease: 'backOut', delay: 0.2 }}
-            >
-              <GraduationCap className="w-12 h-12 text-[#C8A84B]" />
-            </motion.div>
+            />
 
             {/* Title */}
             <motion.h1
@@ -99,8 +99,8 @@ export default function Home() {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 onKeyDown={handleKeyDown}
-                maxLength={6}
-                className="h-14 text-center text-xl font-semibold tracking-[0.3em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl transition-all"
+                maxLength={8}
+                className="h-14 text-center text-xl font-semibold tracking-[0.2em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl transition-all"
               />
 
               <Button

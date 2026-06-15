@@ -7,16 +7,23 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import type { Session, Question } from '@/types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type PageState = 'loading' | 'error' | 'waiting' | 'voting' | 'voted' | 'revealed' | 'finished'
+type PageState = 'loading' | 'error' | 'identification' | 'waiting' | 'voting' | 'voted' | 'revealed' | 'finished'
 
 interface SessionStatePayload {
   participantCount: number
   currentQuestionId: string | null
   votingPaused: boolean
+}
+
+interface StudentInfo {
+  name: string
+  rgm: string
+  studentId: string
 }
 
 // ─── Alternative colors (subtle indicators per letter) ──────────────────────
@@ -49,7 +56,16 @@ export default function StudentVotingPage({
   const [participantCount, setParticipantCount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ── Student identification state ────────────────────────────────────────
+  const [studentName, setStudentName] = useState('')
+  const [studentRgm, setStudentRgm] = useState('')
+  const [studentId, setStudentId] = useState<string | null>(null)
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [nameError, setNameError] = useState('')
+  const [rgmError, setRgmError] = useState('')
+
   const socketRef = useRef<Socket | null>(null)
+  const sessionFetchedRef = useRef<Session | null>(null)
 
   // ── Anti-fraud: sessionStorage helpers ───────────────────────────────────
   const getStoredVote = useCallback(
@@ -65,6 +81,25 @@ export default function StudentVotingPage({
     sessionStorage.setItem(`voted_${questionId}`, choice)
   }, [])
 
+  // ── Student info from sessionStorage ────────────────────────────────────
+  const getStoredStudent = useCallback((): StudentInfo | null => {
+    if (typeof window === 'undefined') return null
+    const stored = sessionStorage.getItem(`student_${codigo}`)
+    if (stored) {
+      try {
+        return JSON.parse(stored) as StudentInfo
+      } catch {
+        return null
+      }
+    }
+    return null
+  }, [codigo])
+
+  const storeStudent = useCallback((info: StudentInfo) => {
+    if (typeof window === 'undefined') return
+    sessionStorage.setItem(`student_${codigo}`, JSON.stringify(info))
+  }, [codigo])
+
   // ── Question progress (e.g., "3 / 10") ─────────────────────────────────
   const questionProgress = useCallback((): string => {
     if (!session || !currentQuestion) return ''
@@ -73,8 +108,121 @@ export default function StudentVotingPage({
     return `${idx + 1} / ${session.questions.length}`
   }, [session, currentQuestion])
 
+  // ── Handle student registration ─────────────────────────────────────────
+  const handleRegister = useCallback(async () => {
+    // Validate
+    let valid = true
+    setNameError('')
+    setRgmError('')
+
+    if (!studentName.trim()) {
+      setNameError('Nome é obrigatório')
+      valid = false
+    }
+
+    if (!studentRgm.trim()) {
+      setRgmError('RGM é obrigatório')
+      valid = false
+    } else if (!/^\d+$/.test(studentRgm.trim())) {
+      setRgmError('RGM deve conter apenas números')
+      valid = false
+    }
+
+    if (!valid) return
+
+    setIsRegistering(true)
+
+    try {
+      // Register student via API
+      const res = await fetch('/api/student', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionCode: codigo,
+          name: studentName.trim(),
+          rgm: studentRgm.trim(),
+        }),
+      })
+
+      if (!res.ok) {
+        toast.error('Erro ao registrar. Tente novamente.')
+        setIsRegistering(false)
+        return
+      }
+
+      const data = await res.json()
+      const sid = data.student.id
+
+      // Store student info
+      const info: StudentInfo = {
+        name: studentName.trim(),
+        rgm: studentRgm.trim(),
+        studentId: sid,
+      }
+      setStudentId(sid)
+      storeStudent(info)
+
+      // Register with socket
+      if (socketRef.current) {
+        socketRef.current.emit('join-session', {
+          sessionCode: codigo,
+          role: 'student',
+          name: studentName.trim(),
+          rgm: studentRgm.trim(),
+        })
+        socketRef.current.emit('register-student', {
+          sessionCode: codigo,
+          name: studentName.trim(),
+          rgm: studentRgm.trim(),
+        })
+      }
+
+      toast.success(`Bem-vindo(a), ${studentName.trim()}!`)
+
+      // Transition to waiting state immediately (don't wait for socket confirmation)
+      const sessionData = sessionFetchedRef.current
+      if (sessionData?.currentQuestionId) {
+        const q = sessionData.questions.find((q) => q.id === sessionData.currentQuestionId)
+        if (q) {
+          setCurrentQuestion(q)
+          const stored = getStoredVote(q.id)
+          if (stored) {
+            setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+            if (q.isRevealed) {
+              setCorrectAnswer(q.correctAnswer)
+              setPageState('revealed')
+            } else {
+              setPageState('voted')
+            }
+          } else if (q.isRevealed) {
+            setCorrectAnswer(q.correctAnswer)
+            setPageState('revealed')
+          } else {
+            setPageState('voting')
+          }
+        } else {
+          setPageState('waiting')
+        }
+      } else {
+        setPageState('waiting')
+      }
+    } catch {
+      toast.error('Erro de conexão. Tente novamente.')
+    } finally {
+      setIsRegistering(false)
+    }
+  }, [codigo, studentName, studentRgm, storeStudent])
+
   // ── Socket setup & event listeners ──────────────────────────────────────
   useEffect(() => {
+    // Check if student is already registered
+    const storedStudent = getStoredStudent()
+    if (storedStudent) {
+      setStudentName(storedStudent.name)
+      setStudentRgm(storedStudent.rgm)
+      setStudentId(storedStudent.studentId)
+    }
+
     // Fetch session data
     const fetchSession = async () => {
       try {
@@ -85,20 +233,80 @@ export default function StudentVotingPage({
         }
         const data: Session = await res.json()
         setSession(data)
+        sessionFetchedRef.current = data
 
-        // Connect socket
+        // Show identification or waiting screen immediately (don't wait for socket)
+        const storedStudent = getStoredStudent()
+        if (!storedStudent) {
+          setPageState('identification')
+        } else {
+          // Student already registered, check current state
+          if (data.currentQuestionId) {
+            const q = data.questions.find((q) => q.id === data.currentQuestionId)
+            if (q) {
+              setCurrentQuestion(q)
+              const storedVote = getStoredVote(q.id)
+              if (storedVote) {
+                setSelectedChoice(storedVote as 'A' | 'B' | 'C' | 'D' | 'E')
+                if (q.isRevealed) {
+                  setCorrectAnswer(q.correctAnswer)
+                  setPageState('revealed')
+                } else {
+                  setPageState('voted')
+                }
+              } else if (q.isRevealed) {
+                setCorrectAnswer(q.correctAnswer)
+                setPageState('revealed')
+              } else {
+                setPageState('voting')
+              }
+            }
+          } else {
+            setPageState('waiting')
+          }
+        }
+
+        // Connect socket (non-blocking - UI already shown)
         const socket = io('/?XTransformPort=3003', {
           transports: ['websocket', 'polling'],
+          timeout: 10000,
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
         })
         socketRef.current = socket
 
         socket.on('connect', () => {
-          socket.emit('join-session', { sessionCode: codigo, role: 'student' })
+          const student = getStoredStudent()
+          if (student) {
+            // Already registered, just join
+            socket.emit('join-session', {
+              sessionCode: codigo,
+              role: 'student',
+              name: student.name,
+              rgm: student.rgm,
+            })
+            socket.emit('register-student', {
+              sessionCode: codigo,
+              name: student.name,
+              rgm: student.rgm,
+            })
+          } else {
+            // Not registered yet, just join the room for state updates
+            socket.emit('join-session', { sessionCode: codigo, role: 'student' })
+          }
         })
 
         socket.on('session-state', (state: SessionStatePayload) => {
           setParticipantCount(state.participantCount)
           setVotingPaused(state.votingPaused)
+
+          const student = getStoredStudent()
+          if (!student) {
+            // Show identification screen
+            setPageState('identification')
+            return
+          }
 
           if (state.currentQuestionId) {
             const q = data.questions.find((q) => q.id === state.currentQuestionId)
@@ -128,7 +336,40 @@ export default function StudentVotingPage({
           }
         })
 
+        socket.on('student-registered', () => {
+          // After registration is confirmed, transition to appropriate state
+          const currentQ = sessionFetchedRef.current
+          if (currentQ) {
+            const activeQId = sessionCurrentQuestionRef.current
+            if (activeQId) {
+              const q = currentQ.questions.find((q) => q.id === activeQId)
+              if (q) {
+                setCurrentQuestion(q)
+                const stored = getStoredVote(q.id)
+                if (stored) {
+                  setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+                  setPageState('voted')
+                } else {
+                  setPageState('voting')
+                }
+              } else {
+                setPageState('waiting')
+              }
+            } else {
+              setPageState('waiting')
+            }
+          } else {
+            setPageState('waiting')
+          }
+        })
+
         socket.on('question-activated', (data: { questionId: string; votingPaused: boolean }) => {
+          const student = getStoredStudent()
+          if (!student) {
+            setPageState('identification')
+            return
+          }
+
           setSession((prev) => {
             if (prev) {
               const found = prev.questions.find((q) => q.id === data.questionId)
@@ -154,12 +395,31 @@ export default function StudentVotingPage({
           })
         })
 
-        socket.on('vote-accepted', (data: { choice: string; questionId: string }) => {
+        socket.on('vote-accepted', async (data: { choice: string; questionId: string }) => {
           setSelectedChoice(data.choice as 'A' | 'B' | 'C' | 'D' | 'E')
           storeVote(data.questionId, data.choice)
           setPageState('voted')
           setIsSubmitting(false)
           toast.success('Voto registrado com sucesso!')
+
+          // Also persist to DB via API
+          const student = getStoredStudent()
+          if (student?.studentId) {
+            try {
+              await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  sessionCode: codigo,
+                  questionId: data.questionId,
+                  choice: data.choice,
+                  studentId: student.studentId,
+                }),
+              })
+            } catch (err) {
+              console.error('Failed to persist vote to DB:', err)
+            }
+          }
         })
 
         socket.on('vote-rejected', (data: { reason: string }) => {
@@ -213,12 +473,24 @@ export default function StudentVotingPage({
         socketRef.current = null
       }
     }
-  }, [codigo, getStoredVote])
+  }, [codigo, getStoredVote, getStoredStudent, storeVote])
+
+  // Track current question ID for student-registered handler
+  const sessionCurrentQuestionRef = useRef<string | null>(null)
+  useEffect(() => {
+    sessionCurrentQuestionRef.current = currentQuestion?.id || null
+  }, [currentQuestion])
 
   // ── Submit vote ─────────────────────────────────────────────────────────
   const handleVote = useCallback(
     (choice: 'A' | 'B' | 'C' | 'D' | 'E') => {
       if (!currentQuestion || !socketRef.current || isSubmitting) return
+
+      const student = getStoredStudent()
+      if (!student) {
+        setPageState('identification')
+        return
+      }
 
       // Anti-fraud: check if already voted
       const stored = getStoredVote(currentQuestion.id)
@@ -234,9 +506,10 @@ export default function StudentVotingPage({
         sessionCode: codigo,
         questionId: currentQuestion.id,
         choice,
+        studentId: student.rgm,
       })
     },
-    [codigo, currentQuestion, getStoredVote, isSubmitting]
+    [codigo, currentQuestion, getStoredVote, getStoredStudent, isSubmitting]
   )
 
   // ── Get alternative text ────────────────────────────────────────────────
@@ -301,7 +574,7 @@ export default function StudentVotingPage({
         </motion.div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Sessão encerrada!</h1>
         <p className="text-gray-500 text-center text-sm mb-6">
-          Obrigado por participar! A sessão foi finalizada pelo apresentador.
+          Obrigado por participar, {studentName || 'estudante'}! A sessão foi finalizada pelo apresentador.
         </p>
         <Button
           onClick={() => router.push('/')}
@@ -331,6 +604,124 @@ export default function StudentVotingPage({
       {/* ── Main content ────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
         <AnimatePresence mode="wait">
+          {/* ── State 0: Identification ─────────────────────────────────── */}
+          {pageState === 'identification' && (
+            <motion.div
+              key="identification"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col items-center justify-center"
+            >
+              {/* UEMS branding */}
+              <div className="w-full max-w-sm">
+                <div className="text-center mb-8">
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.1, type: 'spring' }}
+                    className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#00338C] mb-4"
+                  >
+                    <span className="text-3xl font-bold text-white">E</span>
+                  </motion.div>
+                  <h1 className="text-2xl font-bold text-[#00338C] mb-1">
+                    ENADE Quiz
+                  </h1>
+                  <p className="text-gray-500 text-sm">
+                    Identifique-se para participar da sessão
+                  </p>
+                </div>
+
+                <Card className="border-0 shadow-lg">
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {/* Name field */}
+                      <div>
+                        <label
+                          htmlFor="student-name"
+                          className="block text-sm font-medium text-gray-700 mb-1.5"
+                        >
+                          Nome completo
+                        </label>
+                        <Input
+                          id="student-name"
+                          type="text"
+                          placeholder="Digite seu nome completo"
+                          value={studentName}
+                          onChange={(e) => {
+                            setStudentName(e.target.value)
+                            if (nameError) setNameError('')
+                          }}
+                          className={`h-12 text-base ${nameError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
+                          disabled={isRegistering}
+                          autoComplete="name"
+                        />
+                        {nameError && (
+                          <p className="text-red-500 text-xs mt-1">{nameError}</p>
+                        )}
+                      </div>
+
+                      {/* RGM field */}
+                      <div>
+                        <label
+                          htmlFor="student-rgm"
+                          className="block text-sm font-medium text-gray-700 mb-1.5"
+                        >
+                          RGM
+                          <span className="text-gray-400 font-normal ml-1">
+                            (Registro Geral Matrícula)
+                          </span>
+                        </label>
+                        <Input
+                          id="student-rgm"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Somente números"
+                          value={studentRgm}
+                          onChange={(e) => {
+                            setStudentRgm(e.target.value)
+                            if (rgmError) setRgmError('')
+                          }}
+                          className={`h-12 text-base ${rgmError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
+                          disabled={isRegistering}
+                          autoComplete="off"
+                        />
+                        {rgmError && (
+                          <p className="text-red-500 text-xs mt-1">{rgmError}</p>
+                        )}
+                      </div>
+
+                      {/* Submit button */}
+                      <Button
+                        onClick={handleRegister}
+                        disabled={isRegistering}
+                        className="w-full h-12 text-base font-semibold bg-[#00338C] hover:bg-[#002468] text-white mt-2"
+                      >
+                        {isRegistering ? (
+                          <span className="flex items-center gap-2">
+                            <motion.span
+                              animate={{ rotate: 360 }}
+                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                              className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                            />
+                            Registrando...
+                          </span>
+                        ) : (
+                          'Participar'
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <p className="text-center text-xs text-gray-400 mt-4">
+                  UEMS — Universidade Estadual de Mato Grosso do Sul
+                </p>
+              </div>
+            </motion.div>
+          )}
+
           {/* ── State 1: Waiting ─────────────────────────────────────────── */}
           {pageState === 'waiting' && (
             <motion.div
@@ -447,11 +838,14 @@ export default function StudentVotingPage({
               <h2 className="text-lg font-semibold text-gray-800 mb-2">
                 Você votou na alternativa{' '}
                 <span
-                  className="font-bold text-[#00338C]"
+                  className="font-bold"
                   style={{ color: ALT_COLORS[selectedChoice] }}
                 >
                   {selectedChoice}
                 </span>
+                {studentName && (
+                  <span className="text-gray-500 font-normal">, {studentName}</span>
+                )}
               </h2>
               <p className="text-sm text-gray-500 mb-4">
                 Aguardando o gabarito...

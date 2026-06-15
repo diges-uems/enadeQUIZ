@@ -18,7 +18,9 @@ import {
   Play,
   KeyRound,
   Users,
+  Trophy,
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────
 interface Question {
@@ -60,6 +62,14 @@ interface VoteResults {
   total: number
 }
 
+interface RankingEntry {
+  name: string
+  rgm: string
+  score: number
+  answers: number
+  corrects: number
+}
+
 // ─── Constants ────────────────────────────────────────────────────
 const COLORS: Record<string, string> = {
   A: '#00338C',
@@ -98,6 +108,9 @@ export default function ApresentacaoPage({
   const [revealed, setRevealed] = useState(false)
   const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [ranking, setRanking] = useState<RankingEntry[]>([])
+  const [showRanking, setShowRanking] = useState(false)
+  const [showFinalRanking, setShowFinalRanking] = useState(false)
 
   // ── Derived ──
   const currentQuestion = session?.questions.find(
@@ -172,6 +185,16 @@ export default function ApresentacaoPage({
       setParticipantCount(data.participantCount)
       setCurrentQuestionId(data.currentQuestionId)
       setVotingPaused(data.votingPaused)
+    })
+
+    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+      setRanking(data)
+    })
+
+    socketInstance.on('session-finished', () => {
+      // Request final ranking before showing end screen
+      socketInstance.emit('get-ranking', { sessionCode: codigo })
+      setShowFinalRanking(true)
     })
 
     setSocket(socketInstance)
@@ -719,8 +742,198 @@ export default function ApresentacaoPage({
             <KeyRound className="w-4 h-4" />
             Gabarito
           </button>
+
+          {/* Winners / Ranking */}
+          <button
+            onClick={() => {
+              socket?.emit('get-ranking', { sessionCode: codigo })
+              setShowRanking(true)
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]"
+            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+          >
+            <Trophy className="w-4 h-4" />
+            Vencedores
+          </button>
         </div>
       </div>
+
+      {/* ── Ranking Overlay ── */}
+      <AnimatePresence>
+        {showRanking && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: 'rgba(5, 10, 26, 0.92)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl"
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            >
+              {/* Title */}
+              <h2
+                className="text-2xl font-bold text-center mb-6"
+                style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+              >
+                🏆 Ranking — Top 3
+              </h2>
+
+              {/* Ranking list */}
+              {ranking.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-[#8899CC] text-lg">Nenhum voto registrado ainda</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ranking.slice(0, 3).map((entry, idx) => {
+                    const medals = ['🥇', '🥈', '🥉']
+                    const medalColors = [
+                      'border-[#FFD700] bg-[#FFD700]/10',
+                      'border-[#C0C0C0] bg-[#C0C0C0]/10',
+                      'border-[#CD7F32] bg-[#CD7F32]/10',
+                    ]
+                    return (
+                      <motion.div
+                        key={entry.rgm}
+                        className={`flex items-center gap-4 p-4 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'}`}
+                        initial={{ x: -40, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ duration: 0.3, delay: idx * 0.15 }}
+                      >
+                        <span className="text-3xl">{medals[idx]}</span>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-[#E8EDFF] font-bold text-lg truncate"
+                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                          >
+                            {entry.name}
+                          </p>
+                          <p className="text-[#8899CC] text-sm">RGM: {entry.rgm}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p
+                            className="text-[#C8A84B] font-bold text-xl"
+                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                          >
+                            {entry.corrects}/{totalQuestions}
+                          </p>
+                          <p className="text-[#8899CC] text-xs">
+                            {entry.corrects === 1 ? 'acerto' : 'acertos'}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Close button */}
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={() => setShowRanking(false)}
+                  className="px-6 py-2.5 bg-[#C8A84B] text-[#050A1A] font-bold rounded-lg hover:bg-[#d4b85c] transition-colors text-sm"
+                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Final Ranking Screen (when session ends) ── */}
+      <AnimatePresence>
+        {showFinalRanking && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: '#050A1A' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <motion.div
+              className="max-w-lg w-full mx-4 text-center"
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+            >
+              <h1
+                className="text-4xl font-bold mb-2"
+                style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+              >
+                🏆 Sessão Encerrada
+              </h1>
+              <p className="text-[#8899CC] text-lg mb-8">Ranking Final</p>
+
+              {ranking.length === 0 ? (
+                <div className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8">
+                  <p className="text-[#8899CC] text-lg">Nenhum voto registrado ainda</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ranking.slice(0, 3).map((entry, idx) => {
+                    const medals = ['🥇', '🥈', '🥉']
+                    const medalColors = [
+                      'border-[#FFD700] bg-[#FFD700]/10',
+                      'border-[#C0C0C0] bg-[#C0C0C0]/10',
+                      'border-[#CD7F32] bg-[#CD7F32]/10',
+                    ]
+                    return (
+                      <motion.div
+                        key={entry.rgm}
+                        className={`flex items-center gap-4 p-5 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.4, delay: 0.3 + idx * 0.2 }}
+                      >
+                        <span className="text-4xl">{medals[idx]}</span>
+                        <div className="flex-1 min-w-0 text-left">
+                          <p
+                            className="text-[#E8EDFF] font-bold text-xl truncate"
+                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                          >
+                            {entry.name}
+                          </p>
+                          <p className="text-[#8899CC] text-sm">RGM: {entry.rgm}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p
+                            className="text-[#C8A84B] font-bold text-2xl"
+                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                          >
+                            {entry.corrects}/{totalQuestions}
+                          </p>
+                          <p className="text-[#8899CC] text-xs">
+                            {entry.corrects === 1 ? 'acerto' : 'acertos'}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="mt-8">
+                <button
+                  onClick={() => router.push('/')}
+                  className="px-8 py-3 bg-[#C8A84B] text-[#050A1A] font-bold rounded-xl hover:bg-[#d4b85c] transition-colors text-lg"
+                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                >
+                  Voltar ao Início
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

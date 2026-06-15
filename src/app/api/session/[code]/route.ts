@@ -13,6 +13,9 @@ export async function GET(
       include: {
         questions: {
           orderBy: { orderIndex: 'asc' }
+        },
+        students: {
+          orderBy: { score: 'desc' }
         }
       }
     })
