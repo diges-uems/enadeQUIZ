@@ -1,0 +1,940 @@
+     1→'use client'
+     2→
+     3→import React, { useEffect, useState, useCallback } from 'react'
+     4→import { useRouter } from 'next/navigation'
+     5→import { io, Socket } from 'socket.io-client'
+     6→import { QRCode } from 'react-qrcode-logo'
+     7→import {
+     8→  PieChart,
+     9→  Pie,
+    10→  Cell,
+    11→  ResponsiveContainer,
+    12→  Tooltip,
+    13→} from 'recharts'
+    14→import {
+    15→  ChevronLeft,
+    16→  ChevronRight,
+    17→  Pause,
+    18→  Play,
+    19→  KeyRound,
+    20→  Users,
+    21→  Trophy,
+    22→} from 'lucide-react'
+    23→import { motion, AnimatePresence } from 'framer-motion'
+    24→
+    25→// ─── Types ────────────────────────────────────────────────────────
+    26→interface Question {
+    27→  id: string
+    28→  sessionId: string
+    29→  text: string
+    30→  year: number
+    31→  course: string
+    32→  altA: string
+    33→  altB: string
+    34→  altC: string
+    35→  altD: string
+    36→  altE: string
+    37→  correctAnswer: string
+    38→  imageUrl: string | null
+    39→  isRevealed: boolean
+    40→  orderIndex: number
+    41→  createdAt: string
+    42→  updatedAt: string
+    43→}
+    44→
+    45→interface SessionData {
+    46→  id: string
+    47→  code: string
+    48→  title: string
+    49→  status: string
+    50→  currentQuestionId: string | null
+    51→  createdAt: string
+    52→  updatedAt: string
+    53→  questions: Question[]
+    54→}
+    55→
+    56→interface VoteResults {
+    57→  A: number
+    58→  B: number
+    59→  C: number
+    60→  D: number
+    61→  E: number
+    62→  total: number
+    63→}
+    64→
+    65→interface RankingEntry {
+    66→  name: string
+    67→  rgm: string
+    68→  score: number
+    69→  answers: number
+    70→  corrects: number
+    71→}
+    72→
+    73→// ─── Constants ────────────────────────────────────────────────────
+    74→const COLORS: Record<string, string> = {
+    75→  A: '#00338C',
+    76→  B: '#C8A84B',
+    77→  C: '#2196F3',
+    78→  D: '#4CAF50',
+    79→  E: '#F44336',
+    80→}
+    81→
+    82→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+    83→
+    84→// ─── Component ────────────────────────────────────────────────────
+    85→export default function ApresentacaoPage({
+    86→  params,
+    87→}: {
+    88→  params: Promise<{ codigo: string }>
+    89→}) {
+    90→  const { codigo } = React.use(params)
+    91→  const router = useRouter()
+    92→
+    93→  // ── State ──
+    94→  const [session, setSession] = useState<SessionData | null>(null)
+    95→  const [loading, setLoading] = useState(true)
+    96→  const [notFound, setNotFound] = useState(false)
+    97→  const [socket, setSocket] = useState<Socket | null>(null)
+    98→  const [participantCount, setParticipantCount] = useState(0)
+    99→  const [votingPaused, setVotingPaused] = useState(false)
+   100→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   101→    A: 0,
+   102→    B: 0,
+   103→    C: 0,
+   104→    D: 0,
+   105→    E: 0,
+   106→    total: 0,
+   107→  })
+   108→  const [revealed, setRevealed] = useState(false)
+   109→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   110→  const [isNavigating, setIsNavigating] = useState(false)
+   111→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   112→  const [showRanking, setShowRanking] = useState(false)
+   113→  const [showFinalRanking, setShowFinalRanking] = useState(false)
+   114→
+   115→  // ── Derived ──
+   116→  const currentQuestion = session?.questions.find(
+   117→    (q) => q.id === currentQuestionId
+   118→  ) ?? null
+   119→  const currentIndex = session?.questions.findIndex(
+   120→    (q) => q.id === currentQuestionId
+   121→  ) ?? -1
+   122→  const totalQuestions = session?.questions.length ?? 0
+   123→  const hasPrev = currentIndex > 0
+   124→  const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
+   125→
+   126→  // ── Fetch session data ──
+   127→  const fetchSession = useCallback(async () => {
+   128→    try {
+   129→      const res = await fetch(`/api/session/${codigo}`)
+   130→      if (!res.ok) {
+   131→        setNotFound(true)
+   132→        return
+   133→      }
+   134→      const data: SessionData = await res.json()
+   135→      setSession(data)
+   136→      setCurrentQuestionId(data.currentQuestionId)
+   137→      if (data.currentQuestionId) {
+   138→        const q = data.questions.find((q) => q.id === data.currentQuestionId)
+   139→        if (q) setRevealed(q.isRevealed)
+   140→      }
+   141→    } catch {
+   142→      setNotFound(true)
+   143→    } finally {
+   144→      setLoading(false)
+   145→    }
+   146→  }, [codigo])
+   147→
+   148→  // ── Socket connection ──
+   149→  useEffect(() => {
+   150→    fetchSession()
+   151→  }, [fetchSession])
+   152→
+   153→  useEffect(() => {
+   154→    if (!session) return
+   155→
+   156→    const socketInstance = io('/?XTransformPort=3003', {
+   157→      transports: ['websocket', 'polling'],
+   158→      forceNew: true,
+   159→      reconnection: true,
+   160→      reconnectionAttempts: 10,
+   161→      reconnectionDelay: 1000,
+   162→      timeout: 10000,
+   163→    })
+   164→
+   165→    socketInstance.on('connect', () => {
+   166→      socketInstance.emit('join-session', {
+   167→        sessionCode: codigo,
+   168→        role: 'presenter',
+   169→      })
+   170→    })
+   171→
+   172→    socketInstance.on('vote-results', (data: VoteResults) => {
+   173→      setVoteResults(data)
+   174→    })
+   175→
+   176→    socketInstance.on('participant-count', (count: number) => {
+   177→      setParticipantCount(count)
+   178→    })
+   179→
+   180→    socketInstance.on('session-state', (data: {
+   181→      participantCount: number
+   182→      currentQuestionId: string | null
+   183→      votingPaused: boolean
+   184→    }) => {
+   185→      setParticipantCount(data.participantCount)
+   186→      setCurrentQuestionId(data.currentQuestionId)
+   187→      setVotingPaused(data.votingPaused)
+   188→    })
+   189→
+   190→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   191→      setRanking(data)
+   192→    })
+   193→
+   194→    socketInstance.on('session-finished', () => {
+   195→      // Request final ranking before showing end screen
+   196→      socketInstance.emit('get-ranking', { sessionCode: codigo })
+   197→      setShowFinalRanking(true)
+   198→    })
+   199→
+   200→    setSocket(socketInstance)
+   201→
+   202→    return () => {
+   203→      socketInstance.disconnect()
+   204→    }
+   205→  }, [session, codigo])
+   206→
+   207→  // ── Update session on server ──
+   208→  const updateSession = async (updates: {
+   209→    status?: string
+   210→    currentQuestionId?: string | null
+   211→  }) => {
+   212→    try {
+   213→      await fetch(`/api/session/${codigo}`, {
+   214→        method: 'PATCH',
+   215→        headers: { 'Content-Type': 'application/json' },
+   216→        body: JSON.stringify(updates),
+   217→      })
+   218→    } catch (err) {
+   219→      console.error('Failed to update session:', err)
+   220→    }
+   221→  }
+   222→
+   223→  // ── Navigation handlers ──
+   224→  const handlePrevious = async () => {
+   225→    if (!session || !hasPrev || isNavigating) return
+   226→    setIsNavigating(true)
+   227→    const prevQuestion = session.questions[currentIndex - 1]
+   228→    setCurrentQuestionId(prevQuestion.id)
+   229→    setRevealed(prevQuestion.isRevealed)
+   230→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   231→    await updateSession({ currentQuestionId: prevQuestion.id })
+   232→    socket?.emit('activate-question', {
+   233→      sessionCode: codigo,
+   234→      questionId: prevQuestion.id,
+   235→    })
+   236→    setTimeout(() => setIsNavigating(false), 300)
+   237→  }
+   238→
+   239→  const handleNext = async () => {
+   240→    if (!session || !hasNext || isNavigating) return
+   241→    setIsNavigating(true)
+   242→    const nextQuestion = session.questions[currentIndex + 1]
+   243→    setCurrentQuestionId(nextQuestion.id)
+   244→    setRevealed(nextQuestion.isRevealed)
+   245→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   246→    await updateSession({ currentQuestionId: nextQuestion.id })
+   247→    socket?.emit('next-question', {
+   248→      sessionCode: codigo,
+   249→      questionId: nextQuestion.id,
+   250→    })
+   251→    setTimeout(() => setIsNavigating(false), 300)
+   252→  }
+   253→
+   254→  const handleToggleVoting = () => {
+   255→    const newPaused = !votingPaused
+   256→    setVotingPaused(newPaused)
+   257→    socket?.emit('toggle-voting', {
+   258→      sessionCode: codigo,
+   259→      paused: newPaused,
+   260→    })
+   261→  }
+   262→
+   263→  const handleRevealAnswer = async () => {
+   264→    if (!currentQuestion) return
+   265→    setRevealed(true)
+   266→    // Update DB
+   267→    await fetch(
+   268→      `/api/session/${codigo}/questions/${currentQuestion.id}`,
+   269→      {
+   270→        method: 'PUT',
+   271→        headers: { 'Content-Type': 'application/json' },
+   272→        body: JSON.stringify({ isRevealed: true }),
+   273→      }
+   274→    )
+   275→    socket?.emit('reveal-answer', {
+   276→      sessionCode: codigo,
+   277→      questionId: currentQuestion.id,
+   278→      correctAnswer: currentQuestion.correctAnswer,
+   279→    })
+   280→  }
+   281→
+   282→  const handleSelectQuestion = async (questionId: string) => {
+   283→    if (isNavigating) return
+   284→    setIsNavigating(true)
+   285→    const q = session?.questions.find((q) => q.id === questionId)
+   286→    setCurrentQuestionId(questionId)
+   287→    setRevealed(q?.isRevealed ?? false)
+   288→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   289→    await updateSession({ currentQuestionId: questionId })
+   290→    socket?.emit('activate-question', {
+   291→      sessionCode: codigo,
+   292→      questionId,
+   293→    })
+   294→    setTimeout(() => setIsNavigating(false), 300)
+   295→  }
+   296→
+   297→  // ── Pie chart data ──
+   298→  const pieData = ALT_LABELS.map((alt) => ({
+   299→    name: alt,
+   300→    value: voteResults[alt] ?? 0,
+   301→    color: COLORS[alt],
+   302→  })).filter((d) => d.value > 0)
+   303→
+   304→  const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
+   305→
+   306→  // ── Custom label renderer for pie slices ──
+   307→  const renderCustomLabel = ({
+   308→    cx,
+   309→    cy,
+   310→    midAngle,
+   311→    innerRadius,
+   312→    outerRadius,
+   313→    name,
+   314→    percent,
+   315→  }: {
+   316→    cx: number
+   317→    cy: number
+   318→    midAngle: number
+   319→    innerRadius: number
+   320→    outerRadius: number
+   321→    name: string
+   322→    percent: number
+   323→  }) => {
+   324→    if (percent < 0.05) return null
+   325→    const RADIAN = Math.PI / 180
+   326→    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+   327→    const x = cx + radius * Math.cos(-midAngle * RADIAN)
+   328→    const y = cy + radius * Math.sin(-midAngle * RADIAN)
+   329→    return (
+   330→      <text
+   331→        x={x}
+   332→        y={y}
+   333→        fill="#E8EDFF"
+   334→        textAnchor="middle"
+   335→        dominantBaseline="central"
+   336→        fontSize={14}
+   337→        fontWeight="bold"
+   338→        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   339→      >
+   340→        <tspan x={x} dy="-0.5em">{name}</tspan>
+   341→        <tspan x={x} dy="1.2em">{`${(percent * 100).toFixed(0)}%`}</tspan>
+   342→      </text>
+   343→    )
+   344→  }
+   345→
+   346→  // ── Custom tooltip ──
+   347→  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
+   348→    if (active && payload && payload.length) {
+   349→      const item = payload[0]
+   350→      const pct = totalVotes > 0 ? ((item.value / totalVotes) * 100).toFixed(1) : '0.0'
+   351→      return (
+   352→        <div className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-lg px-3 py-2 shadow-xl">
+   353→          <p className="text-[#E8EDFF] font-bold" style={{ fontFamily: 'var(--font-space-grotesk)' }}>
+   354→            {item.name} — {pct}%
+   355→          </p>
+   356→          <p className="text-[#8899CC] text-sm">
+   357→            {item.value} {item.value === 1 ? 'voto' : 'votos'}
+   358→          </p>
+   359→        </div>
+   360→      )
+   361→    }
+   362→    return null
+   363→  }
+   364→
+   365→  // ─── Loading state ───
+   366→  if (loading) {
+   367→    return (
+   368→      <div className="h-screen flex items-center justify-center" style={{ background: '#050A1A' }}>
+   369→        <div className="flex flex-col items-center gap-4">
+   370→          <div className="w-12 h-12 border-4 border-[#C8A84B] border-t-transparent rounded-full animate-spin" />
+   371→          <p className="text-[#E8EDFF] text-lg" style={{ fontFamily: 'var(--font-space-grotesk)' }}>
+   372→            Carregando sessão...
+   373→          </p>
+   374→        </div>
+   375→      </div>
+   376→    )
+   377→  }
+   378→
+   379→  // ─── Not found state ───
+   380→  if (notFound || !session) {
+   381→    return (
+   382→      <div className="h-screen flex items-center justify-center" style={{ background: '#050A1A' }}>
+   383→        <div className="text-center space-y-4">
+   384→          <h1
+   385→            className="text-4xl font-bold text-[#E8EDFF]"
+   386→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   387→          >
+   388→            Sessão não encontrada
+   389→          </h1>
+   390→          <p className="text-[#8899CC] text-lg">
+   391→            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   392→          </p>
+   393→          <button
+   394→            onClick={() => router.push('/')}
+   395→            className="mt-6 px-6 py-3 bg-[#C8A84B] text-[#050A1A] font-bold rounded-lg hover:bg-[#d4b85c] transition-colors"
+   396→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   397→          >
+   398→            Voltar ao Início
+   399→          </button>
+   400→        </div>
+   401→      </div>
+   402→    )
+   403→  }
+   404→
+   405→  // ─── No questions state ───
+   406→  if (session.questions.length === 0) {
+   407→    return (
+   408→      <div className="h-screen flex flex-col" style={{ background: '#050A1A' }}>
+   409→        {/* Header */}
+   410→        <header className="flex items-center justify-between px-6 py-4 border-b border-[#1A2A5E]">
+   411→          <div className="flex items-center gap-3">
+   412→            <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+   413→            <span
+   414→              className="text-[#E8EDFF] text-lg font-semibold"
+   415→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   416→            >
+   417→              ENADE Quiz
+   418→            </span>
+   419→          </div>
+   420→          <div className="flex items-center gap-4">
+   421→            <span className="text-[#8899CC]">{session.title}</span>
+   422→            <span className="px-3 py-1 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm">
+   423→              {codigo}
+   424→            </span>
+   425→          </div>
+   426→        </header>
+   427→        <div className="flex-1 flex items-center justify-center">
+   428→          <div className="text-center space-y-4">
+   429→            <h2
+   430→              className="text-3xl font-bold text-[#E8EDFF]"
+   431→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   432→            >
+   433→              Nenhuma questão cadastrada
+   434→            </h2>
+   435→            <p className="text-[#8899CC] text-lg">
+   436→              Adicione questões à sessão antes de iniciar a apresentação.
+   437→            </p>
+   438→          </div>
+   439→        </div>
+   440→      </div>
+   441→    )
+   442→  }
+   443→
+   444→  // ─── Main presenter screen ───
+   445→  return (
+   446→    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
+   447→      {/* ── Header Bar ── */}
+   448→      <header className="flex items-center justify-between px-6 py-3 border-b border-[#1A2A5E] shrink-0">
+   449→        <div className="flex items-center gap-3">
+   450→          <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+   451→          <span
+   452→            className="text-[#E8EDFF] text-lg font-semibold"
+   453→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   454→          >
+   455→            ENADE Quiz
+   456→          </span>
+   457→          <span className="text-[#8899CC]">—</span>
+   458→          <span className="text-[#8899CC]">{session.title}</span>
+   459→        </div>
+   460→        <div className="flex items-center gap-4">
+   461→          <span className="px-3 py-1 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider">
+   462→            {codigo}
+   463→          </span>
+   464→        </div>
+   465→      </header>
+   466→
+   467→      {/* ── Main Content: QR + Chart ── */}
+   468→      <div className="flex-1 flex min-h-0">
+   469→        {/* Left: QR Code */}
+   470→        <div className="w-[380px] shrink-0 flex flex-col items-center justify-center p-6 border-r border-[#1A2A5E]">
+   471→          <div
+   472→            className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4"
+   473→          >
+   474→            <QRCode
+   475→              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+   476→              size={280}
+   477→              bgColor="#0D1B3E"
+   478→              fgColor="#E8EDFF"
+   479→              qrStyle="dots"
+   480→              eyeRadius={8}
+   481→              logoImage="/logo.svg"
+   482→              logoSize={50}
+   483→            />
+   484→            <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+   485→              <p className="text-[#8899CC] text-sm">acesse:</p>
+   486→              <p
+   487→                className="text-[#E8EDFF] text-lg font-bold"
+   488→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   489→              >
+   490→                enade.uems.br
+   491→              </p>
+   492→              <p className="text-[#8899CC] text-sm">código:</p>
+   493→              <p
+   494→                className="text-[#C8A84B] text-2xl font-bold tracking-widest"
+   495→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   496→              >
+   497→                {codigo}
+   498→              </p>
+   499→            </div>
+   500→            <div className="flex items-center gap-2 pt-2">
+   501→              <Users className="w-5 h-5 text-[#C8A84B]" />
+   502→              <span
+   503→                className="text-[#E8EDFF] text-lg font-semibold"
+   504→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   505→              >
+   506→                {participantCount} {participantCount === 1 ? 'participante' : 'participantes'}
+   507→              </span>
+   508→            </div>
+   509→          </div>
+   510→        </div>
+   511→
+   512→        {/* Right: Chart + Legend */}
+   513→        <div className="flex-1 flex flex-col items-center justify-center p-6 min-w-0">
+   514→          {!currentQuestion ? (
+   515→            <div className="text-center space-y-4">
+   516→              <h2
+   517→                className="text-2xl font-bold text-[#E8EDFF]"
+   518→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   519→              >
+   520→                Selecione uma questão para começar
+   521→              </h2>
+   522→              <div className="flex flex-wrap gap-2 justify-center mt-4">
+   523→                {session.questions.map((q, idx) => (
+   524→                  <button
+   525→                    key={q.id}
+   526→                    onClick={() => handleSelectQuestion(q.id)}
+   527→                    className="px-4 py-2 bg-[#0D1B3E] border border-[#1A2A5E] rounded-lg text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B] transition-colors"
+   528→                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   529→                  >
+   530→                    Q{idx + 1}
+   531→                  </button>
+   532→                ))}
+   533→              </div>
+   534→            </div>
+   535→          ) : (
+   536→            <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+   537→              {/* Pie Chart */}
+   538→              <div className="w-full max-w-md aspect-square">
+   539→                {pieData.length > 0 ? (
+   540→                  <ResponsiveContainer width="100%" height="100%">
+   541→                    <PieChart>
+   542→                      <Pie
+   543→                        data={pieData}
+   544→                        cx="50%"
+   545→                        cy="50%"
+   546→                        outerRadius="80%"
+   547→                        innerRadius="25%"
+   548→                        dataKey="value"
+   549→                        labelLine={false}
+   550→                        label={renderCustomLabel}
+   551→                        isAnimationActive={true}
+   552→                        animationDuration={300}
+   553→                      >
+   554→                        {pieData.map((entry, index) => {
+   555→                          const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+   556→                          return (
+   557→                            <Cell
+   558→                              key={`cell-${index}`}
+   559→                              fill={entry.color}
+   560→                              stroke={isCorrect ? '#C8A84B' : 'transparent'}
+   561→                              strokeWidth={isCorrect ? 3 : 0}
+   562→                              opacity={revealed && !isCorrect ? 0.4 : 1}
+   563→                            />
+   564→                          )
+   565→                        })}
+   566→                      </Pie>
+   567→                      <Tooltip content={<CustomTooltip />} />
+   568→                    </PieChart>
+   569→                  </ResponsiveContainer>
+   570→                ) : (
+   571→                  <div className="h-full flex items-center justify-center">
+   572→                    <div className="text-center space-y-2">
+   573→                      <div className="w-24 h-24 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center">
+   574→                        <span className="text-[#8899CC] text-sm">Sem votos</span>
+   575→                      </div>
+   576→                      <p className="text-[#8899CC] text-sm">Aguardando votos...</p>
+   577→                    </div>
+   578→                  </div>
+   579→                )}
+   580→              </div>
+   581→
+   582→              {/* Legend */}
+   583→              <div className="grid grid-cols-1 gap-1 w-full max-w-sm">
+   584→                {ALT_LABELS.map((alt) => {
+   585→                  const votes = voteResults[alt] ?? 0
+   586→                  const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
+   587→                  const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+   588→                  const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+   589→                  const altText = currentQuestion ? currentQuestion[altKey] : ''
+   590→
+   591→                  return (
+   592→                    <div
+   593→                      key={alt}
+   594→                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+   595→                        isCorrect
+   596→                          ? 'bg-[#C8A84B]/10 border border-[#C8A84B]/40'
+   597→                          : revealed
+   598→                          ? 'opacity-40'
+   599→                          : ''
+   600→                      }`}
+   601→                    >
+   602→                      <span
+   603→                        className="w-3 h-3 rounded-full shrink-0"
+   604→                        style={{ backgroundColor: COLORS[alt] }}
+   605→                      />
+   606→                      <span
+   607→                        className={`font-bold text-sm ${
+   608→                          isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'
+   609→                        }`}
+   610→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   611→                      >
+   612→                        {alt}
+   613→                      </span>
+   614→                      <span className="text-[#8899CC] text-sm flex-1 truncate">
+   615→                        — {altText}
+   616→                      </span>
+   617→                      <span className="text-[#E8EDFF] font-bold text-sm shrink-0">
+   618→                        {pct}%
+   619→                      </span>
+   620→                      <span className="text-[#8899CC] text-xs shrink-0">
+   621→                        ({votes} {votes === 1 ? 'voto' : 'votos'})
+   622→                      </span>
+   623→                    </div>
+   624→                  )
+   625→                })}
+   626→                <div className="flex justify-center pt-2 border-t border-[#1A2A5E] mt-1">
+   627→                  <span className="text-[#8899CC] text-sm">
+   628→                    Total: <strong className="text-[#E8EDFF]">{totalVotes}</strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+   629→                  </span>
+   630→                </div>
+   631→              </div>
+   632→            </div>
+   633→          )}
+   634→        </div>
+   635→      </div>
+   636→
+   637→      {/* ── Question Bar ── */}
+   638→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0D1B3E] px-6 py-4">
+   639→        {currentQuestion ? (
+   640→          <div className="flex items-start gap-4">
+   641→            <span
+   642→              className="text-[#C8A84B] font-bold text-lg shrink-0 pt-0.5"
+   643→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   644→            >
+   645→              Questão {currentIndex + 1}/{totalQuestions}:
+   646→            </span>
+   647→            <p className="text-[#E8EDFF] text-base leading-relaxed line-clamp-3">
+   648→              {currentQuestion.text}
+   649→            </p>
+   650→            {revealed && (
+   651→              <span className="shrink-0 px-3 py-1 bg-[#C8A84B] text-[#050A1A] font-bold rounded text-sm"
+   652→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   653→              >
+   654→                Gabarito: {currentQuestion.correctAnswer}
+   655→              </span>
+   656→            )}
+   657→            {votingPaused && !revealed && (
+   658→              <span className="shrink-0 px-3 py-1 bg-[#F44336]/20 border border-[#F44336]/40 text-[#F44336] font-bold rounded text-sm"
+   659→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   660→              >
+   661→                ⏸ Votação pausada
+   662→              </span>
+   663→            )}
+   664→          </div>
+   665→        ) : (
+   666→          <p className="text-[#8899CC] text-center text-lg">
+   667→            Selecione uma questão para começar
+   668→          </p>
+   669→        )}
+   670→      </div>
+   671→
+   672→      {/* ── Control Bar ── */}
+   673→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-3">
+   674→        <div className="flex items-center justify-center gap-3 flex-wrap">
+   675→          {/* Previous */}
+   676→          <button
+   677→            onClick={handlePrevious}
+   678→            disabled={!hasPrev || isNavigating}
+   679→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   680→              hasPrev && !isNavigating
+   681→                ? 'bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]'
+   682→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   683→            }`}
+   684→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   685→          >
+   686→            <ChevronLeft className="w-4 h-4" />
+   687→            Anterior
+   688→          </button>
+   689→
+   690→          {/* Pause/Resume */}
+   691→          <button
+   692→            onClick={handleToggleVoting}
+   693→            disabled={!currentQuestion || revealed}
+   694→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   695→              currentQuestion && !revealed
+   696→                ? votingPaused
+   697→                  ? 'bg-[#4CAF50] text-[#050A1A] hover:bg-[#66BB6A]'
+   698→                  : 'bg-[#F44336] text-white hover:bg-[#EF5350]'
+   699→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   700→            }`}
+   701→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   702→          >
+   703→            {votingPaused ? (
+   704→              <>
+   705→                <Play className="w-4 h-4" />
+   706→                Retomar
+   707→              </>
+   708→            ) : (
+   709→              <>
+   710→                <Pause className="w-4 h-4" />
+   711→                Pausar
+   712→              </>
+   713→            )}
+   714→          </button>
+   715→
+   716→          {/* Next */}
+   717→          <button
+   718→            onClick={handleNext}
+   719→            disabled={!hasNext || isNavigating}
+   720→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   721→              hasNext && !isNavigating
+   722→                ? 'bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]'
+   723→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   724→            }`}
+   725→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   726→          >
+   727→            Próxima
+   728→            <ChevronRight className="w-4 h-4" />
+   729→          </button>
+   730→
+   731→          {/* Reveal Answer */}
+   732→          <button
+   733→            onClick={handleRevealAnswer}
+   734→            disabled={!currentQuestion || revealed}
+   735→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   736→              currentQuestion && !revealed
+   737→                ? 'bg-[#C8A84B] text-[#050A1A] hover:bg-[#d4b85c]'
+   738→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   739→            }`}
+   740→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   741→          >
+   742→            <KeyRound className="w-4 h-4" />
+   743→            Gabarito
+   744→          </button>
+   745→
+   746→          {/* Winners / Ranking */}
+   747→          <button
+   748→            onClick={() => {
+   749→              socket?.emit('get-ranking', { sessionCode: codigo })
+   750→              setShowRanking(true)
+   751→            }}
+   752→            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]"
+   753→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   754→          >
+   755→            <Trophy className="w-4 h-4" />
+   756→            Vencedores
+   757→          </button>
+   758→        </div>
+   759→      </div>
+   760→
+   761→      {/* ── Ranking Overlay ── */}
+   762→      <AnimatePresence>
+   763→        {showRanking && (
+   764→          <motion.div
+   765→            className="fixed inset-0 z-50 flex items-center justify-center"
+   766→            style={{ background: 'rgba(5, 10, 26, 0.92)' }}
+   767→            initial={{ opacity: 0 }}
+   768→            animate={{ opacity: 1 }}
+   769→            exit={{ opacity: 0 }}
+   770→            transition={{ duration: 0.3 }}
+   771→          >
+   772→            <motion.div
+   773→              className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl"
+   774→              initial={{ y: 80, opacity: 0 }}
+   775→              animate={{ y: 0, opacity: 1 }}
+   776→              exit={{ y: 80, opacity: 0 }}
+   777→              transition={{ duration: 0.4, ease: 'easeOut' }}
+   778→            >
+   779→              {/* Title */}
+   780→              <h2
+   781→                className="text-2xl font-bold text-center mb-6"
+   782→                style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+   783→              >
+   784→                🏆 Ranking — Top 3
+   785→              </h2>
+   786→
+   787→              {/* Ranking list */}
+   788→              {ranking.length === 0 ? (
+   789→                <div className="text-center py-8">
+   790→                  <p className="text-[#8899CC] text-lg">Nenhum voto registrado ainda</p>
+   791→                </div>
+   792→              ) : (
+   793→                <div className="space-y-3">
+   794→                  {ranking.slice(0, 3).map((entry, idx) => {
+   795→                    const medals = ['🥇', '🥈', '🥉']
+   796→                    const medalColors = [
+   797→                      'border-[#FFD700] bg-[#FFD700]/10',
+   798→                      'border-[#C0C0C0] bg-[#C0C0C0]/10',
+   799→                      'border-[#CD7F32] bg-[#CD7F32]/10',
+   800→                    ]
+   801→                    return (
+   802→                      <motion.div
+   803→                        key={entry.rgm}
+   804→                        className={`flex items-center gap-4 p-4 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'}`}
+   805→                        initial={{ x: -40, opacity: 0 }}
+   806→                        animate={{ x: 0, opacity: 1 }}
+   807→                        transition={{ duration: 0.3, delay: idx * 0.15 }}
+   808→                      >
+   809→                        <span className="text-3xl">{medals[idx]}</span>
+   810→                        <div className="flex-1 min-w-0">
+   811→                          <p
+   812→                            className="text-[#E8EDFF] font-bold text-lg truncate"
+   813→                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   814→                          >
+   815→                            {entry.name}
+   816→                          </p>
+   817→                          <p className="text-[#8899CC] text-sm">RGM: {entry.rgm}</p>
+   818→                        </div>
+   819→                        <div className="text-right shrink-0">
+   820→                          <p
+   821→                            className="text-[#C8A84B] font-bold text-xl"
+   822→                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   823→                          >
+   824→                            {entry.corrects}/{totalQuestions}
+   825→                          </p>
+   826→                          <p className="text-[#8899CC] text-xs">
+   827→                            {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   828→                          </p>
+   829→                        </div>
+   830→                      </motion.div>
+   831→                    )
+   832→                  })}
+   833→                </div>
+   834→              )}
+   835→
+   836→              {/* Close button */}
+   837→              <div className="mt-6 flex justify-center">
+   838→                <button
+   839→                  onClick={() => setShowRanking(false)}
+   840→                  className="px-6 py-2.5 bg-[#C8A84B] text-[#050A1A] font-bold rounded-lg hover:bg-[#d4b85c] transition-colors text-sm"
+   841→                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   842→                >
+   843→                  Fechar
+   844→                </button>
+   845→              </div>
+   846→            </motion.div>
+   847→          </motion.div>
+   848→        )}
+   849→      </AnimatePresence>
+   850→
+   851→      {/* ── Final Ranking Screen (when session ends) ── */}
+   852→      <AnimatePresence>
+   853→        {showFinalRanking && (
+   854→          <motion.div
+   855→            className="fixed inset-0 z-50 flex items-center justify-center"
+   856→            style={{ background: '#050A1A' }}
+   857→            initial={{ opacity: 0 }}
+   858→            animate={{ opacity: 1 }}
+   859→            exit={{ opacity: 0 }}
+   860→            transition={{ duration: 0.5 }}
+   861→          >
+   862→            <motion.div
+   863→              className="max-w-lg w-full mx-4 text-center"
+   864→              initial={{ y: 60, opacity: 0 }}
+   865→              animate={{ y: 0, opacity: 1 }}
+   866→              transition={{ duration: 0.6, ease: 'easeOut' }}
+   867→            >
+   868→              <h1
+   869→                className="text-4xl font-bold mb-2"
+   870→                style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+   871→              >
+   872→                🏆 Sessão Encerrada
+   873→              </h1>
+   874→              <p className="text-[#8899CC] text-lg mb-8">Ranking Final</p>
+   875→
+   876→              {ranking.length === 0 ? (
+   877→                <div className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8">
+   878→                  <p className="text-[#8899CC] text-lg">Nenhum voto registrado ainda</p>
+   879→                </div>
+   880→              ) : (
+   881→                <div className="space-y-3">
+   882→                  {ranking.slice(0, 3).map((entry, idx) => {
+   883→                    const medals = ['🥇', '🥈', '🥉']
+   884→                    const medalColors = [
+   885→                      'border-[#FFD700] bg-[#FFD700]/10',
+   886→                      'border-[#C0C0C0] bg-[#C0C0C0]/10',
+   887→                      'border-[#CD7F32] bg-[#CD7F32]/10',
+   888→                    ]
+   889→                    return (
+   890→                      <motion.div
+   891→                        key={entry.rgm}
+   892→                        className={`flex items-center gap-4 p-5 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
+   893→                        initial={{ scale: 0.8, opacity: 0 }}
+   894→                        animate={{ scale: 1, opacity: 1 }}
+   895→                        transition={{ duration: 0.4, delay: 0.3 + idx * 0.2 }}
+   896→                      >
+   897→                        <span className="text-4xl">{medals[idx]}</span>
+   898→                        <div className="flex-1 min-w-0 text-left">
+   899→                          <p
+   900→                            className="text-[#E8EDFF] font-bold text-xl truncate"
+   901→                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   902→                          >
+   903→                            {entry.name}
+   904→                          </p>
+   905→                          <p className="text-[#8899CC] text-sm">RGM: {entry.rgm}</p>
+   906→                        </div>
+   907→                        <div className="text-right shrink-0">
+   908→                          <p
+   909→                            className="text-[#C8A84B] font-bold text-2xl"
+   910→                            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   911→                          >
+   912→                            {entry.corrects}/{totalQuestions}
+   913→                          </p>
+   914→                          <p className="text-[#8899CC] text-xs">
+   915→                            {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   916→                          </p>
+   917→                        </div>
+   918→                      </motion.div>
+   919→                    )
+   920→                  })}
+   921→                </div>
+   922→              )}
+   923→
+   924→              <div className="mt-8">
+   925→                <button
+   926→                  onClick={() => router.push('/')}
+   927→                  className="px-8 py-3 bg-[#C8A84B] text-[#050A1A] font-bold rounded-xl hover:bg-[#d4b85c] transition-colors text-lg"
+   928→                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   929→                >
+   930→                  Voltar ao Início
+   931→                </button>
+   932→              </div>
+   933→            </motion.div>
+   934→          </motion.div>
+   935→        )}
+   936→      </AnimatePresence>
+   937→    </div>
+   938→  )
+   939→}
+   940→

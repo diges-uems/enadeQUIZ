@@ -591,6 +591,7 @@ export default function StudentVotingPage({
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="bg-[#00338C] text-white px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
+          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
           <span className="font-bold text-sm tracking-wide">ENADE Quiz</span>
         </div>
         <div className="flex items-center gap-3 text-xs opacity-80">
@@ -623,7 +624,7 @@ export default function StudentVotingPage({
                     transition={{ delay: 0.1, type: 'spring' }}
                     className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#00338C] mb-4"
                   >
-                    <span className="text-3xl font-bold text-white">E</span>
+                    <img src="/logo.svg" alt="UEMS" className="h-12 w-12 object-contain" />
                   </motion.div>
                   <h1 className="text-2xl font-bold text-[#00338C] mb-1">
                     ENADE Quiz

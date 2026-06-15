@@ -1,0 +1,1206 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import React, { useState, useEffect, useCallback } from 'react'
+     4→     4→import {
+     5→     5→  DndContext,
+     6→     6→  closestCenter,
+     7→     7→  KeyboardSensor,
+     8→     8→  PointerSensor,
+     9→     9→  useSensor,
+    10→    10→  useSensors,
+    11→    11→  type DragEndEvent,
+    12→    12→} from '@dnd-kit/core'
+    13→    13→import {
+    14→    14→  arrayMove,
+    15→    15→  SortableContext,
+    16→    16→  sortableKeyboardCoordinates,
+    17→    17→  useSortable,
+    18→    18→  verticalListSortingStrategy,
+    19→    19→} from '@dnd-kit/sortable'
+    20→    20→import { CSS } from '@dnd-kit/utilities'
+    21→    21→import { toast } from 'sonner'
+    22→    22→import {
+    23→    23→  Card,
+    24→    24→  CardContent,
+    25→    25→  CardDescription,
+    26→    26→  CardHeader,
+    27→    27→  CardTitle,
+    28→    28→} from '@/components/ui/card'
+    29→    29→import { Button } from '@/components/ui/button'
+    30→    30→import { Input } from '@/components/ui/input'
+    31→    31→import { Label } from '@/components/ui/label'
+    32→    32→import { Textarea } from '@/components/ui/textarea'
+    33→    33→import { Badge } from '@/components/ui/badge'
+    34→    34→import {
+    35→    35→  Dialog,
+    36→    36→  DialogContent,
+    37→    37→  DialogDescription,
+    38→    38→  DialogFooter,
+    39→    39→  DialogHeader,
+    40→    40→  DialogTitle,
+    41→    41→} from '@/components/ui/dialog'
+    42→    42→import {
+    43→    43→  AlertDialog,
+    44→    44→  AlertDialogAction,
+    45→    45→  AlertDialogCancel,
+    46→    46→  AlertDialogContent,
+    47→    47→  AlertDialogDescription,
+    48→    48→  AlertDialogFooter,
+    49→    49→  AlertDialogHeader,
+    50→    50→  AlertDialogTitle,
+    51→    51→} from '@/components/ui/alert-dialog'
+    52→    52→import {
+    53→    53→  Select,
+    54→    54→  SelectContent,
+    55→    55→  SelectItem,
+    56→    56→  SelectTrigger,
+    57→    57→  SelectValue,
+    58→    58→} from '@/components/ui/select'
+    59→    59→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    60→    60→import { ScrollArea } from '@/components/ui/scroll-area'
+    61→    61→import {
+    62→    62→  Lock,
+    63→    63→  Plus,
+    64→    64→  Trash2,
+    65→    65→  ExternalLink,
+    66→    66→  Settings2,
+    67→    67→  GripVertical,
+    68→    68→  Pencil,
+    69→    69→  FileJson,
+    70→    70→  LogOut,
+    71→    71→  Loader2,
+    72→    72→  ChevronLeft,
+    73→    73→  Copy,
+    74→    74→} from 'lucide-react'
+    75→    75→import type { Session, Question, SessionStatus } from '@/types'
+    76→    76→import { UEMS_COURSES } from '@/types'
+    77→    77→
+    78→    78→// ─── Status Badge ───────────────────────────────────────────────────
+    79→    79→function StatusBadge({ status }: { status: SessionStatus }) {
+    80→    80→  const config: Record<SessionStatus, { label: string; className: string }> = {
+    81→    81→    waiting: {
+    82→    82→      label: 'Aguardando',
+    83→    83→      className:
+    84→    84→        'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+    85→    85→    },
+    86→    86→    active: {
+    87→    87→      label: 'Ativa',
+    88→    88→      className:
+    89→    89→        'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+    90→    90→    },
+    91→    91→    finished: {
+    92→    92→      label: 'Finalizada',
+    93→    93→      className:
+    94→    94→        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
+    95→    95→    },
+    96→    96→  }
+    97→    97→  const c = config[status] || config.waiting
+    98→    98→  return (
+    99→    99→    <Badge variant="outline" className={c.className}>
+   100→   100→      {c.label}
+   101→   101→    </Badge>
+   102→   102→  )
+   103→   103→}
+   104→   104→
+   105→   105→// ─── Sortable Question Item ─────────────────────────────────────────
+   106→   106→function SortableQuestionItem({
+   107→   107→  question,
+   108→   108→  index,
+   109→   109→  onEdit,
+   110→   110→  onDelete,
+   111→   111→}: {
+   112→   112→  question: Question
+   113→   113→  index: number
+   114→   114→  onEdit: (q: Question) => void
+   115→   115→  onDelete: (id: string) => void
+   116→   116→}) {
+   117→   117→  const {
+   118→   118→    attributes,
+   119→   119→    listeners,
+   120→   120→    setNodeRef,
+   121→   121→    transform,
+   122→   122→    transition,
+   123→   123→    isDragging,
+   124→   124→  } = useSortable({ id: question.id })
+   125→   125→
+   126→   126→  const style = {
+   127→   127→    transform: CSS.Transform.toString(transform),
+   128→   128→    transition,
+   129→   129→  }
+   130→   130→
+   131→   131→  return (
+   132→   132→    <div
+   133→   133→      ref={setNodeRef}
+   134→   134→      style={style}
+   135→   135→      className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
+   136→   136→        isDragging
+   137→   137→          ? 'z-50 border-[#C8A84B] bg-[#C8A84B]/5 shadow-lg'
+   138→   138→          : 'border-border bg-card hover:bg-accent/50'
+   139→   139→      }`}
+   140→   140→    >
+   141→   141→      <button
+   142→   142→        className="mt-1 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+   143→   143→        {...attributes}
+   144→   144→        {...listeners}
+   145→   145→      >
+   146→   146→        <GripVertical className="size-4" />
+   147→   147→      </button>
+   148→   148→
+   149→   149→      <div className="flex-1 min-w-0">
+   150→   150→        <div className="flex items-center gap-2 mb-1">
+   151→   151→          <span className="text-xs font-bold text-[#00338C] dark:text-[#C8A84B]">
+   152→   152→            #{index + 1}
+   153→   153→          </span>
+   154→   154→          <span className="text-xs text-muted-foreground">
+   155→   155→            {question.year} &middot; {question.course}
+   156→   156→          </span>
+   157→   157→        </div>
+   158→   158→        <p className="text-sm line-clamp-2 text-foreground">
+   159→   159→          {question.text}
+   160→   160→        </p>
+   161→   161→      </div>
+   162→   162→
+   163→   163→      <div className="flex items-center gap-1 shrink-0">
+   164→   164→        <Button
+   165→   165→          variant="ghost"
+   166→   166→          size="icon"
+   167→   167→          className="size-8"
+   168→   168→          onClick={() => onEdit(question)}
+   169→   169→          title="Editar questão"
+   170→   170→        >
+   171→   171→          <Pencil className="size-3.5" />
+   172→   172→        </Button>
+   173→   173→        <Button
+   174→   174→          variant="ghost"
+   175→   175→          size="icon"
+   176→   176→          className="size-8 text-destructive hover:text-destructive"
+   177→   177→          onClick={() => onDelete(question.id)}
+   178→   178→          title="Excluir questão"
+   179→   179→        >
+   180→   180→          <Trash2 className="size-3.5" />
+   181→   181→        </Button>
+   182→   182→      </div>
+   183→   183→    </div>
+   184→   184→  )
+   185→   185→}
+   186→   186→
+   187→   187→// ─── Question Form (Dialog) ─────────────────────────────────────────
+   188→   188→function QuestionFormDialog({
+   189→   189→  open,
+   190→   190→  onOpenChange,
+   191→   191→  question,
+   192→   192→  sessionId,
+   193→   193→  sessionCode,
+   194→   194→  onSave,
+   195→   195→}: {
+   196→   196→  open: boolean
+   197→   197→  onOpenChange: (open: boolean) => void
+   198→   198→  question: Question | null
+   199→   199→  sessionId: string
+   200→   200→  sessionCode: string
+   201→   201→  onSave: () => void
+   202→   202→}) {
+   203→   203→  const [text, setText] = useState('')
+   204→   204→  const [year, setYear] = useState('2025')
+   205→   205→  const [course, setCourse] = useState('')
+   206→   206→  const [altA, setAltA] = useState('')
+   207→   207→  const [altB, setAltB] = useState('')
+   208→   208→  const [altC, setAltC] = useState('')
+   209→   209→  const [altD, setAltD] = useState('')
+   210→   210→  const [altE, setAltE] = useState('')
+   211→   211→  const [correctAnswer, setCorrectAnswer] = useState('A')
+   212→   212→  const [saving, setSaving] = useState(false)
+   213→   213→
+   214→   214→  const isEditing = question !== null
+   215→   215→
+   216→   216→  useEffect(() => {
+   217→   217→    if (open) {
+   218→   218→      if (question) {
+   219→   219→        setText(question.text)
+   220→   220→        setYear(String(question.year))
+   221→   221→        setCourse(question.course)
+   222→   222→        setAltA(question.altA)
+   223→   223→        setAltB(question.altB)
+   224→   224→        setAltC(question.altC)
+   225→   225→        setAltD(question.altD)
+   226→   226→        setAltE(question.altE)
+   227→   227→        setCorrectAnswer(question.correctAnswer)
+   228→   228→      } else {
+   229→   229→        setText('')
+   230→   230→        setYear('2025')
+   231→   231→        setCourse('')
+   232→   232→        setAltA('')
+   233→   233→        setAltB('')
+   234→   234→        setAltC('')
+   235→   235→        setAltD('')
+   236→   236→        setAltE('')
+   237→   237→        setCorrectAnswer('A')
+   238→   238→      }
+   239→   239→    }
+   240→   240→  }, [open, question])
+   241→   241→
+   242→   242→  const handleSubmit = async () => {
+   243→   243→    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim() || !altE.trim()) {
+   244→   244→      toast.error('Preencha todos os campos obrigatórios.')
+   245→   245→      return
+   246→   246→    }
+   247→   247→
+   248→   248→    setSaving(true)
+   249→   249→    try {
+   250→   250→      if (isEditing && question) {
+   251→   251→        const res = await fetch(
+   252→   252→          `/api/session/${sessionCode}/questions/${question.id}`,
+   253→   253→          {
+   254→   254→            method: 'PUT',
+   255→   255→            headers: { 'Content-Type': 'application/json' },
+   256→   256→            body: JSON.stringify({
+   257→   257→              text,
+   258→   258→              year: parseInt(year),
+   259→   259→              course,
+   260→   260→              altA,
+   261→   261→              altB,
+   262→   262→              altC,
+   263→   263→              altD,
+   264→   264→              altE,
+   265→   265→              correctAnswer,
+   266→   266→            }),
+   267→   267→          }
+   268→   268→        )
+   269→   269→        if (!res.ok) throw new Error('Erro ao atualizar questão')
+   270→   270→        toast.success('Questão atualizada com sucesso!')
+   271→   271→      } else {
+   272→   272→        const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   273→   273→          method: 'POST',
+   274→   274→          headers: { 'Content-Type': 'application/json' },
+   275→   275→          body: JSON.stringify({
+   276→   276→            text,
+   277→   277→            year: parseInt(year),
+   278→   278→            course,
+   279→   279→            altA,
+   280→   280→            altB,
+   281→   281→            altC,
+   282→   282→            altD,
+   283→   283→            altE,
+   284→   284→            correctAnswer,
+   285→   285→          }),
+   286→   286→        })
+   287→   287→        if (!res.ok) throw new Error('Erro ao criar questão')
+   288→   288→        toast.success('Questão criada com sucesso!')
+   289→   289→      }
+   290→   290→      onSave()
+   291→   291→      onOpenChange(false)
+   292→   292→    } catch {
+   293→   293→      toast.error('Erro ao salvar questão.')
+   294→   294→    } finally {
+   295→   295→      setSaving(false)
+   296→   296→    }
+   297→   297→  }
+   298→   298→
+   299→   299→  const years = Array.from({ length: 11 }, (_, i) => 2015 + i)
+   300→   300→
+   301→   301→  return (
+   302→   302→    <Dialog open={open} onOpenChange={onOpenChange}>
+   303→   303→      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+   304→   304→        <DialogHeader>
+   305→   305→          <DialogTitle>
+   306→   306→            {isEditing ? 'Editar Questão' : 'Adicionar Questão'}
+   307→   307→          </DialogTitle>
+   308→   308→          <DialogDescription>
+   309→   309→            {isEditing
+   310→   310→              ? 'Altere os campos desejados e salve.'
+   311→   311→              : 'Preencha os dados da questão do ENADE.'}
+   312→   312→          </DialogDescription>
+   313→   313→        </DialogHeader>
+   314→   314→
+   315→   315→        <div className="grid gap-4 py-2">
+   316→   316→          <div className="grid gap-2">
+   317→   317→            <Label htmlFor="q-text">Enunciado *</Label>
+   318→   318→            <Textarea
+   319→   319→              id="q-text"
+   320→   320→              value={text}
+   321→   321→              onChange={(e) => setText(e.target.value)}
+   322→   322→              rows={5}
+   323→   323→              placeholder="Digite o enunciado da questão..."
+   324→   324→            />
+   325→   325→          </div>
+   326→   326→
+   327→   327→          <div className="grid grid-cols-2 gap-4">
+   328→   328→            <div className="grid gap-2">
+   329→   329→              <Label>Ano ENADE *</Label>
+   330→   330→              <Select value={year} onValueChange={setYear}>
+   331→   331→                <SelectTrigger className="w-full">
+   332→   332→                  <SelectValue placeholder="Selecione o ano" />
+   333→   333→                </SelectTrigger>
+   334→   334→                <SelectContent>
+   335→   335→                  {years.map((y) => (
+   336→   336→                    <SelectItem key={y} value={String(y)}>
+   337→   337→                      {y}
+   338→   338→                    </SelectItem>
+   339→   339→                  ))}
+   340→   340→                </SelectContent>
+   341→   341→              </Select>
+   342→   342→            </div>
+   343→   343→            <div className="grid gap-2">
+   344→   344→              <Label>Curso</Label>
+   345→   345→              <Select value={course} onValueChange={setCourse}>
+   346→   346→                <SelectTrigger className="w-full">
+   347→   347→                  <SelectValue placeholder="Selecione o curso" />
+   348→   348→                </SelectTrigger>
+   349→   349→                <SelectContent>
+   350→   350→                  {UEMS_COURSES.map((c) => (
+   351→   351→                    <SelectItem key={c} value={c}>
+   352→   352→                      {c}
+   353→   353→                    </SelectItem>
+   354→   354→                  ))}
+   355→   355→                </SelectContent>
+   356→   356→              </Select>
+   357→   357→            </div>
+   358→   358→          </div>
+   359→   359→
+   360→   360→          <div className="grid gap-3">
+   361→   361→            <Label>Alternativas *</Label>
+   362→   362→            {[
+   363→   363→              { letter: 'A', value: altA, setter: setAltA },
+   364→   364→              { letter: 'B', value: altB, setter: setAltB },
+   365→   365→              { letter: 'C', value: altC, setter: setAltC },
+   366→   366→              { letter: 'D', value: altD, setter: setAltD },
+   367→   367→              { letter: 'E', value: altE, setter: setAltE },
+   368→   368→            ].map(({ letter, value, setter }) => (
+   369→   369→              <div key={letter} className="flex items-center gap-2">
+   370→   370→                <span className="flex size-7 items-center justify-center rounded bg-[#00338C] text-xs font-bold text-white shrink-0">
+   371→   371→                  {letter}
+   372→   372→                </span>
+   373→   373→                <Input
+   374→   374→                  value={value}
+   375→   375→                  onChange={(e) => setter(e.target.value)}
+   376→   376→                  placeholder={`Alternativa ${letter}`}
+   377→   377→                  className="flex-1"
+   378→   378→                />
+   379→   379→              </div>
+   380→   380→            ))}
+   381→   381→          </div>
+   382→   382→
+   383→   383→          <div className="grid gap-2">
+   384→   384→            <Label>Gabarito *</Label>
+   385→   385→            <RadioGroup
+   386→   386→              value={correctAnswer}
+   387→   387→              onValueChange={setCorrectAnswer}
+   388→   388→              className="flex gap-4"
+   389→   389→            >
+   390→   390→              {['A', 'B', 'C', 'D', 'E'].map((l) => (
+   391→   391→                <div key={l} className="flex items-center gap-1.5">
+   392→   392→                  <RadioGroupItem value={l} id={`gab-${l}`} />
+   393→   393→                  <Label htmlFor={`gab-${l}`} className="cursor-pointer">
+   394→   394→                    {l}
+   395→   395→                  </Label>
+   396→   396→                </div>
+   397→   397→              ))}
+   398→   398→            </RadioGroup>
+   399→   399→          </div>
+   400→   400→        </div>
+   401→   401→
+   402→   402→        <DialogFooter>
+   403→   403→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   404→   404→            Cancelar
+   405→   405→          </Button>
+   406→   406→          <Button
+   407→   407→            onClick={handleSubmit}
+   408→   408→            disabled={saving}
+   409→   409→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   410→   410→          >
+   411→   411→            {saving && <Loader2 className="size-4 animate-spin" />}
+   412→   412→            {isEditing ? 'Salvar Alterações' : 'Criar Questão'}
+   413→   413→          </Button>
+   414→   414→        </DialogFooter>
+   415→   415→      </DialogContent>
+   416→   416→    </Dialog>
+   417→   417→  )
+   418→   418→}
+   419→   419→
+   420→   420→// ─── Import JSON Dialog ──────────────────────────────────────────────
+   421→   421→function ImportJsonDialog({
+   422→   422→  open,
+   423→   423→  onOpenChange,
+   424→   424→  sessionCode,
+   425→   425→  onImport,
+   426→   426→}: {
+   427→   427→  open: boolean
+   428→   428→  onOpenChange: (open: boolean) => void
+   429→   429→  sessionCode: string
+   430→   430→  onImport: () => void
+   431→   431→}) {
+   432→   432→  const [jsonText, setJsonText] = useState('')
+   433→   433→  const [importing, setImporting] = useState(false)
+   434→   434→
+   435→   435→  useEffect(() => {
+   436→   436→    if (open) setJsonText('')
+   437→   437→  }, [open])
+   438→   438→
+   439→   439→  const handleImport = async () => {
+   440→   440→    if (!jsonText.trim()) {
+   441→   441→      toast.error('Cole o JSON no campo acima.')
+   442→   442→      return
+   443→   443→    }
+   444→   444→    let parsed: unknown
+   445→   445→    try {
+   446→   446→      parsed = JSON.parse(jsonText)
+   447→   447→    } catch {
+   448→   448→      toast.error('JSON inválido. Verifique o formato.')
+   449→   449→      return
+   450→   450→    }
+   451→   451→    if (!Array.isArray(parsed)) {
+   452→   452→      toast.error('O JSON deve ser um array de questões.')
+   453→   453→      return
+   454→   454→    }
+   455→   455→
+   456→   456→    setImporting(true)
+   457→   457→    try {
+   458→   458→      const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   459→   459→        method: 'POST',
+   460→   460→        headers: { 'Content-Type': 'application/json' },
+   461→   461→        body: JSON.stringify(parsed),
+   462→   462→      })
+   463→   463→      if (!res.ok) throw new Error('Erro ao importar')
+   464→   464→      const data = await res.json()
+   465→   465→      toast.success(`${Array.isArray(data) ? data.length : 1} questão(ões) importada(s)!`)
+   466→   466→      onImport()
+   467→   467→      onOpenChange(false)
+   468→   468→    } catch {
+   469→   469→      toast.error('Erro ao importar questões.')
+   470→   470→    } finally {
+   471→   471→      setImporting(false)
+   472→   472→    }
+   473→   473→  }
+   474→   474→
+   475→   475→  return (
+   476→   476→    <Dialog open={open} onOpenChange={onOpenChange}>
+   477→   477→      <DialogContent className="sm:max-w-2xl">
+   478→   478→        <DialogHeader>
+   479→   479→          <DialogTitle>Importar Questões (JSON)</DialogTitle>
+   480→   480→          <DialogDescription>
+   481→   481→            Cole um array JSON com as questões no formato especificado.
+   482→   482→          </DialogDescription>
+   483→   483→        </DialogHeader>
+   484→   484→        <div className="grid gap-2">
+   485→   485→          <Label htmlFor="json-import">JSON</Label>
+   486→   486→          <Textarea
+   487→   487→            id="json-import"
+   488→   488→            value={jsonText}
+   489→   489→            onChange={(e) => setJsonText(e.target.value)}
+   490→   490→            rows={12}
+   491→   491→            className="font-mono text-xs"
+   492→   492→            placeholder={`[\n  {\n    "year": 2023,\n    "course": "Administração",\n    "text": "Enunciado...",\n    "alternatives": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },\n    "correctAnswer": "B"\n  }\n]`}
+   493→   493→          />
+   494→   494→        </div>
+   495→   495→        <DialogFooter>
+   496→   496→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   497→   497→            Cancelar
+   498→   498→          </Button>
+   499→   499→          <Button
+   500→   500→            onClick={handleImport}
+   501→   501→            disabled={importing}
+   502→   502→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   503→   503→          >
+   504→   504→            {importing && <Loader2 className="size-4 animate-spin" />}
+   505→   505→            Importar
+   506→   506→          </Button>
+   507→   507→        </DialogFooter>
+   508→   508→      </DialogContent>
+   509→   509→    </Dialog>
+   510→   510→  )
+   511→   511→}
+   512→   512→
+   513→   513→// ─── Main Admin Page ────────────────────────────────────────────────
+   514→   514→export default function AdminPage() {
+   515→   515→  // Auth state
+   516→   516→  const [isAuthenticated, setIsAuthenticated] = useState(false)
+   517→   517→  const [password, setPassword] = useState('')
+   518→   518→  const [authLoading, setAuthLoading] = useState(false)
+   519→   519→  const [authError, setAuthError] = useState('')
+   520→   520→
+   521→   521→  // Dashboard state
+   522→   522→  const [sessions, setSessions] = useState<Session[]>([])
+   523→   523→  const [loading, setLoading] = useState(false)
+   524→   524→
+   525→   525→  // New session dialog
+   526→   526→  const [newSessionOpen, setNewSessionOpen] = useState(false)
+   527→   527→  const [newTitle, setNewTitle] = useState('')
+   528→   528→  const [creatingSession, setCreatingSession] = useState(false)
+   529→   529→
+   530→   530→  // Session management
+   531→   531→  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+   532→   532→  const [managingSession, setManagingSession] = useState(false)
+   533→   533→
+   534→   534→  // Question form
+   535→   535→  const [questionFormOpen, setQuestionFormOpen] = useState(false)
+   536→   536→  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
+   537→   537→
+   538→   538→  // Import JSON
+   539→   539→  const [importJsonOpen, setImportJsonOpen] = useState(false)
+   540→   540→
+   541→   541→  // Delete confirmation
+   542→   542→  const [deleteSessionCode, setDeleteSessionCode] = useState<string | null>(null)
+   543→   543→  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null)
+   544→   544→  const [deleting, setDeleting] = useState(false)
+   545→   545→
+   546→   546→  // DnD sensors
+   547→   547→  const sensors = useSensors(
+   548→   548→    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+   549→   549→    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+   550→   550→  )
+   551→   551→
+   552→   552→  // Check auth on mount
+   553→   553→  useEffect(() => {
+   554→   554→    const token = sessionStorage.getItem('admin_token')
+   555→   555→    if (token) setIsAuthenticated(true)
+   556→   556→  }, [])
+   557→   557→
+   558→   558→  // Fetch sessions when authenticated
+   559→   559→  const fetchSessions = useCallback(async () => {
+   560→   560→    setLoading(true)
+   561→   561→    try {
+   562→   562→      const res = await fetch('/api/session')
+   563→   563→      if (res.ok) {
+   564→   564→        const data = await res.json()
+   565→   565→        setSessions(data)
+   566→   566→      }
+   567→   567→    } catch {
+   568→   568→      toast.error('Erro ao carregar sessões.')
+   569→   569→    } finally {
+   570→   570→      setLoading(false)
+   571→   571→    }
+   572→   572→  }, [])
+   573→   573→
+   574→   574→  useEffect(() => {
+   575→   575→    if (isAuthenticated) fetchSessions()
+   576→   576→  }, [isAuthenticated, fetchSessions])
+   577→   577→
+   578→   578→  // ── Auth handlers ────────────────────────────────────────────
+   579→   579→  const handleLogin = async (e: React.FormEvent) => {
+   580→   580→    e.preventDefault()
+   581→   581→    setAuthLoading(true)
+   582→   582→    setAuthError('')
+   583→   583→    try {
+   584→   584→      const res = await fetch('/api/admin/auth', {
+   585→   585→        method: 'POST',
+   586→   586→        headers: { 'Content-Type': 'application/json' },
+   587→   587→        body: JSON.stringify({ password }),
+   588→   588→      })
+   589→   589→      if (res.ok) {
+   590→   590→        const data = await res.json()
+   591→   591→        sessionStorage.setItem('admin_token', data.token)
+   592→   592→        setIsAuthenticated(true)
+   593→   593→        toast.success('Autenticado com sucesso!')
+   594→   594→      } else {
+   595→   595→        setAuthError('Senha incorreta.')
+   596→   596→      }
+   597→   597→    } catch {
+   598→   598→      setAuthError('Erro de conexão.')
+   599→   599→    } finally {
+   600→   600→      setAuthLoading(false)
+   601→   601→    }
+   602→   602→  }
+   603→   603→
+   604→   604→  const handleLogout = () => {
+   605→   605→    sessionStorage.removeItem('admin_token')
+   606→   606→    setIsAuthenticated(false)
+   607→   607→    setSelectedSession(null)
+   608→   608→    setManagingSession(false)
+   609→   609→    setPassword('')
+   610→   610→  }
+   611→   611→
+   612→   612→  // ── Session handlers ─────────────────────────────────────────
+   613→   613→  const handleCreateSession = async () => {
+   614→   614→    if (!newTitle.trim()) {
+   615→   615→      toast.error('Informe um título para a sessão.')
+   616→   616→      return
+   617→   617→    }
+   618→   618→    setCreatingSession(true)
+   619→   619→    try {
+   620→   620→      const res = await fetch('/api/session', {
+   621→   621→        method: 'POST',
+   622→   622→        headers: { 'Content-Type': 'application/json' },
+   623→   623→        body: JSON.stringify({ title: newTitle.trim() }),
+   624→   624→      })
+   625→   625→      if (!res.ok) throw new Error()
+   626→   626→      const session = await res.json()
+   627→   627→      toast.success(`Sessão criada! Código: ${session.code}`)
+   628→   628→      setNewTitle('')
+   629→   629→      setNewSessionOpen(false)
+   630→   630→      fetchSessions()
+   631→   631→    } catch {
+   632→   632→      toast.error('Erro ao criar sessão.')
+   633→   633→    } finally {
+   634→   634→      setCreatingSession(false)
+   635→   635→    }
+   636→   636→  }
+   637→   637→
+   638→   638→  const handleDeleteSession = async () => {
+   639→   639→    if (!deleteSessionCode) return
+   640→   640→    setDeleting(true)
+   641→   641→    try {
+   642→   642→      const res = await fetch(`/api/session/${deleteSessionCode}`, {
+   643→   643→        method: 'DELETE',
+   644→   644→      })
+   645→   645→      if (!res.ok) throw new Error()
+   646→   646→      toast.success('Sessão excluída.')
+   647→   647→      if (selectedSession?.code === deleteSessionCode) {
+   648→   648→        setSelectedSession(null)
+   649→   649→        setManagingSession(false)
+   650→   650→      }
+   651→   651→      fetchSessions()
+   652→   652→    } catch {
+   653→   653→      toast.error('Erro ao excluir sessão.')
+   654→   654→    } finally {
+   655→   655→      setDeleting(false)
+   656→   656→      setDeleteSessionCode(null)
+   657→   657→    }
+   658→   658→  }
+   659→   659→
+   660→   660→  const handleDeleteQuestion = async () => {
+   661→   661→    if (!deleteQuestionId || !selectedSession) return
+   662→   662→    setDeleting(true)
+   663→   663→    try {
+   664→   664→      const res = await fetch(
+   665→   665→        `/api/session/${selectedSession.code}/questions/${deleteQuestionId}`,
+   666→   666→        { method: 'DELETE' }
+   667→   667→      )
+   668→   668→      if (!res.ok) throw new Error()
+   669→   669→      toast.success('Questão excluída.')
+   670→   670→      refreshSession()
+   671→   671→    } catch {
+   672→   672→      toast.error('Erro ao excluir questão.')
+   673→   673→    } finally {
+   674→   674→      setDeleting(false)
+   675→   675→      setDeleteQuestionId(null)
+   676→   676→    }
+   677→   677→  }
+   678→   678→
+   679→   679→  // ── Session detail / management ──────────────────────────────
+   680→   680→  const openSessionManagement = (session: Session) => {
+   681→   681→    setSelectedSession(session)
+   682→   682→    setManagingSession(true)
+   683→   683→  }
+   684→   684→
+   685→   685→  const refreshSession = useCallback(async () => {
+   686→   686→    if (!selectedSession) return
+   687→   687→    try {
+   688→   688→      const res = await fetch(`/api/session/${selectedSession.code}`)
+   689→   689→      if (res.ok) {
+   690→   690→        const data = await res.json()
+   691→   691→        setSelectedSession(data)
+   692→   692→      }
+   693→   693→    } catch {
+   694→   694→      toast.error('Erro ao atualizar sessão.')
+   695→   695→    }
+   696→   696→  }, [selectedSession])
+   697→   697→
+   698→   698→  // ── Drag & drop reorder ──────────────────────────────────────
+   699→   699→  const handleDragEnd = async (event: DragEndEvent) => {
+   700→   700→    if (!selectedSession) return
+   701→   701→    const { active, over } = event
+   702→   702→    if (!over || active.id === over.id) return
+   703→   703→
+   704→   704→    const oldIndex = selectedSession.questions.findIndex(
+   705→   705→      (q) => q.id === active.id
+   706→   706→    )
+   707→   707→    const newIndex = selectedSession.questions.findIndex(
+   708→   708→      (q) => q.id === over.id
+   709→   709→    )
+   710→   710→    if (oldIndex === -1 || newIndex === -1) return
+   711→   711→
+   712→   712→    const reordered = arrayMove(selectedSession.questions, oldIndex, newIndex)
+   713→   713→    // Optimistic update
+   714→   714→    setSelectedSession({ ...selectedSession, questions: reordered })
+   715→   715→
+   716→   716→    try {
+   717→   717→      await fetch(`/api/session/${selectedSession.code}/questions`, {
+   718→   718→        method: 'PUT',
+   719→   719→        headers: { 'Content-Type': 'application/json' },
+   720→   720→        body: JSON.stringify({ questionIds: reordered.map((q) => q.id) }),
+   721→   721→      })
+   722→   722→    } catch {
+   723→   723→      toast.error('Erro ao reordenar questões.')
+   724→   724→      refreshSession()
+   725→   725→    }
+   726→   726→  }
+   727→   727→
+   728→   728→  const formatDate = (dateStr: string) => {
+   729→   729→    try {
+   730→   730→      return new Date(dateStr).toLocaleDateString('pt-BR', {
+   731→   731→        day: '2-digit',
+   732→   732→        month: '2-digit',
+   733→   733→        year: 'numeric',
+   734→   734→        hour: '2-digit',
+   735→   735→        minute: '2-digit',
+   736→   736→      })
+   737→   737→    } catch {
+   738→   738→      return dateStr
+   739→   739→    }
+   740→   740→  }
+   741→   741→
+   742→   742→  // ── LOGIN SCREEN ─────────────────────────────────────────────
+   743→   743→  if (!isAuthenticated) {
+   744→   744→    return (
+   745→   745→      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4">
+   746→   746→        <Card className="w-full max-w-md shadow-2xl border-0">
+   747→   747→          <CardHeader className="text-center pb-2">
+   748→   748→            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
+   749→   749→              <Lock className="size-8 text-white" />
+   750→   750→            </div>
+   751→   751→            <CardTitle className="text-2xl font-bold text-[#00338C]">
+   752→   752→              ENADE Quiz — Admin
+   753→   753→            </CardTitle>
+   754→   754→            <CardDescription>
+   755→   755→              Digite a senha para acessar o painel administrativo
+   756→   756→            </CardDescription>
+   757→   757→          </CardHeader>
+   758→   758→          <CardContent>
+   759→   759→            <form onSubmit={handleLogin} className="grid gap-4">
+   760→   760→              <div className="grid gap-2">
+   761→   761→                <Label htmlFor="password">Senha</Label>
+   762→   762→                <Input
+   763→   763→                  id="password"
+   764→   764→                  type="password"
+   765→   765→                  placeholder="Digite a senha de acesso"
+   766→   766→                  value={password}
+   767→   767→                  onChange={(e) => {
+   768→   768→                    setPassword(e.target.value)
+   769→   769→                    setAuthError('')
+   770→   770→                  }}
+   771→   771→                  autoFocus
+   772→   772→                />
+   773→   773→                {authError && (
+   774→   774→                  <p className="text-sm text-destructive">{authError}</p>
+   775→   775→                )}
+   776→   776→              </div>
+   777→   777→              <Button
+   778→   778→                type="submit"
+   779→   779→                disabled={authLoading}
+   780→   780→                className="w-full bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   781→   781→              >
+   782→   782→                {authLoading && <Loader2 className="size-4 animate-spin" />}
+   783→   783→                Entrar
+   784→   784→              </Button>
+   785→   785→            </form>
+   786→   786→          </CardContent>
+   787→   787→        </Card>
+   788→   788→        <footer className="mt-auto pt-8 text-center text-xs text-white/40">
+   789→   789→          UEMS / DIGES — Sistema ENADE Quiz
+   790→   790→        </footer>
+   791→   791→      </div>
+   792→   792→    )
+   793→   793→  }
+   794→   794→
+   795→   795→  // ── SESSION MANAGEMENT VIEW ──────────────────────────────────
+   796→   796→  if (managingSession && selectedSession) {
+   797→   797→    return (
+   798→   798→      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+   799→   799→        {/* Header */}
+   800→   800→        <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+   801→   801→          <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+   802→   802→            <Button
+   803→   803→              variant="ghost"
+   804→   804→              size="sm"
+   805→   805→              onClick={() => {
+   806→   806→                setManagingSession(false)
+   807→   807→                fetchSessions()
+   808→   808→              }}
+   809→   809→            >
+   810→   810→              <ChevronLeft className="size-4" />
+   811→   811→              Voltar
+   812→   812→            </Button>
+   813→   813→            <div className="flex-1 min-w-0">
+   814→   814→              <h1 className="truncate text-sm font-semibold text-foreground">
+   815→   815→                {selectedSession.title}
+   816→   816→              </h1>
+   817→   817→              <p className="text-xs text-muted-foreground">
+   818→   818→                Código: {selectedSession.code}
+   819→   819→              </p>
+   820→   820→            </div>
+   821→   821→            <StatusBadge status={selectedSession.status} />
+   822→   822→            <Button
+   823→   823→              variant="outline"
+   824→   824→              size="sm"
+   825→   825→              onClick={() =>
+   826→   826→                window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+   827→   827→              }
+   828→   828→              className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+   829→   829→            >
+   830→   830→              <ExternalLink className="size-3.5" />
+   831→   831→              Abrir Apresentação
+   832→   832→            </Button>
+   833→   833→          </div>
+   834→   834→        </header>
+   835→   835→
+   836→   836→        <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+   837→   837→          {/* Session Info Card */}
+   838→   838→          <Card className="mb-6">
+   839→   839→            <CardHeader className="pb-3">
+   840→   840→              <CardTitle className="text-lg">Informações da Sessão</CardTitle>
+   841→   841→            </CardHeader>
+   842→   842→            <CardContent>
+   843→   843→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+   844→   844→                <div>
+   845→   845→                  <p className="text-muted-foreground">Código</p>
+   846→   846→                  <div className="flex items-center gap-1">
+   847→   847→                    <p className="font-mono font-bold text-[#00338C] dark:text-[#C8A84B]">
+   848→   848→                      {selectedSession.code}
+   849→   849→                    </p>
+   850→   850→                    <Button
+   851→   851→                      variant="ghost"
+   852→   852→                      size="icon"
+   853→   853→                      className="size-6"
+   854→   854→                      onClick={() => {
+   855→   855→                        navigator.clipboard.writeText(selectedSession.code)
+   856→   856→                        toast.success('Código copiado!')
+   857→   857→                      }}
+   858→   858→                    >
+   859→   859→                      <Copy className="size-3" />
+   860→   860→                    </Button>
+   861→   861→                  </div>
+   862→   862→                </div>
+   863→   863→                <div>
+   864→   864→                  <p className="text-muted-foreground">Título</p>
+   865→   865→                  <p className="font-medium truncate">{selectedSession.title}</p>
+   866→   866→                </div>
+   867→   867→                <div>
+   868→   868→                  <p className="text-muted-foreground">Questões</p>
+   869→   869→                  <p className="font-medium">{selectedSession.questions.length}</p>
+   870→   870→                </div>
+   871→   871→                <div>
+   872→   872→                  <p className="text-muted-foreground">Criada em</p>
+   873→   873→                  <p className="font-medium">{formatDate(selectedSession.createdAt)}</p>
+   874→   874→                </div>
+   875→   875→              </div>
+   876→   876→            </CardContent>
+   877→   877→          </Card>
+   878→   878→
+   879→   879→          {/* Questions Header */}
+   880→   880→          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+   881→   881→            <h2 className="text-lg font-semibold">
+   882→   882→              Questões ({selectedSession.questions.length})
+   883→   883→            </h2>
+   884→   884→            <div className="flex gap-2">
+   885→   885→              <Button
+   886→   886→                variant="outline"
+   887→   887→                size="sm"
+   888→   888→                onClick={() => setImportJsonOpen(true)}
+   889→   889→              >
+   890→   890→                <FileJson className="size-3.5" />
+   891→   891→                Importar JSON
+   892→   892→              </Button>
+   893→   893→              <Button
+   894→   894→                size="sm"
+   895→   895→                className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   896→   896→                onClick={() => {
+   897→   897→                  setEditingQuestion(null)
+   898→   898→                  setQuestionFormOpen(true)
+   899→   899→                }}
+   900→   900→              >
+   901→   901→                <Plus className="size-3.5" />
+   902→   902→                Adicionar Questão
+   903→   903→              </Button>
+   904→   904→            </div>
+   905→   905→          </div>
+   906→   906→
+   907→   907→          {/* Questions List with DnD */}
+   908→   908→          {selectedSession.questions.length === 0 ? (
+   909→   909→            <Card className="py-12">
+   910→   910→              <div className="text-center text-muted-foreground">
+   911→   911→                <p className="text-lg font-medium">Nenhuma questão</p>
+   912→   912→                <p className="text-sm mt-1">
+   913→   913→                  Adicione questões manualmente ou importe via JSON.
+   914→   914→                </p>
+   915→   915→              </div>
+   916→   916→            </Card>
+   917→   917→          ) : (
+   918→   918→            <DndContext
+   919→   919→              sensors={sensors}
+   920→   920→              collisionDetection={closestCenter}
+   921→   921→              onDragEnd={handleDragEnd}
+   922→   922→            >
+   923→   923→              <SortableContext
+   924→   924→                items={selectedSession.questions.map((q) => q.id)}
+   925→   925→                strategy={verticalListSortingStrategy}
+   926→   926→              >
+   927→   927→                <div className="grid gap-2">
+   928→   928→                  {selectedSession.questions.map((q, i) => (
+   929→   929→                    <SortableQuestionItem
+   930→   930→                      key={q.id}
+   931→   931→                      question={q}
+   932→   932→                      index={i}
+   933→   933→                      onEdit={(question) => {
+   934→   934→                        setEditingQuestion(question)
+   935→   935→                        setQuestionFormOpen(true)
+   936→   936→                      }}
+   937→   937→                      onDelete={(id) => setDeleteQuestionId(id)}
+   938→   938→                    />
+   939→   939→                  ))}
+   940→   940→                </div>
+   941→   941→              </SortableContext>
+   942→   942→            </DndContext>
+   943→   943→          )}
+   944→   944→        </main>
+   945→   945→
+   946→   946→        <footer className="mt-auto border-t bg-white dark:bg-[#0D1B3E] py-3 text-center text-xs text-muted-foreground">
+   947→   947→          UEMS / DIGES — Sistema ENADE Quiz
+   948→   948→        </footer>
+   949→   949→
+   950→   950→        {/* Question Form Dialog */}
+   951→   951→        <QuestionFormDialog
+   952→   952→          open={questionFormOpen}
+   953→   953→          onOpenChange={setQuestionFormOpen}
+   954→   954→          question={editingQuestion}
+   955→   955→          sessionId={selectedSession.id}
+   956→   956→          sessionCode={selectedSession.code}
+   957→   957→          onSave={refreshSession}
+   958→   958→        />
+   959→   959→
+   960→   960→        {/* Import JSON Dialog */}
+   961→   961→        <ImportJsonDialog
+   962→   962→          open={importJsonOpen}
+   963→   963→          onOpenChange={setImportJsonOpen}
+   964→   964→          sessionCode={selectedSession.code}
+   965→   965→          onImport={refreshSession}
+   966→   966→        />
+   967→   967→
+   968→   968→        {/* Delete Question Confirmation */}
+   969→   969→        <AlertDialog
+   970→   970→          open={!!deleteQuestionId}
+   971→   971→          onOpenChange={(open) => !open && setDeleteQuestionId(null)}
+   972→   972→        >
+   973→   973→          <AlertDialogContent>
+   974→   974→            <AlertDialogHeader>
+   975→   975→              <AlertDialogTitle>Excluir Questão</AlertDialogTitle>
+   976→   976→              <AlertDialogDescription>
+   977→   977→                Tem certeza que deseja excluir esta questão? Esta ação não pode
+   978→   978→                ser desfeita.
+   979→   979→              </AlertDialogDescription>
+   980→   980→            </AlertDialogHeader>
+   981→   981→            <AlertDialogFooter>
+   982→   982→              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+   983→   983→              <AlertDialogAction
+   984→   984→                onClick={handleDeleteQuestion}
+   985→   985→                disabled={deleting}
+   986→   986→                className="bg-destructive text-white hover:bg-destructive/90"
+   987→   987→              >
+   988→   988→                {deleting && <Loader2 className="size-4 animate-spin" />}
+   989→   989→                Excluir
+   990→   990→              </AlertDialogAction>
+   991→   991→            </AlertDialogFooter>
+   992→   992→          </AlertDialogContent>
+   993→   993→        </AlertDialog>
+   994→   994→      </div>
+   995→   995→    )
+   996→   996→  }
+   997→   997→
+   998→   998→  // ── ADMIN DASHBOARD ──────────────────────────────────────────
+   999→   999→  return (
+  1000→  1000→    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+  1001→  1001→      {/* Header */}
+  1002→  1002→      <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+  1003→  1003→        <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+  1004→  1004→          <div className="flex items-center gap-2">
+  1005→  1005→            <div className="flex size-8 items-center justify-center rounded-md bg-[#00338C]">
+  1006→  1006→              <span className="text-xs font-bold text-white">EQ</span>
+  1007→  1007→            </div>
+  1008→  1008→            <div>
+  1009→  1009→              <h1 className="text-sm font-bold text-foreground leading-none">
+  1010→  1010→                ENADE Quiz
+  1011→  1011→              </h1>
+  1012→  1012→              <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+  1013→  1013→                Painel Administrativo
+  1014→  1014→              </p>
+  1015→  1015→            </div>
+  1016→  1016→          </div>
+  1017→  1017→          <div className="flex-1" />
+  1018→  1018→          <Button size="sm" variant="outline" onClick={handleLogout}>
+  1019→  1019→            <LogOut className="size-3.5" />
+  1020→  1020→            Sair
+  1021→  1021→          </Button>
+  1022→  1022→        </div>
+  1023→  1023→      </header>
+  1024→  1024→
+  1025→  1025→      <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+  1026→  1026→        {/* Page title row */}
+  1027→  1027→        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+  1028→  1028→          <div>
+  1029→  1029→            <h2 className="text-2xl font-bold text-foreground">Sessões</h2>
+  1030→  1030→            <p className="text-sm text-muted-foreground">
+  1031→  1031→              Gerencie as sessões de quiz do ENADE
+  1032→  1032→            </p>
+  1033→  1033→          </div>
+  1034→  1034→          <Button
+  1035→  1035→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1036→  1036→            onClick={() => {
+  1037→  1037→              setNewTitle('')
+  1038→  1038→              setNewSessionOpen(true)
+  1039→  1039→            }}
+  1040→  1040→          >
+  1041→  1041→            <Plus className="size-4" />
+  1042→  1042→            Nova Sessão
+  1043→  1043→          </Button>
+  1044→  1044→        </div>
+  1045→  1045→
+  1046→  1046→        {/* Sessions list */}
+  1047→  1047→        {loading ? (
+  1048→  1048→          <div className="flex items-center justify-center py-20">
+  1049→  1049→            <Loader2 className="size-8 animate-spin text-[#00338C]" />
+  1050→  1050→          </div>
+  1051→  1051→        ) : sessions.length === 0 ? (
+  1052→  1052→          <Card className="py-16">
+  1053→  1053→            <div className="text-center text-muted-foreground">
+  1054→  1054→              <p className="text-lg font-medium">Nenhuma sessão encontrada</p>
+  1055→  1055→              <p className="text-sm mt-1">
+  1056→  1056→                Crie uma nova sessão para começar.
+  1057→  1057→              </p>
+  1058→  1058→            </div>
+  1059→  1059→          </Card>
+  1060→  1060→        ) : (
+  1061→  1061→          <div className="grid gap-3">
+  1062→  1062→            {sessions.map((session) => (
+  1063→  1063→              <Card
+  1064→  1064→                key={session.id}
+  1065→  1065→                className="overflow-hidden transition-shadow hover:shadow-md"
+  1066→  1066→              >
+  1067→  1067→                <CardContent className="p-4 sm:p-5">
+  1068→  1068→                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+  1069→  1069→                    {/* Session info */}
+  1070→  1070→                    <div className="flex-1 min-w-0">
+  1071→  1071→                      <div className="flex items-center gap-2 flex-wrap mb-1">
+  1072→  1072→                        <span className="font-mono font-bold text-sm text-[#00338C] dark:text-[#C8A84B]">
+  1073→  1073→                          {session.code}
+  1074→  1074→                        </span>
+  1075→  1075→                        <StatusBadge status={session.status} />
+  1076→  1076→                      </div>
+  1077→  1077→                      <h3 className="font-semibold text-foreground truncate">
+  1078→  1078→                        {session.title}
+  1079→  1079→                      </h3>
+  1080→  1080→                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+  1081→  1081→                        <span>{session.questions.length} questão(ões)</span>
+  1082→  1082→                        <span>&middot;</span>
+  1083→  1083→                        <span>{formatDate(session.createdAt)}</span>
+  1084→  1084→                      </div>
+  1085→  1085→                    </div>
+  1086→  1086→
+  1087→  1087→                    {/* Actions */}
+  1088→  1088→                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+  1089→  1089→                      <Button
+  1090→  1090→                        variant="outline"
+  1091→  1091→                        size="sm"
+  1092→  1092→                        className="flex-1 sm:flex-none border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1093→  1093→                        onClick={() =>
+  1094→  1094→                          window.open(
+  1095→  1095→                            `/apresentacao/${session.code}`,
+  1096→  1096→                            '_blank'
+  1097→  1097→                          )
+  1098→  1098→                        }
+  1099→  1099→                      >
+  1100→  1100→                        <ExternalLink className="size-3.5" />
+  1101→  1101→                        <span className="sm:hidden">Apresentação</span>
+  1102→  1102→                      </Button>
+  1103→  1103→                      <Button
+  1104→  1104→                        variant="outline"
+  1105→  1105→                        size="sm"
+  1106→  1106→                        className="flex-1 sm:flex-none"
+  1107→  1107→                        onClick={() => openSessionManagement(session)}
+  1108→  1108→                      >
+  1109→  1109→                        <Settings2 className="size-3.5" />
+  1110→  1110→                        <span className="sm:hidden">Gerenciar</span>
+  1111→  1111→                      </Button>
+  1112→  1112→                      <Button
+  1113→  1113→                        variant="outline"
+  1114→  1114→                        size="sm"
+  1115→  1115→                        className="flex-1 sm:flex-none text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60 hover:bg-destructive/10"
+  1116→  1116→                        onClick={() => setDeleteSessionCode(session.code)}
+  1117→  1117→                      >
+  1118→  1118→                        <Trash2 className="size-3.5" />
+  1119→  1119→                        <span className="sm:hidden">Excluir</span>
+  1120→  1120→                      </Button>
+  1121→  1121→                    </div>
+  1122→  1122→                  </div>
+  1123→  1123→                </CardContent>
+  1124→  1124→              </Card>
+  1125→  1125→            ))}
+  1126→  1126→          </div>
+  1127→  1127→        )}
+  1128→  1128→      </main>
+  1129→  1129→
+  1130→  1130→      <footer className="mt-auto border-t bg-white dark:bg-[#0D1B3E] py-3 text-center text-xs text-muted-foreground">
+  1131→  1131→        UEMS / DIGES — Sistema ENADE Quiz
+  1132→  1132→      </footer>
+  1133→  1133→
+  1134→  1134→      {/* New Session Dialog */}
+  1135→  1135→      <Dialog open={newSessionOpen} onOpenChange={setNewSessionOpen}>
+  1136→  1136→        <DialogContent>
+  1137→  1137→          <DialogHeader>
+  1138→  1138→            <DialogTitle>Nova Sessão</DialogTitle>
+  1139→  1139→            <DialogDescription>
+  1140→  1140→              Crie uma nova sessão de quiz para o ENADE.
+  1141→  1141→            </DialogDescription>
+  1142→  1142→          </DialogHeader>
+  1143→  1143→          <div className="grid gap-4 py-2">
+  1144→  1144→            <div className="grid gap-2">
+  1145→  1145→              <Label htmlFor="session-title">Título da Sessão *</Label>
+  1146→  1146→              <Input
+  1147→  1147→                id="session-title"
+  1148→  1148→                placeholder="Ex: Simulado ENADE 2025 — Administração"
+  1149→  1149→                value={newTitle}
+  1150→  1150→                onChange={(e) => setNewTitle(e.target.value)}
+  1151→  1151→                onKeyDown={(e) => {
+  1152→  1152→                  if (e.key === 'Enter') handleCreateSession()
+  1153→  1153→                }}
+  1154→  1154→                autoFocus
+  1155→  1155→              />
+  1156→  1156→            </div>
+  1157→  1157→          </div>
+  1158→  1158→          <DialogFooter>
+  1159→  1159→            <Button
+  1160→  1160→              variant="outline"
+  1161→  1161→              onClick={() => setNewSessionOpen(false)}
+  1162→  1162→            >
+  1163→  1163→              Cancelar
+  1164→  1164→            </Button>
+  1165→  1165→            <Button
+  1166→  1166→              onClick={handleCreateSession}
+  1167→  1167→              disabled={creatingSession}
+  1168→  1168→              className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1169→  1169→            >
+  1170→  1170→              {creatingSession && <Loader2 className="size-4 animate-spin" />}
+  1171→  1171→              Criar Sessão
+  1172→  1172→            </Button>
+  1173→  1173→          </DialogFooter>
+  1174→  1174→        </DialogContent>
+  1175→  1175→      </Dialog>
+  1176→  1176→
+  1177→  1177→      {/* Delete Session Confirmation */}
+  1178→  1178→      <AlertDialog
+  1179→  1179→        open={!!deleteSessionCode}
+  1180→  1180→        onOpenChange={(open) => !open && setDeleteSessionCode(null)}
+  1181→  1181→      >
+  1182→  1182→        <AlertDialogContent>
+  1183→  1183→          <AlertDialogHeader>
+  1184→  1184→            <AlertDialogTitle>Excluir Sessão</AlertDialogTitle>
+  1185→  1185→            <AlertDialogDescription>
+  1186→  1186→              Tem certeza que deseja excluir esta sessão? Todas as questões e
+  1187→  1187→              votos serão perdidos permanentemente.
+  1188→  1188→            </AlertDialogDescription>
+  1189→  1189→          </AlertDialogHeader>
+  1190→  1190→          <AlertDialogFooter>
+  1191→  1191→            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+  1192→  1192→            <AlertDialogAction
+  1193→  1193→              onClick={handleDeleteSession}
+  1194→  1194→              disabled={deleting}
+  1195→  1195→              className="bg-destructive text-white hover:bg-destructive/90"
+  1196→  1196→            >
+  1197→  1197→              {deleting && <Loader2 className="size-4 animate-spin" />}
+  1198→  1198→              Excluir
+  1199→  1199→            </AlertDialogAction>
+  1200→  1200→          </AlertDialogFooter>
+  1201→  1201→        </AlertDialogContent>
+  1202→  1202→      </AlertDialog>
+  1203→  1203→    </div>
+  1204→  1204→  )
+  1205→  1205→}
+  1206→  1206→
