@@ -521,16 +521,19 @@ export default function ApresentacaoPage({
               className="absolute inset-0 rounded-3xl border-2 border-[#C8A84B]/30 pointer-events-none"
               style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
             />
-            <QRCode
-              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
-              size={400}
-              bgColor="#0D1B3E"
-              fgColor="#E8EDFF"
-              qrStyle="dots"
-              eyeRadius={8}
-              logoImage="/logo.svg"
-              logoSize={80}
-            />
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-[#0D1B3E] rounded-xl p-2 border border-[#1A2A5E]">
+                <img src="/logo.svg" alt="UEMS" className="h-16 w-auto object-contain" />
+              </div>
+              <QRCode
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+                size={360}
+                bgColor="#0D1B3E"
+                fgColor="#E8EDFF"
+                qrStyle="dots"
+                eyeRadius={8}
+              />
+            </div>
             <div className="text-center space-y-2">
               <p className="text-[#8899CC] text-xl">acesse:</p>
               <p
@@ -605,16 +608,19 @@ export default function ApresentacaoPage({
                   className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/30 pointer-events-none"
                   style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
                 />
-                <QRCode
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
-                  size={280}
-                  bgColor="#0D1B3E"
-                  fgColor="#E8EDFF"
-                  qrStyle="dots"
-                  eyeRadius={8}
-                  logoImage="/logo.svg"
-                  logoSize={56}
-                />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="bg-[#0D1B3E] rounded-lg p-1.5 border border-[#1A2A5E]">
+                    <img src="/logo.svg" alt="UEMS" className="h-10 w-auto object-contain" />
+                  </div>
+                  <QRCode
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+                    size={240}
+                    bgColor="#0D1B3E"
+                    fgColor="#E8EDFF"
+                    qrStyle="dots"
+                    eyeRadius={8}
+                  />
+                </div>
                 <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
                   <p className="text-[#8899CC] text-base">acesse:</p>
                   <p
@@ -687,16 +693,17 @@ export default function ApresentacaoPage({
             className="flex-1 flex min-h-0"
             style={{ animation: 'fadeInUp 0.4s ease-out' }}
           >
-            {/* Left: Question Text + Image */}
-            <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
+            {/* Left: Question Text + Image + Alternatives */}
+            <div className={`flex flex-col p-6 gap-4 min-h-0 overflow-hidden ${currentQuestion.imageUrl ? 'w-[45%]' : 'w-[55%]'}`}>
               {/* Question number badge */}
               <div className="shrink-0 flex items-center gap-3">
                 <span
                   className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
                   style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'slideInLeft 0.4s ease-out' }}
                 >
-                  Questão {currentIndex + 1}/{totalQuestions}
+                  Questao {currentIndex + 1}/{totalQuestions}
                 </span>
+                <span className="text-[#8899CC] text-sm">{currentQuestion.year} — {currentQuestion.course}</span>
                 {revealed && (
                   <span
                     className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
@@ -710,12 +717,12 @@ export default function ApresentacaoPage({
               {/* Question image */}
               {currentQuestion.imageUrl && (
                 <div
-                  className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
+                  className="shrink-0 max-h-[30%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
                   style={{ animation: 'scaleIn 0.4s ease-out 0.1s both' }}
                 >
                   <img
                     src={currentQuestion.imageUrl}
-                    alt="Imagem da questão"
+                    alt="Imagem da questao"
                     className="max-h-full max-w-full object-contain p-2"
                   />
                 </div>
@@ -727,17 +734,57 @@ export default function ApresentacaoPage({
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
               >
                 <p
-                  className="text-[#E8EDFF] text-2xl leading-relaxed"
+                  className={`text-[#E8EDFF] leading-relaxed ${currentQuestion.imageUrl ? 'text-xl' : 'text-2xl'}`}
                   style={{ fontFamily: 'var(--font-inter)' }}
                 >
                   {currentQuestion.text}
                 </p>
               </div>
+
+              {/* Alternatives list — fills space when no image */}
+              <div
+                className="shrink-0 space-y-2"
+                style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}
+              >
+                {ALT_LABELS.map((alt, idx) => {
+                  const altKey = `alt${alt}` as keyof typeof currentQuestion
+                  const isCorrect = revealed && currentQuestion.correctAnswer === alt
+                  const isWrong = revealed && !isCorrect
+                  return (
+                    <div
+                      key={alt}
+                      className={`flex items-start gap-3 px-4 py-2 rounded-lg border transition-all duration-300 ${
+                        isCorrect
+                          ? 'bg-[#C8A84B]/15 border-[#C8A84B]/60'
+                          : isWrong
+                          ? 'bg-[#0D1B3E]/50 border-[#1A2A5E]/50 opacity-40'
+                          : 'bg-[#0D1B3E] border-[#1A2A5E]'
+                      }`}
+                      style={{ animation: `fadeInUp 0.3s ease-out ${0.3 + idx * 0.06}s both` }}
+                    >
+                      <span
+                        className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-sm font-bold text-white ${
+                          isCorrect ? 'bg-[#C8A84B]' : isWrong ? 'bg-[#3A4A7E]/60' : ''
+                        }`}
+                        style={!isCorrect && !isWrong ? { backgroundColor: COLORS[alt] } : {}}
+                      >
+                        {alt}
+                      </span>
+                      <span className={`text-sm leading-snug ${isCorrect ? 'text-[#E8EDFF]' : isWrong ? 'text-[#8899CC]/50' : 'text-[#C8D0E8]'}`}>
+                        {currentQuestion[altKey]}
+                      </span>
+                      {isCorrect && (
+                        <span className="shrink-0 ml-auto text-[#C8A84B] font-bold text-xs border border-[#C8A84B]/40 rounded px-1.5 py-0.5">GABARITO</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Center + Right: Bar Chart */}
             <div
-              className="w-[55%] flex flex-col p-6 min-h-0"
+              className={`flex flex-col p-6 min-h-0 ${currentQuestion.imageUrl ? 'w-[55%]' : 'w-[45%]'}`}
               style={{ animation: 'scaleIn 0.5s ease-out 0.1s both' }}
             >
               {/* Gabarito banner when revealed */}
@@ -750,7 +797,7 @@ export default function ApresentacaoPage({
                     className="text-[#050A1A] text-2xl font-bold"
                     style={{ fontFamily: 'var(--font-space-grotesk)' }}
                   >
-                    🔑 GABARITO: {currentQuestion.correctAnswer}
+                    GABARITO: {currentQuestion.correctAnswer}
                   </span>
                 </div>
               )}
@@ -767,7 +814,9 @@ export default function ApresentacaoPage({
                     style={{ animation: 'fadeInOut 2.5s ease-in-out infinite' }}
                   >
                     <div className="text-center space-y-3">
-                      <div className="text-5xl mb-2">🗳️</div>
+                      <div className="w-16 h-16 mx-auto rounded-full border-2 border-dashed border-[#1A2A5E] flex items-center justify-center">
+                        <div className="w-3 h-3 rounded-full bg-[#C8A84B]/50" style={{ animation: 'dotPulse 1.5s ease-in-out infinite' }} />
+                      </div>
                       <p className="text-[#8899CC] text-xl">Aguardando votos...</p>
                     </div>
                   </div>
