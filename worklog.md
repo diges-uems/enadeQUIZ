@@ -334,3 +334,45 @@ Stage Summary:
 - Landing page has animated particles and "How it works" section
 - Dev server cross-origin warning fixed
 - Agent Browser cannot be used in this sandbox (OOM kill) — QA done via curl
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: Add Stress Test button to admin page (client-side, 1000 simultaneous students simulation)
+
+Work Log:
+- Analyzed admin page structure: TabsContent "apresentar" with session status, participant counter, question controls
+- Created stress test feature entirely CLIENT-SIDE (no backend API needed):
+  - handleStressTest function creates multiple socket.io-client connections from the browser
+  - Phase 1: Connects N students in batches of 20 (80ms delay between batches)
+  - Phase 2: Submits votes in batches of 50 (30ms delay, random 0-400ms per vote)
+  - Vote distribution: ~30% chance of correct answer (simulates real student behavior), rest evenly distributed among wrong options
+  - Automatic cleanup: all sockets disconnected after voting
+- Added stress test state variables:
+  - stressTestOpen (dialog visibility)
+  - stressTestRunning (loading state)
+  - stressTestCount (number of students, default 1000)
+  - stressTestResult (results object with connected/voted/failed/duration/votesPerSecond/voteDistribution/errors)
+- Added Stress Test button in Participant Counter Card (Apresentar tab):
+  - Red-to-orange gradient styling with Zap icon
+  - Shows current student count in button label
+  - Disabled when no question is selected or session not active
+- Added Stress Test Dialog with:
+  - Student count presets: 100, 500, 1000, 2000
+  - Active question indicator
+  - Animated loading spinner while running
+  - Results display: 4 metric cards (connected, voted, failed, votes/second)
+  - Total duration display
+  - Vote distribution bar chart with correct answer indicator
+  - Error list (shows first 5 errors)
+  - Start/Close buttons with gradient styling
+- Removed unnecessary backend API route (/api/stress-test) and mini-service (stress-test) — everything runs client-side
+- Added Zap and Activity icons from lucide-react imports
+- Lint passes clean
+
+Stage Summary:
+- Stress test button added to admin "Apresentar" tab
+- Runs entirely in the browser — creates real socket.io connections and submits real votes
+- Configurable: 100, 500, 1000, or 2000 simulated students
+- Shows detailed results: connections, votes, failures, throughput, distribution
+- Works in production without any backend API dependency

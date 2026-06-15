@@ -1239,26 +1239,159 @@ export default function AdminPage() {
     }
     setStressTestRunning(true)
     setStressTestResult(null)
+
+    const startTime = Date.now()
+    const result = {
+      totalStudents: stressTestCount,
+      connected: 0,
+      voted: 0,
+      failed: 0,
+      durationMs: 0,
+      votesPerSecond: 0,
+      voteDistribution: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+      errors: [] as string[],
+    }
+
+    const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
+    const sockets: Socket[] = []
+    const BATCH_SIZE = 20
+    const BATCH_DELAY = 80
+
     try {
-      const res = await fetch('/api/stress-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionCode: selectedSession.code,
-          studentCount: stressTestCount,
-          questionId: currentQuestionId,
-          correctAnswer: currentQuestion?.correctAnswer,
-        }),
-      })
-      const data = await res.json()
-      setStressTestResult(data)
-      if (res.ok) {
-        toast.success(`Stress test concluído! ${data.voted} votos em ${(data.durationMs / 1000).toFixed(1)}s`)
-      } else {
-        toast.error('Erro no stress test.')
+      // Phase 1: Connect students in batches
+      for (let i = 0; i < stressTestCount; i += BATCH_SIZE) {
+        const batchEnd = Math.min(i + BATCH_SIZE, stressTestCount)
+        const batchPromises: Promise<void>[] = []
+
+        for (let j = i; j < batchEnd; j++) {
+          const idx = j
+          batchPromises.push(
+            new Promise<void>((resolve) => {
+              try {
+                const s = io('/?XTransformPort=3003', {
+                  transports: ['websocket'],
+                  forceNew: true,
+                  reconnection: false,
+                  timeout: 5000,
+                })
+
+                sockets.push(s)
+
+                s.on('connect', () => {
+                  result.connected++
+                  s.emit('join-session', {
+                    sessionCode: selectedSession.code,
+                    role: 'student',
+                    name: `Aluno Stress ${idx + 1}`,
+                    rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+                  })
+                  resolve()
+                })
+
+                s.on('connect_error', (err: Error) => {
+                  result.failed++
+                  if (result.errors.length < 10) {
+                    result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
+                  }
+                  resolve()
+                })
+
+                setTimeout(() => resolve(), 6000)
+              } catch {
+                result.failed++
+                resolve()
+              }
+            })
+          )
+        }
+
+        await Promise.all(batchPromises)
+        if (batchEnd < stressTestCount) {
+          await new Promise((r) => setTimeout(r, BATCH_DELAY))
+        }
       }
-    } catch {
-      toast.error('Erro de conexão ao executar stress test.')
+
+      // Phase 2: Submit votes in batches
+      const VOTE_BATCH_SIZE = 50
+      const VOTE_BATCH_DELAY = 30
+
+      for (let i = 0; i < stressTestCount; i += VOTE_BATCH_SIZE) {
+        const batchEnd = Math.min(i + VOTE_BATCH_SIZE, stressTestCount)
+        const votePromises: Promise<void>[] = []
+
+        for (let j = i; j < batchEnd; j++) {
+          const s = sockets[j]
+          if (!s || !s.connected) {
+            result.failed++
+            continue
+          }
+
+          votePromises.push(
+            new Promise<void>((resolve) => {
+              try {
+                const correctAnswer = currentQuestion?.correctAnswer
+                let choice: string
+                const rand = Math.random()
+                if (correctAnswer && rand < 0.30) {
+                  choice = correctAnswer
+                } else {
+                  const wrong = altLabels.filter((a) => a !== correctAnswer)
+                  choice = wrong[Math.floor(Math.random() * wrong.length)]
+                }
+
+                const delay = Math.random() * 400
+
+                setTimeout(() => {
+                  s.emit('submit-vote', {
+                    sessionCode: selectedSession.code,
+                    questionId: currentQuestionId,
+                    choice,
+                    correctAnswer: correctAnswer || undefined,
+                    studentId: `STRESS-${String(j + 1).padStart(5, '0')}`,
+                  })
+
+                  result.voted++
+                  result.voteDistribution[choice as keyof typeof result.voteDistribution]++
+
+                  setTimeout(() => {
+                    s.disconnect()
+                    resolve()
+                  }, 100)
+                }, delay)
+
+                setTimeout(() => resolve(), 2000)
+              } catch {
+                result.failed++
+                resolve()
+              }
+            })
+          )
+        }
+
+        await Promise.all(votePromises)
+        if (batchEnd < stressTestCount) {
+          await new Promise((r) => setTimeout(r, VOTE_BATCH_DELAY))
+        }
+      }
+
+      result.durationMs = Date.now() - startTime
+      result.votesPerSecond = result.durationMs > 0 ? Math.round((result.voted / result.durationMs) * 1000) : 0
+
+      // Cleanup
+      for (const s of sockets) {
+        try { if (s.connected) s.disconnect() } catch { /* */ }
+      }
+
+      setStressTestResult(result)
+      toast.success(`Stress test concluído! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
+    } catch (err) {
+      for (const s of sockets) {
+        try { if (s.connected) s.disconnect() } catch { /* */ }
+      }
+      result.durationMs = Date.now() - startTime
+      result.errors.push(`Erro fatal: ${err instanceof Error ? err.message : 'Desconhecido'}`)
+      setStressTestResult(result)
+      toast.error('Erro durante o stress test.')
     } finally {
       setStressTestRunning(false)
     }
