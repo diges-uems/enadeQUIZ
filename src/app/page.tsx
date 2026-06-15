@@ -25,7 +25,11 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#050A1A] text-[#E8EDFF]">
+    <div className="min-h-screen flex flex-col text-[#E8EDFF]" style={{
+      backgroundImage: `linear-gradient(180deg, rgba(0, 34, 85, 0.85) 0%, rgba(0, 34, 85, 0.98) 100%), url('https://www.uems.br/anexos/imagens/conteudo/uems_imagens_2023-09-22_13-02-19.png')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    }}>
       {/* Subtle gradient overlay */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-[#00338C]/10 rounded-full blur-[150px]" />
