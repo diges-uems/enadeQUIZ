@@ -1253,122 +1253,103 @@ export default function AdminPage() {
     }
 
     const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
-    const sockets: Socket[] = []
-    const BATCH_SIZE = 100
+    // Browser limits ~6 concurrent WebSocket connections to same origin
+    // Use waves: connect small batch -> join -> vote -> disconnect -> next batch
+    const WAVE_SIZE = 6
+
+    const simulateStudent = (idx: number): Promise<void> => {
+      return new Promise<void>((resolve) => {
+        try {
+          const s = io('/?XTransformPort=3003', {
+            transports: ['websocket'],
+            forceNew: true,
+            reconnection: false,
+            timeout: 5000,
+          })
+
+          const timeout = setTimeout(() => {
+            result.failed++
+            if (result.errors.length < 10) {
+              result.errors.push(`Aluno ${idx + 1}: timeout`)
+            }
+            try { s.disconnect() } catch { /* */ }
+            resolve()
+          }, 8000)
+
+          s.on('connect', () => {
+            result.connected++
+            s.emit('join-session', {
+              sessionCode: selectedSession.code,
+              role: 'student',
+              name: `Aluno Stress ${idx + 1}`,
+              rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+            })
+
+            // Vote immediately after joining
+            const correctAnswer = currentQuestion?.correctAnswer
+            let choice: string
+            const rand = Math.random()
+            if (correctAnswer && rand < 0.30) {
+              choice = correctAnswer
+            } else {
+              const wrong = altLabels.filter((a) => a !== correctAnswer)
+              choice = wrong[Math.floor(Math.random() * wrong.length)]
+            }
+
+            s.emit('submit-vote', {
+              sessionCode: selectedSession.code,
+              questionId: currentQuestionId,
+              choice,
+              correctAnswer: correctAnswer || undefined,
+              studentId: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+            })
+
+            result.voted++
+            result.voteDistribution[choice as keyof typeof result.voteDistribution]++
+
+            // Disconnect right away to free the connection slot
+            clearTimeout(timeout)
+            setTimeout(() => {
+              try { s.disconnect() } catch { /* */ }
+              resolve()
+            }, 50)
+          })
+
+          s.on('connect_error', (err: Error) => {
+            clearTimeout(timeout)
+            result.failed++
+            if (result.errors.length < 10) {
+              result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
+            }
+            try { s.disconnect() } catch { /* */ }
+            resolve()
+          })
+        } catch {
+          result.failed++
+          resolve()
+        }
+      })
+    }
 
     try {
-      // Phase 1: Connect all students in parallel batches
-      for (let i = 0; i < stressTestCount; i += BATCH_SIZE) {
-        const batchEnd = Math.min(i + BATCH_SIZE, stressTestCount)
-        const batchPromises: Promise<void>[] = []
+      // Process in waves of WAVE_SIZE concurrent connections
+      for (let i = 0; i < stressTestCount; i += WAVE_SIZE) {
+        const wavePromises: Promise<void>[] = []
+        const waveEnd = Math.min(i + WAVE_SIZE, stressTestCount)
 
-        for (let j = i; j < batchEnd; j++) {
-          const idx = j
-          batchPromises.push(
-            new Promise<void>((resolve) => {
-              try {
-                const s = io('/?XTransformPort=3003', {
-                  transports: ['websocket'],
-                  forceNew: true,
-                  reconnection: false,
-                  timeout: 8000,
-                })
-
-                sockets.push(s)
-
-                s.on('connect', () => {
-                  result.connected++
-                  s.emit('join-session', {
-                    sessionCode: selectedSession.code,
-                    role: 'student',
-                    name: `Aluno Stress ${idx + 1}`,
-                    rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
-                  })
-                  resolve()
-                })
-
-                s.on('connect_error', (err: Error) => {
-                  result.failed++
-                  if (result.errors.length < 10) {
-                    result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
-                  }
-                  resolve()
-                })
-
-                setTimeout(() => resolve(), 10000)
-              } catch {
-                result.failed++
-                resolve()
-              }
-            })
-          )
+        for (let j = i; j < waveEnd; j++) {
+          wavePromises.push(simulateStudent(j))
         }
 
-        await Promise.all(batchPromises)
-      }
-
-      // Phase 2: Submit all votes at once
-      const votePromises: Promise<void>[] = []
-      for (let j = 0; j < stressTestCount; j++) {
-        const s = sockets[j]
-        if (!s || !s.connected) {
-          result.failed++
-          continue
-        }
-
-        votePromises.push(
-          new Promise<void>((resolve) => {
-            try {
-              const correctAnswer = currentQuestion?.correctAnswer
-              let choice: string
-              const rand = Math.random()
-              if (correctAnswer && rand < 0.30) {
-                choice = correctAnswer
-              } else {
-                const wrong = altLabels.filter((a) => a !== correctAnswer)
-                choice = wrong[Math.floor(Math.random() * wrong.length)]
-              }
-
-              s.emit('submit-vote', {
-                sessionCode: selectedSession.code,
-                questionId: currentQuestionId,
-                choice,
-                correctAnswer: correctAnswer || undefined,
-                studentId: `STRESS-${String(j + 1).padStart(5, '0')}`,
-              })
-
-              result.voted++
-              result.voteDistribution[choice as keyof typeof result.voteDistribution]++
-              resolve()
-            } catch {
-              result.failed++
-              resolve()
-            }
-          })
-        )
-      }
-
-      await Promise.all(votePromises)
-
-      // Disconnect all
-      for (const s of sockets) {
-        try { s.disconnect() } catch { /* */ }
+        await Promise.all(wavePromises)
       }
 
       result.durationMs = Date.now() - startTime
       result.votesPerSecond = result.durationMs > 0 ? Math.round((result.voted / result.durationMs) * 1000) : 0
 
-      // Cleanup
-      for (const s of sockets) {
-        try { if (s.connected) s.disconnect() } catch { /* */ }
-      }
-
       setStressTestResult(result)
-      toast.success(`Stress test concluído! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
+      toast.success(`Stress test concluido! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
     } catch (err) {
-      for (const s of sockets) {
-        try { if (s.connected) s.disconnect() } catch { /* */ }
-      }
       result.durationMs = Date.now() - startTime
       result.errors.push(`Erro fatal: ${err instanceof Error ? err.message : 'Desconhecido'}`)
       setStressTestResult(result)
