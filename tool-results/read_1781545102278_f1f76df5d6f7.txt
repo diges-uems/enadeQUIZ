@@ -1,0 +1,817 @@
+     1→'use client'
+     2→
+     3→import React, { useEffect, useState, useCallback, useRef } from 'react'
+     4→import { useRouter } from 'next/navigation'
+     5→import { io, Socket } from 'socket.io-client'
+     6→import { toast } from 'sonner'
+     7→import { Button } from '@/components/ui/button'
+     8→import { Users, Wifi, WifiOff } from 'lucide-react'
+     9→import type { Session, Question } from '@/types'
+    10→
+    11→// ─── Types ──────────────────────────────────────────────────────────────────
+    12→
+    13→type PageState = 'loading' | 'error' | 'waiting' | 'voting' | 'voted' | 'revealed' | 'finished'
+    14→
+    15→interface SessionStatePayload {
+    16→  participantCount: number
+    17→  currentQuestionId: string | null
+    18→  votingPaused: boolean
+    19→}
+    20→
+    21→// ─── Alternative colors ──────────────────────────────────────────────────────
+    22→
+    23→const ALT_COLORS: Record<string, string> = {
+    24→  A: '#00338C',
+    25→  B: '#C8A84B',
+    26→  C: '#2196F3',
+    27→  D: '#4CAF50',
+    28→  E: '#F44336',
+    29→}
+    30→
+    31→// ─── CSS Keyframes ──────────────────────────────────────────────────────────
+    32→const ANIMATION_STYLES = `
+    33→  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    34→  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    35→  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    36→  @keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 1; transform: scale(1.5); } }
+    37→  @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 0px rgba(200,168,75,0); } 50% { box-shadow: 0 0 25px rgba(200,168,75,0.3); } }
+    38→  @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
+    39→  @keyframes bounceIn { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+    40→  @keyframes slideInLeft { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    41→  @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.5); opacity: 1; } }
+    42→  @keyframes rotateScaleIn { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+    43→`
+    44→
+    45→// ─── Component ──────────────────────────────────────────────────────────────
+    46→
+    47→export default function StudentVotingPage({
+    48→  params,
+    49→}: {
+    50→  params: Promise<{ codigo: string }>
+    51→}) {
+    52→  const { codigo } = React.use(params)
+    53→  const router = useRouter()
+    54→
+    55→  // ── State ───────────────────────────────────────────────────────────────
+    56→  const [pageState, setPageState] = useState<PageState>('loading')
+    57→  const [session, setSession] = useState<Session | null>(null)
+    58→  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
+    59→  const [selectedChoice, setSelectedChoice] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null)
+    60→  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
+    61→  const [votingPaused, setVotingPaused] = useState(false)
+    62→  const [participantCount, setParticipantCount] = useState(0)
+    63→  const [isSubmitting, setIsSubmitting] = useState(false)
+    64→  const [isConnected, setIsConnected] = useState(false)
+    65→
+    66→  const socketRef = useRef<Socket | null>(null)
+    67→  const sessionFetchedRef = useRef<Session | null>(null)
+    68→
+    69→  // ── Score tracking ──────────────────────────────────────────────────────
+    70→  const [correctCount, setCorrectCount] = useState(() => {
+    71→    if (typeof window === 'undefined') return 0
+    72→    try {
+    73→      const stored = sessionStorage.getItem(`score_${codigo}`)
+    74→      if (stored) return (JSON.parse(stored) as { correct: number; answered: number }).correct
+    75→    } catch { /* ignore */ }
+    76→    return 0
+    77→  })
+    78→  const [answeredCount, setAnsweredCount] = useState(() => {
+    79→    if (typeof window === 'undefined') return 0
+    80→    try {
+    81→      const stored = sessionStorage.getItem(`score_${codigo}`)
+    82→      if (stored) return (JSON.parse(stored) as { correct: number; answered: number }).answered
+    83→    } catch { /* ignore */ }
+    84→    return 0
+    85→  })
+    86→
+    87→  // ── Anti-fraud: sessionStorage helpers ───────────────────────────────────
+    88→  const getStoredVote = useCallback(
+    89→    (questionId: string): string | null => {
+    90→      if (typeof window === 'undefined') return null
+    91→      return sessionStorage.getItem(`voted_${questionId}`)
+    92→    },
+    93→    []
+    94→  )
+    95→
+    96→  const storeVote = useCallback((questionId: string, choice: string) => {
+    97→    if (typeof window === 'undefined') return
+    98→    sessionStorage.setItem(`voted_${questionId}`, choice)
+    99→  }, [])
+   100→
+   101→  // ── Score from sessionStorage ────────────────────────────────────────────
+   102→  const loadScore = useCallback((): { correct: number; answered: number } => {
+   103→    if (typeof window === 'undefined') return { correct: 0, answered: 0 }
+   104→    const stored = sessionStorage.getItem(`score_${codigo}`)
+   105→    if (stored) {
+   106→      try {
+   107→        return JSON.parse(stored) as { correct: number; answered: number }
+   108→      } catch {
+   109→        return { correct: 0, answered: 0 }
+   110→      }
+   111→    }
+   112→    return { correct: 0, answered: 0 }
+   113→  }, [codigo])
+   114→
+   115→  const saveScore = useCallback((correct: number, answered: number) => {
+   116→    if (typeof window === 'undefined') return
+   117→    sessionStorage.setItem(`score_${codigo}`, JSON.stringify({ correct, answered }))
+   118→  }, [codigo])
+   119→
+   120→  // ── Question progress ─────────────────────────────────────────────────
+   121→  const questionProgress = useCallback((): string => {
+   122→    if (!session || !currentQuestion) return ''
+   123→    const idx = session.questions.findIndex((q) => q.id === currentQuestion.id)
+   124→    if (idx === -1) return ''
+   125→    return `${idx + 1} / ${session.questions.length}`
+   126→  }, [session, currentQuestion])
+   127→
+   128→  const questionProgressPercent = useCallback((): number => {
+   129→    if (!session || !currentQuestion) return 0
+   130→    const idx = session.questions.findIndex((q) => q.id === currentQuestion.id)
+   131→    if (idx === -1) return 0
+   132→    return ((idx + 1) / session.questions.length) * 100
+   133→  }, [session, currentQuestion])
+   134→
+   135→  // ── Determine state from session data (no identification needed) ────────
+   136→  const determineState = useCallback((data: Session, questionId: string | null, paused: boolean): PageState => {
+   137→    if (data.status === 'finished') return 'finished'
+   138→    if (!questionId) return 'waiting'
+   139→
+   140→    const q = data.questions.find((q) => q.id === questionId)
+   141→    if (!q) return 'waiting'
+   142→
+   143→    setCurrentQuestion(q)
+   144→    const stored = getStoredVote(q.id)
+   145→    if (stored) {
+   146→      setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   147→      if (q.isRevealed) {
+   148→        setCorrectAnswer(q.correctAnswer)
+   149→        return 'revealed'
+   150→      }
+   151→      return 'voted'
+   152→    }
+   153→    if (q.isRevealed) {
+   154→      setCorrectAnswer(q.correctAnswer)
+   155→      return 'revealed'
+   156→    }
+   157→    if (paused) return 'waiting'
+   158→    return 'voting'
+   159→  }, [getStoredVote])
+   160→
+   161→  // ── Socket setup & event listeners ──────────────────────────────────────
+   162→  useEffect(() => {
+   163→    // Fetch session data
+   164→    const fetchSession = async () => {
+   165→      try {
+   166→        const res = await fetch(`/api/session/${codigo}`)
+   167→        if (!res.ok) {
+   168→          setPageState('error')
+   169→          return
+   170→        }
+   171→        const data: Session = await res.json()
+   172→        setSession(data)
+   173→        sessionFetchedRef.current = data
+   174→
+   175→        // Determine state directly (no identification)
+   176→        const state = determineState(data, data.currentQuestionId, false)
+   177→        setPageState(state)
+   178→
+   179→        // Connect socket (non-blocking)
+   180→        const socket = io('/?XTransformPort=3003', {
+   181→          transports: ['websocket', 'polling'],
+   182→          timeout: 10000,
+   183→          reconnection: true,
+   184→          reconnectionAttempts: 5,
+   185→          reconnectionDelay: 2000,
+   186→        })
+   187→        socketRef.current = socket
+   188→
+   189→        socket.on('connect', () => {
+   190→          setIsConnected(true)
+   191→          socket.emit('join-session', { sessionCode: codigo, role: 'student' })
+   192→        })
+   193→
+   194→        socket.on('session-state', (state: SessionStatePayload) => {
+   195→          setParticipantCount(state.participantCount)
+   196→          setVotingPaused(state.votingPaused)
+   197→
+   198→          const newState = determineState(sessionFetchedRef.current!, state.currentQuestionId, state.votingPaused)
+   199→          setPageState(newState)
+   200→        })
+   201→
+   202→        socket.on('question-activated', (data: { questionId: string; votingPaused: boolean }) => {
+   203→          setSession((prev) => {
+   204→            if (prev) {
+   205→              const found = prev.questions.find((q) => q.id === data.questionId)
+   206→              if (found) {
+   207→                setCurrentQuestion(found)
+   208→                setVotingPaused(data.votingPaused)
+   209→                const stored = getStoredVote(found.id)
+   210→                if (stored) {
+   211→                  setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   212→                  setPageState('voted')
+   213→                } else {
+   214→                  setSelectedChoice(null)
+   215→                  setCorrectAnswer(null)
+   216→                  setPageState(data.votingPaused ? 'waiting' : 'voting')
+   217→                }
+   218→              }
+   219→            }
+   220→            return prev
+   221→          })
+   222→        })
+   223→
+   224→        socket.on('vote-accepted', async (data: { choice: string; questionId: string }) => {
+   225→          setSelectedChoice(data.choice as 'A' | 'B' | 'C' | 'D' | 'E')
+   226→          storeVote(data.questionId, data.choice)
+   227→          setPageState('voted')
+   228→          setIsSubmitting(false)
+   229→          toast.success('Voto registrado com sucesso!')
+   230→
+   231→          // Persist to DB via API (no studentId needed)
+   232→          try {
+   233→            await fetch('/api/vote', {
+   234→              method: 'POST',
+   235→              headers: { 'Content-Type': 'application/json' },
+   236→              body: JSON.stringify({
+   237→                sessionCode: codigo,
+   238→                questionId: data.questionId,
+   239→                choice: data.choice,
+   240→              }),
+   241→            })
+   242→          } catch (err) {
+   243→            console.error('Failed to persist vote to DB:', err)
+   244→          }
+   245→        })
+   246→
+   247→        socket.on('vote-rejected', (data: { reason: string }) => {
+   248→          setIsSubmitting(false)
+   249→          toast.error(data.reason || 'Voto rejeitado')
+   250→        })
+   251→
+   252→        socket.on('answer-revealed', (data: { questionId: string; correctAnswer: string }) => {
+   253→          setCorrectAnswer(data.correctAnswer)
+   254→          setPageState('revealed')
+   255→
+   256→          // Update score tracking
+   257→          const currentStoredVote = getStoredVote(data.questionId)
+   258→          if (currentStoredVote) {
+   259→            const newAnswered = answeredCount + 1
+   260→            const newCorrect = data.correctAnswer === currentStoredVote ? correctCount + 1 : correctCount
+   261→            setAnsweredCount(newAnswered)
+   262→            setCorrectCount(newCorrect)
+   263→            saveScore(newCorrect, newAnswered)
+   264→          }
+   265→        })
+   266→
+   267→        socket.on('voting-toggled', (data: { paused: boolean }) => {
+   268→          setVotingPaused(data.paused)
+   269→          if (data.paused && pageState === 'voting') {
+   270→            setPageState('waiting')
+   271→          } else if (!data.paused && pageState === 'waiting' && currentQuestion) {
+   272→            const stored = getStoredVote(currentQuestion.id)
+   273→            if (!stored) {
+   274→              setPageState('voting')
+   275→            }
+   276→          }
+   277→        })
+   278→
+   279→        socket.on('session-finished', () => {
+   280→          setPageState('finished')
+   281→        })
+   282→
+   283→        socket.on('session-reset', () => {
+   284→          // Clear all stored votes from sessionStorage
+   285→          if (typeof window !== 'undefined' && sessionFetchedRef.current) {
+   286→            for (const q of sessionFetchedRef.current.questions) {
+   287→              sessionStorage.removeItem(`voted_${q.id}`)
+   288→            }
+   289→            sessionStorage.removeItem(`score_${codigo}`)
+   290→          }
+   291→          // Reset all state
+   292→          setSelectedChoice(null)
+   293→          setCorrectAnswer(null)
+   294→          setVotingPaused(false)
+   295→          setCorrectCount(0)
+   296→          setAnsweredCount(0)
+   297→          setCurrentQuestion(null)
+   298→          setPageState('waiting')
+   299→          toast.info('Sessão reiniciada pelo apresentador')
+   300→        })
+   301→
+   302→        socket.on('participant-count', (count: number) => {
+   303→          setParticipantCount(count)
+   304→        })
+   305→
+   306→        socket.on('connect_error', () => {
+   307→          setIsConnected(false)
+   308→        })
+   309→
+   310→        socket.on('disconnect', () => {
+   311→          setIsConnected(false)
+   312→        })
+   313→
+   314→        socket.on('reconnect', () => {
+   315→          setIsConnected(true)
+   316→        })
+   317→      } catch {
+   318→        setPageState('error')
+   319→      }
+   320→    }
+   321→
+   322→    fetchSession()
+   323→
+   324→    return () => {
+   325→      if (socketRef.current) {
+   326→        socketRef.current.emit('leave-session', { sessionCode: codigo })
+   327→        socketRef.current.disconnect()
+   328→        socketRef.current = null
+   329→      }
+   330→    }
+   331→  }, [codigo])
+   332→
+   333→  // ── Submit vote ─────────────────────────────────────────────────────────
+   334→  const handleVote = useCallback(
+   335→    (choice: 'A' | 'B' | 'C' | 'D' | 'E') => {
+   336→      if (!currentQuestion || !socketRef.current || isSubmitting) return
+   337→
+   338→      // Anti-fraud: check if already voted
+   339→      const stored = getStoredVote(currentQuestion.id)
+   340→      if (stored) {
+   341→        setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   342→        setPageState('voted')
+   343→        toast.info('Você já votou nesta questão.')
+   344→        return
+   345→      }
+   346→
+   347→      setIsSubmitting(true)
+   348→
+   349→      // Try socket first, fallback to API
+   350→      if (socketRef.current.connected) {
+   351→        socketRef.current.emit('submit-vote', {
+   352→          sessionCode: codigo,
+   353→          questionId: currentQuestion.id,
+   354→          choice,
+   355→        })
+   356→      } else {
+   357→        // Fallback: submit via API
+   358→        fetch('/api/vote', {
+   359→          method: 'POST',
+   360→          headers: { 'Content-Type': 'application/json' },
+   361→          body: JSON.stringify({
+   362→            sessionCode: codigo,
+   363→            questionId: currentQuestion.id,
+   364→            choice,
+   365→          }),
+   366→        })
+   367→          .then(async (res) => {
+   368→            if (res.ok) {
+   369→              const data = await res.json()
+   370→              setSelectedChoice(choice)
+   371→              storeVote(currentQuestion.id, choice)
+   372→              setPageState('voted')
+   373→              toast.success('Voto registrado!')
+   374→              if (data.results) {
+   375→                // Optionally handle results
+   376→              }
+   377→            } else {
+   378→              toast.error('Erro ao registrar voto')
+   379→            }
+   380→          })
+   381→          .catch(() => {
+   382→            toast.error('Erro de conexão')
+   383→          })
+   384→          .finally(() => {
+   385→            setIsSubmitting(false)
+   386→          })
+   387→      }
+   388→    },
+   389→    [codigo, currentQuestion, getStoredVote, isSubmitting, storeVote]
+   390→  )
+   391→
+   392→  // ── Get alternative text ────────────────────────────────────────────────
+   393→  const getAltText = (letter: string, q: Question): string => {
+   394→    switch (letter) {
+   395→      case 'A': return q.altA
+   396→      case 'B': return q.altB
+   397→      case 'C': return q.altC
+   398→      case 'D': return q.altD
+   399→      case 'E': return q.altE
+   400→      default: return ''
+   401→    }
+   402→  }
+   403→
+   404→  // ── Render ──────────────────────────────────────────────────────────────
+   405→
+   406→  // Loading state
+   407→  if (pageState === 'loading') {
+   408→    return (
+   409→      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: '#050A1A' }}>
+   410→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   411→        <div
+   412→          className="w-12 h-12 border-4 border-[#C8A84B] border-t-transparent rounded-full mb-4"
+   413→          style={{ animation: 'spin 1s linear infinite' }}
+   414→        />
+   415→        <p className="text-[#8899CC] text-base" style={{ animation: 'fadeIn 0.5s ease-out' }}>
+   416→          Carregando sessão...
+   417→        </p>
+   418→      </div>
+   419→    )
+   420→  }
+   421→
+   422→  // Error state
+   423→  if (pageState === 'error') {
+   424→    return (
+   425→      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#050A1A' }}>
+   426→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   427→        <div className="text-center space-y-4" style={{ animation: 'fadeInUp 0.5s ease-out' }}>
+   428→          <div className="text-5xl mb-2">😕</div>
+   429→          <h1
+   430→            className="text-2xl font-bold text-[#E8EDFF]"
+   431→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   432→          >
+   433→            Sessão não encontrada
+   434→          </h1>
+   435→          <p className="text-[#8899CC] text-sm max-w-sm mx-auto">
+   436→            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   437→            Verifique o QR Code e tente novamente.
+   438→          </p>
+   439→          <Button
+   440→            onClick={() => router.push('/')}
+   441→            className="bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
+   442→          >
+   443→            Voltar ao início
+   444→          </Button>
+   445→        </div>
+   446→      </div>
+   447→    )
+   448→  }
+   449→
+   450→  // Finished state
+   451→  if (pageState === 'finished') {
+   452→    return (
+   453→      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#050A1A' }}>
+   454→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   455→        <div className="max-w-sm w-full text-center" style={{ animation: 'fadeInUp 0.7s ease-out' }}>
+   456→          {/* Trophy */}
+   457→          <div className="mb-4" style={{ animation: 'rotateScaleIn 0.8s ease-out' }}>
+   458→            <span className="text-7xl">🏆</span>
+   459→          </div>
+   460→
+   461→          <h1
+   462→            className="text-3xl font-bold mb-2"
+   463→            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+   464→          >
+   465→            Sessão Encerrada
+   466→          </h1>
+   467→
+   468→          <p className="text-[#8899CC] text-base mb-2">
+   469→            Obrigado por participar!
+   470→          </p>
+   471→
+   472→          {answeredCount > 0 && (
+   473→            <div className="mb-6" style={{ animation: 'bounceIn 0.4s ease-out 0.6s both' }}>
+   474→              <span
+   475→                className="inline-block px-4 py-1.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded-full text-[#C8A84B] font-bold text-lg"
+   476→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   477→              >
+   478→                {correctCount}/{answeredCount} acertos
+   479→              </span>
+   480→            </div>
+   481→          )}
+   482→
+   483→          <div style={{ animation: 'fadeIn 0.4s ease-out 0.7s both' }}>
+   484→            <Button
+   485→              onClick={() => router.push('/')}
+   486→              className="bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
+   487→            >
+   488→              Voltar ao início
+   489→            </Button>
+   490→          </div>
+   491→        </div>
+   492→      </div>
+   493→    )
+   494→  }
+   495→
+   496→  return (
+   497→    <div className="min-h-screen flex flex-col" style={{ background: '#050A1A' }}>
+   498→      <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   499→
+   500→      {/* ── Header ──────────────────────────────────────────────────────── */}
+   501→      <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
+   502→        <div className="flex items-center gap-2.5">
+   503→          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+   504→          <span
+   505→            className="text-[#E8EDFF] text-sm font-semibold"
+   506→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   507→          >
+   508→            ENADE Quiz
+   509→          </span>
+   510→        </div>
+   511→        <div className="flex items-center gap-3">
+   512→          {/* Score badge */}
+   513→          {answeredCount > 0 && (
+   514→            <span
+   515→              className="px-2.5 py-0.5 bg-[#C8A84B]/15 border border-[#C8A84B]/40 rounded-full text-[#C8A84B] text-xs font-bold"
+   516→              style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceIn 0.3s ease-out' }}
+   517→            >
+   518→              {correctCount} acerto{correctCount !== 1 ? 's' : ''}
+   519→            </span>
+   520→          )}
+   521→
+   522→          {/* Participant count */}
+   523→          {participantCount > 0 && (
+   524→            <div className="flex items-center gap-1">
+   525→              <Users className="w-3.5 h-3.5 text-[#C8A84B]" />
+   526→              <span className="text-[#E8EDFF] text-xs font-medium">{participantCount}</span>
+   527→            </div>
+   528→          )}
+   529→
+   530→          {/* Session code badge */}
+   531→          <span
+   532→            className="px-2.5 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-xs tracking-wider"
+   533→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   534→          >
+   535→            {codigo}
+   536→          </span>
+   537→
+   538→          {/* Connection status */}
+   539→          <div className="relative" style={!isConnected ? { animation: 'pulse 1.5s ease-in-out infinite' } : {}}>
+   540→            {isConnected ? (
+   541→              <Wifi className="w-4 h-4 text-green-400" />
+   542→            ) : (
+   543→              <WifiOff className="w-4 h-4 text-red-400" />
+   544→            )}
+   545→          </div>
+   546→        </div>
+   547→      </header>
+   548→
+   549→      {/* ── Question progress bar ───────────────────────────────────────── */}
+   550→      {(pageState === 'voting' || pageState === 'voted' || pageState === 'revealed') && session && currentQuestion && (
+   551→        <div className="h-1 bg-[#0D1B3E] shrink-0">
+   552→          <div
+   553→            className="h-full bg-[#C8A84B] transition-all duration-500 ease-out"
+   554→            style={{ width: `${questionProgressPercent()}%` }}
+   555→          />
+   556→        </div>
+   557→      )}
+   558→
+   559→      {/* ── Main content ────────────────────────────────────────────────── */}
+   560→      <main className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
+   561→
+   562→        {/* ── State: Waiting ───────────────────────────────────────────── */}
+   563→        {pageState === 'waiting' && (
+   564→          <div className="flex-1 flex flex-col items-center justify-center text-center" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+   565→            {/* Pulsing dots */}
+   566→            <div className="flex items-center justify-center gap-2 mb-6">
+   567→              {[0, 1, 2].map((i) => (
+   568→                <div
+   569→                  key={i}
+   570→                  className="w-3 h-3 rounded-full bg-[#C8A84B]"
+   571→                  style={{
+   572→                    animation: `dotPulse 1.2s ease-in-out ${i * 0.4}s infinite`,
+   573→                  }}
+   574→                />
+   575→              ))}
+   576→            </div>
+   577→
+   578→            <h2
+   579→              className="text-lg font-semibold text-[#E8EDFF] mb-2"
+   580→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   581→            >
+   582→              Aguardando a próxima questão...
+   583→            </h2>
+   584→            <p className="text-sm text-[#8899CC]">
+   585→              O apresentador iniciará a questão em breve.
+   586→            </p>
+   587→            {votingPaused && currentQuestion && (
+   588→              <div className="mt-4 px-4 py-2 bg-[#C8A84B]/10 border border-[#C8A84B]/30 rounded-lg">
+   589→                <p className="text-[#C8A84B] text-sm font-medium">
+   590→                  ⏸ Votação pausada
+   591→                </p>
+   592→              </div>
+   593→            )}
+   594→          </div>
+   595→        )}
+   596→
+   597→        {/* ── State: Voting ────────────────────────────────────────────── */}
+   598→        {pageState === 'voting' && currentQuestion && (
+   599→          <div className="flex-1 flex flex-col" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+   600→            {/* Question header */}
+   601→            <div className="mb-4">
+   602→              <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
+   603→                ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
+   604→              </div>
+   605→              <h2
+   606→                className="text-lg font-semibold text-[#E8EDFF] leading-snug"
+   607→                style={{ fontFamily: 'var(--font-inter)' }}
+   608→              >
+   609→                {currentQuestion.text}
+   610→              </h2>
+   611→            </div>
+   612→
+   613→            {/* Optional image */}
+   614→            {currentQuestion.imageUrl && (
+   615→              <div className="mb-4 rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#0D1B3E]">
+   616→                <img
+   617→                  src={currentQuestion.imageUrl}
+   618→                  alt="Imagem da questão"
+   619→                  className="w-full h-auto max-h-64 object-contain p-2"
+   620→                />
+   621→              </div>
+   622→            )}
+   623→
+   624→            {/* Answer buttons */}
+   625→            <div className="flex flex-col gap-3 mt-2">
+   626→              {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+   627→                const altText = getAltText(letter, currentQuestion)
+   628→                const color = ALT_COLORS[letter]
+   629→                return (
+   630→                  <button
+   631→                    key={letter}
+   632→                    onClick={() => handleVote(letter)}
+   633→                    disabled={isSubmitting}
+   634→                    className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-[#0D1B3E] border-[#1A2A5E] hover:border-[#C8A84B] hover:shadow-[0_0_15px_rgba(200,168,75,0.15)] active:bg-[#1A2A5E] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-left"
+   635→                    style={{ animation: `slideInLeft 0.3s ease-out ${['A','B','C','D','E'].indexOf(letter) * 0.06}s both` }}
+   636→                  >
+   637→                    <span
+   638→                      className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+   639→                      style={{ backgroundColor: color }}
+   640→                    >
+   641→                      {letter}
+   642→                    </span>
+   643→                    <span className="flex-1 leading-snug text-[#E8EDFF]">{altText}</span>
+   644→                  </button>
+   645→                )
+   646→              })}
+   647→            </div>
+   648→          </div>
+   649→        )}
+   650→
+   651→        {/* ── State: Already voted ─────────────────────────────────────── */}
+   652→        {pageState === 'voted' && currentQuestion && selectedChoice && (
+   653→          <div className="flex-1 flex flex-col items-center justify-center text-center" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+   654→            {/* Gold checkmark */}
+   655→            <div className="mb-6" style={{ animation: 'scaleIn 0.4s ease-out' }}>
+   656→              <div
+   657→                className="w-20 h-20 rounded-full bg-[#C8A84B]/15 border-2 border-[#C8A84B] flex items-center justify-center"
+   658→                style={{ animation: 'glowPulse 2s ease-in-out infinite' }}
+   659→              >
+   660→                <span className="text-[#C8A84B] text-3xl font-bold">✓</span>
+   661→              </div>
+   662→            </div>
+   663→
+   664→            <h2
+   665→              className="text-lg font-semibold text-[#E8EDFF] mb-2"
+   666→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   667→            >
+   668→              Você votou na alternativa{' '}
+   669→              <span className="font-bold text-[#C8A84B]">
+   670→                {selectedChoice}
+   671→              </span>
+   672→            </h2>
+   673→
+   674→            {/* Timer indicator */}
+   675→            <div className="flex items-center justify-center gap-2 mb-4">
+   676→              <div
+   677→                className="w-2 h-2 rounded-full bg-[#C8A84B]"
+   678→                style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+   679→              />
+   680→              <p className="text-sm text-[#8899CC]">
+   681→                Aguardando o gabarito...
+   682→              </p>
+   683→            </div>
+   684→
+   685→            {/* Selected answer card */}
+   686→            <div className="w-full mt-4 bg-[#0D1B3E] border border-[#1A2A5E] rounded-xl p-4">
+   687→              <div className="flex items-start gap-3">
+   688→                <span
+   689→                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+   690→                  style={{ backgroundColor: ALT_COLORS[selectedChoice] }}
+   691→                >
+   692→                  {selectedChoice}
+   693→                </span>
+   694→                <p className="text-sm text-[#8899CC] italic leading-relaxed">
+   695→                  &quot;{getAltText(selectedChoice, currentQuestion)}&quot;
+   696→                </p>
+   697→              </div>
+   698→            </div>
+   699→          </div>
+   700→        )}
+   701→
+   702→        {/* ── State: Answer revealed ───────────────────────────────────── */}
+   703→        {pageState === 'revealed' && currentQuestion && correctAnswer && (
+   704→          <div className="flex-1 flex flex-col" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+   705→            {/* Correct answer header */}
+   706→            <div className="text-center mb-5">
+   707→              <span
+   708→                className="inline-block bg-[#C8A84B] text-[#050A1A] text-sm font-bold px-4 py-2 rounded-full"
+   709→                style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceIn 0.4s ease-out' }}
+   710→              >
+   711→                Gabarito: <span className="text-lg">{correctAnswer}</span>
+   712→              </span>
+   713→            </div>
+   714→
+   715→            {/* All alternatives with results */}
+   716→            <div className="flex flex-col gap-2.5">
+   717→              {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+   718→                const altText = getAltText(letter, currentQuestion)
+   719→                const isCorrect = letter === correctAnswer
+   720→                const isStudentChoice = letter === selectedChoice
+   721→                const isWrongChoice = isStudentChoice && !isCorrect
+   722→
+   723→                let containerClass = 'w-full rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 text-left'
+   724→                let letterStyle: React.CSSProperties = {}
+   725→                let iconEl: React.ReactNode = null
+   726→
+   727→                if (isCorrect) {
+   728→                  containerClass += ' bg-[#C8A84B]/15 border-[#C8A84B]'
+   729→                  letterStyle = { backgroundColor: '#C8A84B' }
+   730→                  iconEl = (
+   731→                    <span className="text-[#C8A84B] text-lg font-bold" style={{ animation: 'scaleIn 0.3s ease-out 0.1s both' }}>
+   732→                      ✓
+   733→                    </span>
+   734→                  )
+   735→                } else if (isWrongChoice) {
+   736→                  containerClass += ' bg-red-500/10 border-red-500/40'
+   737→                  letterStyle = { backgroundColor: '#EF4444' }
+   738→                  iconEl = (
+   739→                    <span className="text-red-400 text-lg font-bold" style={{ animation: 'scaleIn 0.3s ease-out 0.1s both' }}>
+   740→                      ✗
+   741→                    </span>
+   742→                  )
+   743→                } else {
+   744→                  containerClass += ' bg-[#0D1B3E] border-[#1A2A5E] opacity-40'
+   745→                  letterStyle = { backgroundColor: ALT_COLORS[letter] }
+   746→                }
+   747→
+   748→                return (
+   749→                  <div
+   750→                    key={letter}
+   751→                    className={containerClass}
+   752→                    style={{ animation: `slideInLeft 0.3s ease-out ${['A','B','C','D','E'].indexOf(letter) * 0.05}s both` }}
+   753→                  >
+   754→                    <span
+   755→                      className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+   756→                      style={letterStyle}
+   757→                    >
+   758→                      {letter}
+   759→                    </span>
+   760→                    <span className={`flex-1 leading-snug ${
+   761→                      isCorrect ? 'text-[#E8EDFF]' : isWrongChoice ? 'text-[#E8EDFF]' : 'text-[#8899CC]'
+   762→                    }`}>
+   763→                      {altText}
+   764→                    </span>
+   765→                    {iconEl}
+   766→                  </div>
+   767→                )
+   768→              })}
+   769→            </div>
+   770→
+   771→            {/* Result summary */}
+   772→            <div className="mt-6 text-center">
+   773→              {selectedChoice ? (
+   774→                selectedChoice === correctAnswer ? (
+   775→                  <div
+   776→                    className="text-lg font-bold text-[#C8A84B]"
+   777→                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceIn 0.4s ease-out 0.4s both' }}
+   778→                  >
+   779→                    ✅ Você acertou!
+   780→                  </div>
+   781→                ) : (
+   782→                  <div
+   783→                    className="text-lg font-bold text-red-400"
+   784→                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceIn 0.4s ease-out 0.4s both' }}
+   785→                  >
+   786→                    ❌ Você errou
+   787→                  </div>
+   788→                )
+   789→              ) : (
+   790→                <div
+   791→                  className="text-base text-[#8899CC]"
+   792→                  style={{ animation: 'fadeIn 0.3s ease-out 0.4s both' }}
+   793→                >
+   794→                  Você não votou nesta questão.
+   795→                </div>
+   796→              )}
+   797→            </div>
+   798→          </div>
+   799→        )}
+   800→      </main>
+   801→
+   802→      {/* ── Footer ──────────────────────────────────────────────────────── */}
+   803→      <footer className="border-t border-[#1A2A5E] px-4 py-3 mt-auto" style={{ background: '#0A1128' }}>
+   804→        <div className="max-w-lg mx-auto flex items-center justify-between text-xs text-[#5A6A9E]">
+   805→          <div className="flex items-center gap-1.5">
+   806→            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-40" />
+   807→            <span>UEMS / DIGES</span>
+   808→          </div>
+   809→          <span>
+   810→            {currentQuestion ? `Questão ${questionProgress()}` : `Sessão ${codigo}`}
+   811→          </span>
+   812→        </div>
+   813→      </footer>
+   814→    </div>
+   815→  )
+   816→}
+   817→

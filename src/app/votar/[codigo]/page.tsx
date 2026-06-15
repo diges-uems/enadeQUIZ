@@ -181,8 +181,9 @@ export default function StudentVotingPage({
           transports: ['websocket', 'polling'],
           timeout: 10000,
           reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 2000,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
         })
         socketRef.current = socket
 
@@ -313,6 +314,8 @@ export default function StudentVotingPage({
 
         socket.on('reconnect', () => {
           setIsConnected(true)
+          // Re-join session on reconnect so participant count stays accurate
+          socket.emit('join-session', { sessionCode: codigo, role: 'student' })
         })
       } catch {
         setPageState('error')
@@ -329,6 +332,44 @@ export default function StudentVotingPage({
       }
     }
   }, [codigo])
+
+  // ── Screen Wake Lock: keep phone screen on ──────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ released: boolean; release(): Promise<void>; addEventListener(type: string, listener: () => void): void }> } }
+    if (!nav.wakeLock) return
+
+    let wakeLock: { released: boolean; release(): Promise<void>; addEventListener(type: string, listener: () => void): void } | null = null
+
+    const requestWakeLock = async () => {
+      try {
+        wakeLock = await nav.wakeLock!.request('screen')
+
+        const handleVisibility = async () => {
+          if (document.visibilityState === 'visible' && (!wakeLock || wakeLock.released)) {
+            try {
+              wakeLock = await nav.wakeLock!.request('screen')
+            } catch { /* ignore */ }
+          }
+        }
+        document.addEventListener('visibilitychange', handleVisibility)
+
+        wakeLock.addEventListener('release', () => {
+          wakeLock = null
+        })
+      } catch { /* Wake Lock not available */ }
+    }
+
+    requestWakeLock()
+
+    return () => {
+      if (wakeLock) {
+        wakeLock.release()
+        wakeLock = null
+      }
+    }
+  }, [])
 
   // ── Submit vote ─────────────────────────────────────────────────────────
   const handleVote = useCallback(
@@ -534,6 +575,13 @@ export default function StudentVotingPage({
           >
             {codigo}
           </span>
+
+          {/* Screen wake lock indicator */}
+          {'wakeLock' in navigator && (
+            <div className="flex items-center gap-0.5" title="Tela mantida acesa">
+              <div className="w-2 h-2 rounded-full bg-green-400" style={{ animation: 'pulse 2s ease-in-out infinite' }} />
+            </div>
+          )}
 
           {/* Connection status */}
           <div className="relative" style={!isConnected ? { animation: 'pulse 1.5s ease-in-out infinite' } : {}}>

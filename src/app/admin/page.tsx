@@ -1624,7 +1624,37 @@ export default function AdminPage() {
             {/* ═══ TAB 2: APRESENTAR ═══ */}
             <TabsContent value="apresentar">
               <div className="grid gap-6">
-                {/* Row 1: Session Status + Participant Counter */}
+                {/* Row 1: Presentation Preview (at the top for better visibility) */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Preview da Apresentação</CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+                        }
+                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+                      >
+                        <Monitor className="size-4" />
+                        Abrir Tela Cheia
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="w-full rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#050A1A]" style={{ aspectRatio: '16/9' }}>
+                      <iframe
+                        src={`/apresentacao/${selectedSession.code}`}
+                        className="w-full h-full border-0"
+                        title="Preview da Apresentação"
+                        style={{ transformOrigin: 'top left' }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Row 2: Session Status + Participant Counter */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Session Status Card */}
                   <Card>
@@ -1975,30 +2005,6 @@ export default function AdminPage() {
                     </CardContent>
                   </Card>
                 </div>
-
-                {/* Row 4: Open Presentation Screen Button */}
-                <Card>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Tela de Apresentação</p>
-                        <p className="text-sm text-muted-foreground">
-                          Abra a tela para o projetor/projetor em uma nova janela
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          window.open(`/apresentacao/${selectedSession.code}`, '_blank')
-                        }
-                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
-                      >
-                        <Monitor className="size-4" />
-                        Abrir Tela de Apresentação
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             </TabsContent>
           </Tabs>

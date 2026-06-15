@@ -522,8 +522,8 @@ export default function ApresentacaoPage({
               style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
             />
             <div className="flex flex-col items-center gap-4">
-              <div className="bg-[#0D1B3E] rounded-xl p-2 border border-[#1A2A5E]">
-                <img src="/logo.svg" alt="UEMS" className="h-16 w-auto object-contain" />
+              <div className="bg-[#0D1B3E] rounded-xl px-5 py-2.5 border border-[#1A2A5E]">
+                <img src="/logo.svg" alt="UEMS" className="h-16 max-w-[300px] object-contain" />
               </div>
               <QRCode
                 value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
@@ -594,9 +594,18 @@ export default function ApresentacaoPage({
         {!currentQuestion ? (
           /* ── Waiting State: QR Code Center ── */
           <div
-            className="flex-1 flex items-center justify-center gap-16 px-12"
-            style={{ animation: 'fadeIn 0.5s ease-out' }}
+            className="flex-1 flex items-center justify-center gap-16 px-12 relative"
+            style={{
+              animation: 'fadeIn 0.5s ease-out',
+              backgroundImage: `linear-gradient(135deg, rgba(5,10,26,0.82) 0%, rgba(13,27,62,0.72) 50%, rgba(5,10,26,0.85) 100%), url('https://www.uems.br/anexos/imagens/conteudo/uems_imagens_2023-09-22_13-02-19.png')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
           >
+            {/* Background decorative elements */}
+            <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#00338C]/8 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-[#C8A84B]/5 rounded-full blur-[100px] pointer-events-none" />
+
             {/* QR Code Section */}
             <div className="flex flex-col items-center gap-6">
               <div
@@ -609,8 +618,8 @@ export default function ApresentacaoPage({
                   style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
                 />
                 <div className="flex flex-col items-center gap-3">
-                  <div className="bg-[#0D1B3E] rounded-lg p-1.5 border border-[#1A2A5E]">
-                    <img src="/logo.svg" alt="UEMS" className="h-10 w-auto object-contain" />
+                  <div className="bg-[#0D1B3E] rounded-lg px-4 py-2 border border-[#1A2A5E]">
+                    <img src="/logo.svg" alt="UEMS" className="h-12 max-w-[200px] object-contain" />
                   </div>
                   <QRCode
                     value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
@@ -734,7 +743,7 @@ export default function ApresentacaoPage({
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
               >
                 <p
-                  className={`text-[#E8EDFF] leading-relaxed ${currentQuestion.imageUrl ? 'text-xl' : 'text-2xl'}`}
+                  className={`text-[#E8EDFF] leading-relaxed ${currentQuestion.imageUrl ? 'text-xl' : 'text-3xl'}`}
                   style={{ fontFamily: 'var(--font-inter)' }}
                 >
                   {currentQuestion.text}
@@ -743,7 +752,7 @@ export default function ApresentacaoPage({
 
               {/* Alternatives list — fills space when no image */}
               <div
-                className="shrink-0 space-y-2"
+                className={`shrink-0 ${currentQuestion.imageUrl ? 'space-y-2' : 'space-y-3'}`}
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}
               >
                 {ALT_LABELS.map((alt, idx) => {
@@ -763,14 +772,14 @@ export default function ApresentacaoPage({
                       style={{ animation: `fadeInUp 0.3s ease-out ${0.3 + idx * 0.06}s both` }}
                     >
                       <span
-                        className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-sm font-bold text-white ${
+                        className={`shrink-0 ${currentQuestion.imageUrl ? 'w-7 h-7 rounded-md text-sm' : 'w-8 h-8 rounded-lg text-base'} flex items-center justify-center font-bold text-white ${
                           isCorrect ? 'bg-[#C8A84B]' : isWrong ? 'bg-[#3A4A7E]/60' : ''
                         }`}
                         style={!isCorrect && !isWrong ? { backgroundColor: COLORS[alt] } : {}}
                       >
                         {alt}
                       </span>
-                      <span className={`text-sm leading-snug ${isCorrect ? 'text-[#E8EDFF]' : isWrong ? 'text-[#8899CC]/50' : 'text-[#C8D0E8]'}`}>
+                      <span className={`leading-snug ${currentQuestion.imageUrl ? 'text-sm' : 'text-base'} ${isCorrect ? 'text-[#E8EDFF]' : isWrong ? 'text-[#8899CC]/50' : 'text-[#C8D0E8]'}`}>
                         {currentQuestion[altKey]}
                       </span>
                       {isCorrect && (

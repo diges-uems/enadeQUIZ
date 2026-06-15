@@ -10,6 +10,8 @@ const io = new Server(httpServer, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
+  maxHttpBufferSize: 1e6, // 1MB
+  connectTimeout: 10000,
 })
 
 // In-memory state for real-time features
@@ -40,6 +42,47 @@ const sessionScores = new Map<string, Map<string, StudentScore>>()
 // ── Track which question each socket has already voted on (anti-double-vote) ─
 const socketVotedQuestions = new Map<string, Set<string>>()
 
+// ── Reverse map: socket ID -> session code (for O(1) disconnect lookup) ─────
+const socketSession = new Map<string, string>()
+
+// ── Grace period for disconnects (prevents count fluctuation) ───────────────
+// When a socket disconnects, we wait GRACE_PERIOD_MS before actually removing
+// them from the participant count. If they reconnect within that window, no
+// count change happens. This prevents the participant number from bouncing
+// when phones briefly lose connection.
+const GRACE_PERIOD_MS = 30_000 // 30 seconds
+const pendingRemovals = new Map<string, { sessionCode: string; timer: ReturnType<typeof setTimeout> }>()
+
+// ── Vote batching: accumulate votes and broadcast at intervals ──────────────
+const pendingVoteBroadcasts = new Set<string>() // session codes that need vote broadcast
+const VOTE_BATCH_INTERVAL = 150 // ms — broadcast vote results at most every 150ms
+
+setInterval(() => {
+  for (const sessionCode of pendingVoteBroadcasts) {
+    const questionId = sessionCurrentQuestion.get(sessionCode)
+    if (questionId) {
+      const key = getVoteKey(sessionCode, questionId)
+      const results = sessionVoteCounts.get(key)
+      if (results) {
+        io.to(`session:${sessionCode}`).emit('vote-results', { ...results })
+      }
+    }
+  }
+  pendingVoteBroadcasts.clear()
+}, VOTE_BATCH_INTERVAL)
+
+// ── Participant count batching ──────────────────────────────────────────────
+const pendingParticipantBroadcasts = new Set<string>() // session codes that need participant count broadcast
+const PARTICIPANT_BATCH_INTERVAL = 200 // ms
+
+setInterval(() => {
+  for (const sessionCode of pendingParticipantBroadcasts) {
+    const count = sessionParticipants.get(sessionCode)?.size || 0
+    io.to(`session:${sessionCode}`).emit('participant-count', count)
+  }
+  pendingParticipantBroadcasts.clear()
+}, PARTICIPANT_BATCH_INTERVAL)
+
 function getVoteKey(sessionCode: string, questionId: string) {
   return `${sessionCode}:${questionId}`
 }
@@ -59,17 +102,26 @@ function getRanking(sessionCode: string): StudentScore[] {
 }
 
 io.on('connection', (socket) => {
-  console.log(`Connected: ${socket.id}`)
+  // Cancel any pending removal for this socket (reconnection within grace period)
+  const pendingRemoval = pendingRemovals.get(socket.id)
+  if (pendingRemoval) {
+    clearTimeout(pendingRemoval.timer)
+    pendingRemovals.delete(socket.id)
+    // Socket is already in the participant set, no count change needed
+  }
 
   // Join a session room
   socket.on('join-session', (data: { sessionCode: string; role: 'presenter' | 'student'; name?: string; rgm?: string }) => {
     const { sessionCode, role, name, rgm } = data
     socket.join(`session:${sessionCode}`)
-    
+
+    // Store reverse mapping for O(1) disconnect lookup
+    socketSession.set(socket.id, sessionCode)
+
     if (!sessionParticipants.has(sessionCode)) {
       sessionParticipants.set(sessionCode, new Set())
     }
-    
+
     if (role === 'student') {
       sessionParticipants.get(sessionCode)!.add(socket.id)
 
@@ -78,7 +130,7 @@ io.on('connection', (socket) => {
         studentBySocket.set(socket.id, { name, rgm, sessionCode })
       }
     }
-    
+
     // Send current state to the newly joined client
     const participantCount = sessionParticipants.get(sessionCode)?.size || 0
     socket.emit('session-state', {
@@ -86,10 +138,9 @@ io.on('connection', (socket) => {
       currentQuestionId: sessionCurrentQuestion.get(sessionCode) || null,
       votingPaused: sessionVotingPaused.get(sessionCode) || false,
     })
-    
-    // Broadcast updated participant count
-    io.to(`session:${sessionCode}`).emit('participant-count', participantCount)
-    console.log(`${role} joined session ${sessionCode}, participants: ${participantCount}`)
+
+    // Queue participant count broadcast (batched)
+    pendingParticipantBroadcasts.add(sessionCode)
   })
 
   // Register student info
@@ -107,20 +158,19 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('student-registered', { success: true })
-    console.log(`Student registered: ${name} (${rgm}) in session ${sessionCode}`)
   })
 
   // Leave a session
   socket.on('leave-session', (data: { sessionCode: string }) => {
     const { sessionCode } = data
     socket.leave(`session:${sessionCode}`)
-    
+
     const participants = sessionParticipants.get(sessionCode)
     if (participants) {
       participants.delete(socket.id)
-      const count = participants.size
-      io.to(`session:${sessionCode}`).emit('participant-count', count)
+      pendingParticipantBroadcasts.add(sessionCode)
     }
+    socketSession.delete(socket.id)
   })
 
   // Presenter activates a question
@@ -128,34 +178,32 @@ io.on('connection', (socket) => {
     const { sessionCode, questionId } = data
     sessionCurrentQuestion.set(sessionCode, questionId)
     sessionVotingPaused.set(sessionCode, false)
-    
+
     // Initialize vote counts for this question
     initVoteCounts(sessionCode, questionId)
-    
-    // Notify all clients in the session
+
+    // Notify all clients in the session (immediate — this is rare)
     io.to(`session:${sessionCode}`).emit('question-activated', {
       questionId,
       votingPaused: false,
     })
-    
-    // Send current results (likely zero)
+
+    // Send current results (likely zero) — immediate
     const key = getVoteKey(sessionCode, questionId)
     const results = sessionVoteCounts.get(key)
     io.to(`session:${sessionCode}`).emit('vote-results', results)
-    
-    console.log(`Question ${questionId} activated in session ${sessionCode}`)
   })
 
   // Student submits a vote
   socket.on('submit-vote', (data: { sessionCode: string; questionId: string; choice: 'A' | 'B' | 'C' | 'D' | 'E'; correctAnswer?: string; studentId?: string }) => {
     const { sessionCode, questionId, choice, correctAnswer, studentId } = data
-    
+
     // Check if voting is paused
     if (sessionVotingPaused.get(sessionCode)) {
       socket.emit('vote-rejected', { reason: 'Voting is paused' })
       return
     }
-    
+
     // Check if this question is the active one
     const currentQ = sessionCurrentQuestion.get(sessionCode)
     if (currentQ !== questionId) {
@@ -173,7 +221,7 @@ io.on('connection', (socket) => {
       return
     }
     votedSet.add(questionId)
-    
+
     // Update vote counts
     const counts = initVoteCounts(sessionCode, questionId)
     counts[choice]++
@@ -203,49 +251,41 @@ io.on('connection', (socket) => {
         studentScore.corrects++
       }
     }
-    
+
     // Acknowledge the vote to the student
     socket.emit('vote-accepted', { choice, questionId })
-    
-    // Broadcast updated results to everyone in the session
-    io.to(`session:${sessionCode}`).emit('vote-results', { ...counts })
-    
-    console.log(`Vote ${choice} in session ${sessionCode}, question ${questionId}. Total: ${counts.total}`)
+
+    // Queue batched vote results broadcast instead of immediate
+    pendingVoteBroadcasts.add(sessionCode)
   })
 
   // Presenter pauses/resumes voting
   socket.on('toggle-voting', (data: { sessionCode: string; paused: boolean }) => {
     const { sessionCode, paused } = data
     sessionVotingPaused.set(sessionCode, paused)
-    
+
     io.to(`session:${sessionCode}`).emit('voting-toggled', { paused })
-    console.log(`Voting ${paused ? 'paused' : 'resumed'} in session ${sessionCode}`)
   })
 
   // Presenter reveals the answer
   socket.on('reveal-answer', (data: { sessionCode: string; questionId: string; correctAnswer: string }) => {
     const { sessionCode, questionId, correctAnswer } = data
 
-    // Update scores for students who voted on this question
-    const scoreMap = sessionScores.get(sessionCode)
-    if (scoreMap) {
-      for (const [, studentScore] of scoreMap) {
-        // Only update if student hasn't already been scored for this question
-        // (score is incremented at vote time if correctAnswer was provided)
-        // If correctAnswer wasn't provided at vote time, we can't retroactively fix
-        // So we rely on correctAnswer being sent at vote time for real-time scoring
-      }
-    }
-    
-    // Broadcast the answer with ranking
+    // Broadcast the answer with ranking (immediate — rare event)
     const ranking = getRanking(sessionCode)
     io.to(`session:${sessionCode}`).emit('answer-revealed', {
       questionId,
       correctAnswer,
       ranking,
     })
-    
-    console.log(`Answer revealed for question ${questionId} in session ${sessionCode}: ${correctAnswer}`)
+
+    // Also immediately broadcast final vote results for this question
+    const key = getVoteKey(sessionCode, questionId)
+    const results = sessionVoteCounts.get(key)
+    if (results) {
+      io.to(`session:${sessionCode}`).emit('vote-results', { ...results })
+    }
+    pendingVoteBroadcasts.delete(sessionCode)
   })
 
   // Get ranking for a session
@@ -258,24 +298,22 @@ io.on('connection', (socket) => {
   socket.on('next-question', (data: { sessionCode: string; questionId: string | null }) => {
     const { sessionCode, questionId } = data
     sessionCurrentQuestion.set(sessionCode, questionId || null)
-    
+
     if (questionId) {
       sessionVotingPaused.set(sessionCode, false)
       initVoteCounts(sessionCode, questionId)
-      
+
       io.to(`session:${sessionCode}`).emit('question-activated', {
         questionId,
         votingPaused: false,
       })
-      
+
       const key = getVoteKey(sessionCode, questionId)
       const results = sessionVoteCounts.get(key)
       io.to(`session:${sessionCode}`).emit('vote-results', results)
     } else {
       io.to(`session:${sessionCode}`).emit('session-finished')
     }
-    
-    console.log(`Next question in session ${sessionCode}: ${questionId || 'finished'}`)
   })
 
   // Presenter ends the session
@@ -283,9 +321,8 @@ io.on('connection', (socket) => {
     const { sessionCode } = data
     sessionCurrentQuestion.delete(sessionCode)
     sessionVotingPaused.delete(sessionCode)
-    
+
     io.to(`session:${sessionCode}`).emit('session-finished')
-    console.log(`Session ${sessionCode} ended`)
   })
 
   // Presenter resets the session
@@ -316,40 +353,43 @@ io.on('connection', (socket) => {
     io.to(`session:${sessionCode}`).emit('session-reset', {
       participantCount: participants?.size || 0,
     })
-
-    console.log(`Session ${sessionCode} reset`)
   })
 
   // Toggle QR Code display on presentation screen
   socket.on('show-qr', (data: { sessionCode: string; visible: boolean }) => {
     const { sessionCode, visible } = data
     io.to(`session:${sessionCode}`).emit('show-qr', { visible })
-    console.log(`QR Code display on session ${sessionCode}: ${visible ? 'shown' : 'hidden'}`)
   })
 
-  // Handle disconnect
+  // Handle disconnect — with grace period to prevent count fluctuation
   socket.on('disconnect', () => {
-    // Get student info before cleaning up
-    const studentInfo = studentBySocket.get(socket.id)
+    const sessionCode = socketSession.get(socket.id)
 
-    // Remove from all sessions
-    for (const [sessionCode, participants] of sessionParticipants.entries()) {
-      if (participants.has(socket.id)) {
-        participants.delete(socket.id)
-        const count = participants.size
-        io.to(`session:${sessionCode}`).emit('participant-count', count)
-      }
+    if (sessionCode) {
+      // Don't remove immediately — schedule removal after grace period
+      // This prevents the participant count from dropping when a phone
+      // briefly loses connection (screen off, network hiccup, etc.)
+      const timer = setTimeout(() => {
+        const participants = sessionParticipants.get(sessionCode)
+        if (participants) {
+          participants.delete(socket.id)
+          pendingParticipantBroadcasts.add(sessionCode)
+        }
+        pendingRemovals.delete(socket.id)
+      }, GRACE_PERIOD_MS)
+
+      pendingRemovals.set(socket.id, { sessionCode, timer })
+
+      // Clean up socket-based maps immediately (these don't affect count)
+      socketSession.delete(socket.id)
     }
 
-    // Clean up socket-based maps
     studentBySocket.delete(socket.id)
     socketVotedQuestions.delete(socket.id)
-
-    console.log(`Disconnected: ${socket.id}${studentInfo ? ` (${studentInfo.name})` : ''}`)
   })
 
-  socket.on('error', (error) => {
-    console.error(`Socket error (${socket.id}):`, error)
+  socket.on('error', () => {
+    // Silently handle socket errors to prevent crashes
   })
 })
 
