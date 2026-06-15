@@ -192,13 +192,20 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center relative z-10" style={{ animation: 'fadeIn 0.5s ease-out 2.1s both' }}>
-        <a
-          href="/admin"
-          className="text-sm text-[#5A6A9E] hover:text-[#C8A84B] transition-colors duration-200"
-        >
-          Área Administrativa
-        </a>
+      <footer className="py-4 relative z-10 border-t border-[#1A2A5E]/50" style={{ animation: 'fadeIn 0.5s ease-out 2.1s both', background: 'rgba(5,10,26,0.6)' }}>
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <span className="text-xs text-[#3A4A7E]">UEMS / DIGES</span>
+          </div>
+          <span className="text-[#1A2A5E]">|</span>
+          <a
+            href="/admin"
+            className="text-xs text-[#5A6A9E] hover:text-[#C8A84B] transition-colors duration-200"
+          >
+            Área Administrativa
+          </a>
+        </div>
       </footer>
     </div>
   )

@@ -62,6 +62,8 @@ export default function StudentVotingPage({
   const [participantCount, setParticipantCount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [voteTimestamp, setVoteTimestamp] = useState<number | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   const socketRef = useRef<Socket | null>(null)
   const sessionFetchedRef = useRef<Session | null>(null)
@@ -83,6 +85,15 @@ export default function StudentVotingPage({
     } catch { /* ignore */ }
     return 0
   })
+
+  // ── Voting timer ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!voteTimestamp) return
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - voteTimestamp) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [voteTimestamp])
 
   // ── Anti-fraud: sessionStorage helpers ───────────────────────────────────
   const getStoredVote = useCallback(
@@ -227,6 +238,7 @@ export default function StudentVotingPage({
           storeVote(data.questionId, data.choice)
           setPageState('voted')
           setIsSubmitting(false)
+          setVoteTimestamp(Date.now())
           toast.success('Voto registrado com sucesso!')
 
           // Persist to DB via API (no studentId needed)
@@ -253,6 +265,8 @@ export default function StudentVotingPage({
         socket.on('answer-revealed', (data: { questionId: string; correctAnswer: string }) => {
           setCorrectAnswer(data.correctAnswer)
           setPageState('revealed')
+          setVoteTimestamp(null)
+          setElapsedSeconds(0)
 
           // Update score tracking
           const currentStoredVote = getStoredVote(data.questionId)
@@ -296,6 +310,8 @@ export default function StudentVotingPage({
           setCorrectCount(0)
           setAnsweredCount(0)
           setCurrentQuestion(null)
+          setVoteTimestamp(null)
+          setElapsedSeconds(0)
           setPageState('waiting')
           toast.info('Sessão reiniciada pelo apresentador')
         })
@@ -411,6 +427,7 @@ export default function StudentVotingPage({
               setSelectedChoice(choice)
               storeVote(currentQuestion.id, choice)
               setPageState('voted')
+              setVoteTimestamp(Date.now())
               toast.success('Voto registrado!')
               if (data.results) {
                 // Optionally handle results
@@ -632,6 +649,9 @@ export default function StudentVotingPage({
             <p className="text-sm text-[#8899CC]">
               O apresentador iniciará a questão em breve.
             </p>
+            {session && (
+              <p className="text-xs text-[#5A6A9E] mt-2">{session.title}</p>
+            )}
             {votingPaused && currentQuestion && (
               <div className="mt-4 px-4 py-2 bg-[#C8A84B]/10 border border-[#C8A84B]/30 rounded-lg">
                 <p className="text-[#C8A84B] text-sm font-medium">
@@ -646,7 +666,7 @@ export default function StudentVotingPage({
         {pageState === 'voting' && currentQuestion && (
           <div className="flex-1 flex flex-col" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
             {/* Question header */}
-            <div className="mb-4">
+            <div className="mb-4 pb-3 border-b border-[#1A2A5E]">
               <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
                 ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
               </div>
@@ -728,6 +748,11 @@ export default function StudentVotingPage({
               <p className="text-sm text-[#8899CC]">
                 Aguardando o gabarito...
               </p>
+              {elapsedSeconds > 0 && (
+                <span className="text-xs text-[#5A6A9E] tabular-nums">
+                  {elapsedSeconds}s
+                </span>
+              )}
             </div>
 
             {/* Selected answer card */}
@@ -843,6 +868,34 @@ export default function StudentVotingPage({
                 </div>
               )}
             </div>
+
+            {/* Score Summary */}
+            {answeredCount > 0 && (
+              <div
+                className="mt-4 p-3 bg-[#0D1B3E] border border-[#1A2A5E] rounded-xl"
+                style={{ animation: 'fadeInUp 0.4s ease-out 0.6s both' }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#8899CC]">Sua pontuação</span>
+                  <span
+                    className="text-lg font-bold text-[#C8A84B]"
+                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  >
+                    {correctCount}/{answeredCount}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 bg-[#1A2A5E] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#C8A84B] rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${answeredCount > 0 ? (correctCount / answeredCount) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-[#5A6A9E]">{Math.round(answeredCount > 0 ? (correctCount / answeredCount) * 100 : 0)}% de acerto</span>
+                  <span className="text-xs text-[#5A6A9E]">{answeredCount === 1 ? '1 questão' : `${answeredCount} questões`}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -1758,7 +1758,38 @@ export default function AdminPage() {
                   </Card>
                 </div>
 
-                {/* Row 2: Current Question Controls */}
+                {/* Row 3: Session Progress */}
+                <Card>
+                  <CardContent className="py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Activity className="size-4 text-[#C8A84B]" />
+                          <span className="text-sm font-medium">Progresso</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Questões respondidas:</span>
+                          <span className="text-sm font-bold text-[#C8A84B]">
+                            {selectedSession.questions.filter(q => q.isRevealed).length}/{totalQuestions}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Votos nesta questão:</span>
+                          <span className="text-sm font-bold">{totalVotes}</span>
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-40 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#C8A84B] rounded-full transition-all duration-500"
+                          style={{ width: `${totalQuestions > 0 ? (selectedSession.questions.filter(q => q.isRevealed).length / totalQuestions) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Row 4: Current Question Controls */}
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Controles da Questão Atual</CardTitle>

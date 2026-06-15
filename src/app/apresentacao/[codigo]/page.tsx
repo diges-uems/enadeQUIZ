@@ -82,6 +82,7 @@ const ANIMATION_STYLES = `
   @keyframes rotateScaleIn { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
   @keyframes fadeInOut { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
   @keyframes pulseScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
   @keyframes growUp { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-40px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes correctGlow { 0%, 100% { box-shadow: 0 0 8px rgba(200,168,75,0.3); } 50% { box-shadow: 0 0 24px rgba(200,168,75,0.7); } }
@@ -354,46 +355,44 @@ export default function ApresentacaoPage({
               <p className="text-[#8899CC] text-xl">Nenhum voto registrado ainda</p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {ranking.slice(0, 3).map((entry, idx) => {
-                const medals = ['1o', '2o', '3o']
-                const medalColors = [
-                  'border-[#FFD700] bg-[#FFD700]/10',
-                  'border-[#C0C0C0] bg-[#C0C0C0]/10',
-                  'border-[#CD7F32] bg-[#CD7F32]/10',
-                ]
-                return (
-                  <div
-                    key={entry.rgm}
-                    className={`flex items-center gap-6 p-6 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
-                    style={{ animation: `fadeInUp 0.6s ease-out ${0.5 + idx * 0.3}s both` }}
-                  >
-                    <span className="text-6xl" style={{ animation: `rotateScaleIn 0.6s ease-out ${0.7 + idx * 0.3}s both` }}>
-                      {medals[idx]}
-                    </span>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p
-                        className="text-[#E8EDFF] font-bold text-3xl truncate"
-                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                      >
-                        {entry.name}
-                      </p>
-                      <p className="text-[#8899CC] text-lg">RGM: {entry.rgm}</p>
+            <div className="w-full max-w-3xl">
+              {/* Podium Layout */}
+              <div className="flex items-end justify-center gap-4 mb-8" style={{ animation: 'fadeInUp 0.6s ease-out 0.5s both' }}>
+                {/* 2nd Place - Left */}
+                {ranking.length >= 2 && (
+                  <div className="flex flex-col items-center" style={{ animation: 'fadeInUp 0.5s ease-out 0.7s both' }}>
+                    <div className="bg-[#0D1B3E] border border-[#C0C0C0]/40 rounded-xl p-4 w-48 text-center mb-2">
+                      <span className="text-4xl font-bold text-[#C0C0C0]" style={{ fontFamily: 'var(--font-space-grotesk)' }}>2o</span>
+                      <p className="text-[#E8EDFF] font-bold text-lg truncate mt-1" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[1].name}</p>
+                      <p className="text-[#8899CC] text-sm">RGM: {ranking[1].rgm}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p
-                        className="text-[#C8A84B] font-bold text-4xl"
-                        style={{ fontFamily: 'var(--font-space-grotesk)', animation: `bounceScale 0.4s ease-out ${0.9 + idx * 0.3}s both` }}
-                      >
-                        {entry.corrects}/{totalQuestions}
-                      </p>
-                      <p className="text-[#8899CC] text-base">
-                        {entry.corrects === 1 ? 'acerto' : 'acertos'}
-                      </p>
-                    </div>
+                    <div className="bg-[#C0C0C0]/20 w-full rounded-t-lg" style={{ height: '80px', animation: 'growUp 0.8s ease-out 1s both' }} />
+                    <p className="text-[#C0C0C0] font-bold text-2xl mt-2" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[1].corrects}/{totalQuestions}</p>
                   </div>
-                )
-              })}
+                )}
+                {/* 1st Place - Center (Taller) */}
+                <div className="flex flex-col items-center" style={{ animation: 'fadeInUp 0.5s ease-out 0.5s both' }}>
+                  <div className="bg-[#0D1B3E] border-2 border-[#FFD700] rounded-xl p-5 w-56 text-center mb-2" style={{ animation: 'correctGlow 2s ease-in-out infinite' }}>
+                    <span className="text-5xl font-bold text-[#FFD700]" style={{ fontFamily: 'var(--font-space-grotesk)' }}>1o</span>
+                    <p className="text-[#E8EDFF] font-bold text-xl truncate mt-1" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[0].name}</p>
+                    <p className="text-[#8899CC] text-sm">RGM: {ranking[0].rgm}</p>
+                  </div>
+                  <div className="bg-[#FFD700]/20 w-full rounded-t-lg" style={{ height: '120px', animation: 'growUp 0.8s ease-out 0.8s both' }} />
+                  <p className="text-[#FFD700] font-bold text-3xl mt-2" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[0].corrects}/{totalQuestions}</p>
+                </div>
+                {/* 3rd Place - Right */}
+                {ranking.length >= 3 && (
+                  <div className="flex flex-col items-center" style={{ animation: 'fadeInUp 0.5s ease-out 0.9s both' }}>
+                    <div className="bg-[#0D1B3E] border border-[#CD7F32]/40 rounded-xl p-4 w-48 text-center mb-2">
+                      <span className="text-4xl font-bold text-[#CD7F32]" style={{ fontFamily: 'var(--font-space-grotesk)' }}>3o</span>
+                      <p className="text-[#E8EDFF] font-bold text-lg truncate mt-1" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[2].name}</p>
+                      <p className="text-[#8899CC] text-sm">RGM: {ranking[2].rgm}</p>
+                    </div>
+                    <div className="bg-[#CD7F32]/20 w-full rounded-t-lg" style={{ height: '60px', animation: 'growUp 0.8s ease-out 1.2s both' }} />
+                    <p className="text-[#CD7F32] font-bold text-2xl mt-2" style={{ fontFamily: 'var(--font-space-grotesk)' }}>{ranking[2].corrects}/{totalQuestions}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -586,6 +585,15 @@ export default function ApresentacaoPage({
           >
             {codigo}
           </span>
+          {currentQuestion && (
+            <span
+              className="px-3 py-0.5 bg-[#00338C] text-white font-bold text-sm rounded"
+              style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceScale 0.3s ease-out' }}
+              key={currentQuestionId}
+            >
+              Q{currentIndex + 1}/{totalQuestions}
+            </span>
+          )}
         </div>
       </header>
 
@@ -838,9 +846,14 @@ export default function ApresentacaoPage({
                 key={totalVotes}
                 style={{ animation: 'bounceScale 0.3s ease-out' }}
               >
-                <span className="text-[#8899CC] text-lg">
-                  Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
-                </span>
+                <div className="flex items-center justify-center gap-2">
+                  {totalVotes > 0 && (
+                    <div className="w-2 h-2 rounded-full bg-green-400" style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
+                  )}
+                  <span className="text-[#8899CC] text-lg">
+                    Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
