@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { QRCode } from 'react-qrcode-logo'
 import { Users } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────
 interface Question {
@@ -65,6 +64,27 @@ const COLORS: Record<string, string> = {
 
 const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
 
+// ─── CSS Keyframes ────────────────────────────────────────────────
+const ANIMATION_STYLES = `
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+  @keyframes slideInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(200,168,75,0); } 50% { box-shadow: 0 0 40px rgba(200,168,75,0.15); } }
+  @keyframes textGlow { 0%, 100% { text-shadow: 0 0 10px rgba(200,168,75,0); } 50% { text-shadow: 0 0 20px rgba(200,168,75,0.4); } }
+  @keyframes bounceScale { 0% { transform: scale(1.3); } 50% { transform: scale(0.95); } 100% { transform: scale(1); } }
+  @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.5); opacity: 1; } }
+  @keyframes borderPulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.01); } }
+  @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 0px rgba(200,168,75,0); } 50% { box-shadow: 0 0 15px rgba(200,168,75,0.6); } }
+  @keyframes rotateScaleIn { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
+  @keyframes fadeInOut { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+  @keyframes rotateDashed { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes pulseScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+`
+
 // ─── Animated Counter Component ──────────────────────────────────
 function AnimatedCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
   const [displayValue, setDisplayValue] = useState(value)
@@ -80,7 +100,6 @@ function AnimatedCounter({ value, className, style }: { value: number; className
       const animate = () => {
         const elapsed = Date.now() - startTime
         const progress = Math.min(elapsed / duration, 1)
-        // Ease out cubic
         const eased = 1 - Math.pow(1 - progress, 3)
         setDisplayValue(Math.round(startValue + (value - startValue) * eased))
 
@@ -100,16 +119,9 @@ function AnimatedCounter({ value, className, style }: { value: number; className
   }, [value])
 
   return (
-    <motion.span
-      className={className}
-      style={style}
-      key={value}
-      initial={{ scale: 1.25 }}
-      animate={{ scale: 1 }}
-      transition={{ duration: 0.3, type: 'spring', bounce: 0.5 }}
-    >
+    <span className={className} style={style}>
       {displayValue}
-    </motion.span>
+    </span>
   )
 }
 
@@ -128,12 +140,7 @@ export default function ApresentacaoPage({
   const [socket, setSocket] = useState<Socket | null>(null)
   const [participantCount, setParticipantCount] = useState(0)
   const [voteResults, setVoteResults] = useState<VoteResults>({
-    A: 0,
-    B: 0,
-    C: 0,
-    D: 0,
-    E: 0,
-    total: 0,
+    A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
   })
   const [revealed, setRevealed] = useState(false)
   const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
@@ -264,26 +271,19 @@ export default function ApresentacaoPage({
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
-        <motion.div
-          className="flex flex-col items-center gap-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <motion.div
+        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+        <div className="flex flex-col items-center gap-4" style={{ animation: 'fadeIn 0.5s ease-out' }}>
+          <div
             className="w-14 h-14 border-4 border-[#C8A84B] border-t-transparent rounded-full"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            style={{ animation: 'spin 1s linear infinite' }}
           />
-          <motion.p
+          <p
             className="text-[#E8EDFF] text-xl"
-            style={{ fontFamily: 'var(--font-space-grotesk)' }}
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'fadeInOut 2s ease-in-out infinite' }}
           >
             Carregando sessão...
-          </motion.p>
-        </motion.div>
+          </p>
+        </div>
       </div>
     )
   }
@@ -292,25 +292,18 @@ export default function ApresentacaoPage({
   if (notFound || !session) {
     return (
       <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
-        <motion.div
-          className="text-center space-y-4"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <motion.h1
+        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+        <div className="text-center space-y-4" style={{ animation: 'scaleIn 0.5s ease-out' }}>
+          <h1
             className="text-4xl font-bold text-[#E8EDFF]"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
-            initial={{ y: -20 }}
-            animate={{ y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
           >
             Sessão não encontrada
-          </motion.h1>
+          </h1>
           <p className="text-[#8899CC] text-lg">
             O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
           </p>
-        </motion.div>
+        </div>
       </div>
     )
   }
@@ -319,49 +312,33 @@ export default function ApresentacaoPage({
   if (sessionFinished) {
     return (
       <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
-        <motion.div
-          className="max-w-2xl w-full mx-4 text-center"
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        >
-          {/* Trophy animation */}
-          <motion.div
-            className="mb-4"
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ duration: 0.8, type: 'spring', bounce: 0.5 }}
-          >
+        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+        <div className="max-w-2xl w-full mx-4 text-center" style={{ animation: 'fadeInUp 0.8s ease-out' }}>
+          {/* Trophy */}
+          <div className="mb-4" style={{ animation: 'rotateScaleIn 0.8s ease-out' }}>
             <span className="text-7xl">🏆</span>
-          </motion.div>
+          </div>
 
-          <motion.h1
+          <h1
             className="text-6xl font-bold mb-3"
-            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B', animation: 'fadeInUp 0.6s ease-out 0.3s both' }}
           >
             Sessão Encerrada
-          </motion.h1>
-          <motion.p
+          </h1>
+          <p
             className="text-[#8899CC] text-2xl mb-10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            style={{ animation: 'fadeIn 0.5s ease-out 0.5s both' }}
           >
             Ranking Final
-          </motion.p>
+          </p>
 
           {ranking.length === 0 ? (
-            <motion.div
+            <div
               className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
+              style={{ animation: 'fadeInUp 0.5s ease-out 0.6s both' }}
             >
               <p className="text-[#8899CC] text-xl">Nenhum voto registrado ainda</p>
-            </motion.div>
+            </div>
           ) : (
             <div className="space-y-5">
               {ranking.slice(0, 3).map((entry, idx) => {
@@ -372,26 +349,14 @@ export default function ApresentacaoPage({
                   'border-[#CD7F32] bg-[#CD7F32]/10',
                 ]
                 return (
-                  <motion.div
+                  <div
                     key={entry.rgm}
                     className={`flex items-center gap-6 p-6 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
-                    initial={{ scale: 0.5, opacity: 0, x: -80 }}
-                    animate={{ scale: 1, opacity: 1, x: 0 }}
-                    transition={{
-                      duration: 0.6,
-                      delay: 0.5 + idx * 0.3,
-                      type: 'spring',
-                      bounce: 0.3,
-                    }}
+                    style={{ animation: `fadeInUp 0.6s ease-out ${0.5 + idx * 0.3}s both` }}
                   >
-                    <motion.span
-                      className="text-6xl"
-                      initial={{ scale: 0, rotate: -360 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ duration: 0.6, delay: 0.7 + idx * 0.3, type: 'spring' }}
-                    >
+                    <span className="text-6xl" style={{ animation: `rotateScaleIn 0.6s ease-out ${0.7 + idx * 0.3}s both` }}>
                       {medals[idx]}
-                    </motion.span>
+                    </span>
                     <div className="flex-1 min-w-0 text-left">
                       <p
                         className="text-[#E8EDFF] font-bold text-3xl truncate"
@@ -402,25 +367,22 @@ export default function ApresentacaoPage({
                       <p className="text-[#8899CC] text-lg">RGM: {entry.rgm}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <motion.p
+                      <p
                         className="text-[#C8A84B] font-bold text-4xl"
-                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.4, delay: 0.9 + idx * 0.3, type: 'spring', bounce: 0.5 }}
+                        style={{ fontFamily: 'var(--font-space-grotesk)', animation: `bounceScale 0.4s ease-out ${0.9 + idx * 0.3}s both` }}
                       >
                         {entry.corrects}/{totalQuestions}
-                      </motion.p>
+                      </p>
                       <p className="text-[#8899CC] text-base">
                         {entry.corrects === 1 ? 'acerto' : 'acertos'}
                       </p>
                     </div>
-                  </motion.div>
+                  </div>
                 )
               })}
             </div>
           )}
-        </motion.div>
+        </div>
       </div>
     )
   }
@@ -429,12 +391,8 @@ export default function ApresentacaoPage({
   if (session.questions.length === 0) {
     return (
       <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
-        <motion.div
-          className="text-center space-y-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+        <div className="text-center space-y-4" style={{ animation: 'fadeInUp 0.5s ease-out' }}>
           <h2
             className="text-3xl font-bold text-[#E8EDFF]"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
@@ -444,14 +402,16 @@ export default function ApresentacaoPage({
           <p className="text-[#8899CC] text-lg">
             Adicione questões à sessão antes de iniciar a apresentação.
           </p>
-        </motion.div>
+        </div>
       </div>
     )
   }
 
-  // ─── Main presenter display (16:9 PowerPoint-style, read-only) ───
+  // ─── Main presenter display ───
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
+      <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+
       {/* ── Thin Header Bar ── */}
       <header className="flex items-center justify-between px-6 py-1.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
         <div className="flex items-center gap-3">
@@ -466,12 +426,10 @@ export default function ApresentacaoPage({
           <span className="text-[#8899CC] text-base">{session.title}</span>
         </div>
         <div className="flex items-center gap-4">
-          <motion.div
+          <div
             className="flex items-center gap-1.5"
             key={participantCount}
-            initial={{ scale: 1.3 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.3, type: 'spring', bounce: 0.5 }}
+            style={{ animation: 'bounceScale 0.3s ease-out' }}
           >
             <Users className="w-4 h-4 text-[#C8A84B]" />
             <AnimatedCounter
@@ -479,7 +437,7 @@ export default function ApresentacaoPage({
               className="text-[#E8EDFF] text-base font-medium"
               style={{ fontFamily: 'var(--font-space-grotesk)' }}
             />
-          </motion.div>
+          </div>
           <span
             className="px-3 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
@@ -491,424 +449,337 @@ export default function ApresentacaoPage({
 
       {/* ── Main Content Area ── */}
       <div className="flex-1 flex min-h-0">
-        <AnimatePresence mode="wait">
-          {!currentQuestion ? (
-            /* ── Waiting State: QR Code Center ── */
-            <motion.div
-              key="waiting"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.5 }}
-              className="flex-1 flex items-center justify-center gap-16 px-12"
-            >
-              {/* QR Code Section */}
-              <div className="flex flex-col items-center gap-6">
-                <motion.div
-                  className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4 relative"
-                  animate={{
-                    boxShadow: [
-                      '0 0 20px rgba(200, 168, 75, 0)',
-                      '0 0 40px rgba(200, 168, 75, 0.15)',
-                      '0 0 20px rgba(200, 168, 75, 0)',
-                    ],
-                  }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  {/* Pulsing border glow */}
-                  <motion.div
-                    className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/30 pointer-events-none"
-                    animate={{
-                      opacity: [0.3, 0.8, 0.3],
-                      scale: [1, 1.01, 1],
-                    }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                  <QRCode
-                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
-                    size={280}
-                    bgColor="#0D1B3E"
-                    fgColor="#E8EDFF"
-                    qrStyle="dots"
-                    eyeRadius={8}
-                    logoImage="/logo.svg"
-                    logoSize={56}
-                  />
-                  <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
-                    <p className="text-[#8899CC] text-base">acesse:</p>
-                    <p
-                      className="text-[#E8EDFF] text-2xl font-bold"
-                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                    >
-                      enade.uems.br
-                    </p>
-                    <p className="text-[#8899CC] text-base">código:</p>
-                    <motion.p
-                      className="text-[#C8A84B] text-4xl font-bold tracking-widest"
-                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                      animate={{
-                        textShadow: [
-                          '0 0 10px rgba(200, 168, 75, 0)',
-                          '0 0 20px rgba(200, 168, 75, 0.4)',
-                          '0 0 10px rgba(200, 168, 75, 0)',
-                        ],
-                      }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      {codigo}
-                    </motion.p>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Welcome message */}
-              <div className="max-w-lg text-center space-y-4">
-                <motion.h2
-                  className="text-5xl font-bold text-[#E8EDFF]"
-                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                >
-                  Aguardando Início
-                </motion.h2>
-                <motion.p
-                  className="text-[#8899CC] text-xl"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.4 }}
-                >
-                  Escaneie o QR Code ou acesse o endereço acima com o código da sessão para participar
-                </motion.p>
-                <motion.div
-                  className="flex items-center justify-center gap-2 pt-2"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.6 }}
-                >
-                  <motion.div
-                    animate={{ scale: [1, 1.15, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                  >
-                    <Users className="w-6 h-6 text-[#C8A84B]" />
-                  </motion.div>
-                  <span
-                    className="text-[#E8EDFF] text-2xl font-semibold"
-                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                  >
-                    <AnimatedCounter value={participantCount} /> {participantCount === 1 ? 'participante' : 'participantes'}
-                  </span>
-                </motion.div>
-
-                {/* Animated dots indicator */}
-                <motion.div
-                  className="flex items-center justify-center gap-1.5 pt-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1 }}
-                >
-                  {[0, 1, 2].map((i) => (
-                    <motion.div
-                      key={i}
-                      className="w-2 h-2 rounded-full bg-[#C8A84B]"
-                      animate={{
-                        scale: [1, 1.5, 1],
-                        opacity: [0.3, 1, 0.3],
-                      }}
-                      transition={{
-                        duration: 1.2,
-                        repeat: Infinity,
-                        delay: i * 0.4,
-                        ease: 'easeInOut',
-                      }}
-                    />
-                  ))}
-                </motion.div>
-              </div>
-            </motion.div>
-          ) : (
-            /* ── Active Question State ── */
-            <motion.div
-              key={currentQuestionId || 'question'}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -30 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-              className="flex-1 flex min-h-0"
-            >
-              {/* Left: Question Text + Image */}
-              <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
-                {/* Question number badge */}
-                <div className="shrink-0 flex items-center gap-3">
-                  <motion.span
-                    className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
-                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                    initial={{ x: -30, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.4, type: 'spring', bounce: 0.3 }}
-                  >
-                    Questão {currentIndex + 1}/{totalQuestions}
-                  </motion.span>
-                  <AnimatePresence>
-                    {revealed && (
-                      <motion.span
-                        initial={{ scale: 0, rotate: -10 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        exit={{ scale: 0 }}
-                        transition={{ duration: 0.5, type: 'spring', bounce: 0.6 }}
-                        className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
-                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                      >
-                        Gabarito: {currentQuestion.correctAnswer}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Question image */}
-                {currentQuestion.imageUrl && (
-                  <motion.div
-                    className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.4, delay: 0.1 }}
-                  >
-                    <img
-                      src={currentQuestion.imageUrl}
-                      alt="Imagem da questão"
-                      className="max-h-full max-w-full object-contain p-2"
-                    />
-                  </motion.div>
-                )}
-
-                {/* Question text */}
-                <motion.div
-                  className="flex-1 min-h-0 overflow-y-auto pr-2"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.15 }}
-                >
-                  <p
-                    className="text-[#E8EDFF] text-2xl leading-relaxed"
-                    style={{ fontFamily: 'var(--font-inter)' }}
-                  >
-                    {currentQuestion.text}
-                  </p>
-                </motion.div>
-              </div>
-
-              {/* Center: Pie Chart */}
-              <motion.div
-                className="w-[30%] flex flex-col items-center justify-center p-4 min-h-0"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
+        {!currentQuestion ? (
+          /* ── Waiting State: QR Code Center ── */
+          <div
+            className="flex-1 flex items-center justify-center gap-16 px-12"
+            style={{ animation: 'fadeIn 0.5s ease-out' }}
+          >
+            {/* QR Code Section */}
+            <div className="flex flex-col items-center gap-6">
+              <div
+                className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4 relative"
+                style={{ animation: 'glow 3s ease-in-out infinite' }}
               >
-                <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
-                  {pieData.length > 0 ? (
-                    <svg viewBox="0 0 200 200" className="w-full h-full">
-                      {(() => {
-                        const R = 70
-                        const circumference = 2 * Math.PI * R
-                        const cx = 100
-                        const cy = 100
-                        const strokeWidth = 35
-                        let cumulativeOffset = 0
+                {/* Pulsing border glow */}
+                <div
+                  className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/30 pointer-events-none"
+                  style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
+                />
+                <QRCode
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+                  size={280}
+                  bgColor="#0D1B3E"
+                  fgColor="#E8EDFF"
+                  qrStyle="dots"
+                  eyeRadius={8}
+                  logoImage="/logo.svg"
+                  logoSize={56}
+                />
+                <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+                  <p className="text-[#8899CC] text-base">acesse:</p>
+                  <p
+                    className="text-[#E8EDFF] text-2xl font-bold"
+                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  >
+                    enade.uems.br
+                  </p>
+                  <p className="text-[#8899CC] text-base">código:</p>
+                  <p
+                    className="text-[#C8A84B] text-4xl font-bold tracking-widest"
+                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'textGlow 2s ease-in-out infinite' }}
+                  >
+                    {codigo}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                        return (
-                          <>
-                            {pieData.map((entry, i) => {
-                              const pct = entry.value / totalVotes
-                              const sliceLength = pct * circumference
-                              const rotation = (cumulativeOffset / circumference) * 360 - 90
-                              cumulativeOffset += entry.value
+            {/* Welcome message */}
+            <div className="max-w-lg text-center space-y-4">
+              <h2
+                className="text-5xl font-bold text-[#E8EDFF]"
+                style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'fadeInUp 0.6s ease-out 0.2s both' }}
+              >
+                Aguardando Início
+              </h2>
+              <p
+                className="text-[#8899CC] text-xl"
+                style={{ animation: 'fadeInUp 0.6s ease-out 0.4s both' }}
+              >
+                Escaneie o QR Code ou acesse o endereço acima com o código da sessão para participar
+              </p>
+              <div
+                className="flex items-center justify-center gap-2 pt-2"
+                style={{ animation: 'fadeInUp 0.6s ease-out 0.6s both' }}
+              >
+                <div style={{ animation: 'pulseScale 1.5s ease-in-out infinite' }}>
+                  <Users className="w-6 h-6 text-[#C8A84B]" />
+                </div>
+                <span
+                  className="text-[#E8EDFF] text-2xl font-semibold"
+                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                >
+                  <AnimatedCounter value={participantCount} /> {participantCount === 1 ? 'participante' : 'participantes'}
+                </span>
+              </div>
 
-                              const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
-                              const midAngleDeg = rotation + (pct * 360) / 2
-                              const RADIAN = Math.PI / 180
-                              const labelR = R
-                              const lx = cx + labelR * Math.cos(-midAngleDeg * RADIAN)
-                              const ly = cy + labelR * Math.sin(-midAngleDeg * RADIAN)
+              {/* Animated dots indicator */}
+              <div
+                className="flex items-center justify-center gap-1.5 pt-4"
+                style={{ animation: 'fadeIn 0.5s ease-out 1s both' }}
+              >
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-2 h-2 rounded-full bg-[#C8A84B]"
+                    style={{
+                      animation: `dotPulse 1.2s ease-in-out ${i * 0.4}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── Active Question State ── */
+          <div
+            key={currentQuestionId || 'question'}
+            className="flex-1 flex min-h-0"
+            style={{ animation: 'fadeInUp 0.4s ease-out' }}
+          >
+            {/* Left: Question Text + Image */}
+            <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
+              {/* Question number badge */}
+              <div className="shrink-0 flex items-center gap-3">
+                <span
+                  className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
+                  style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'slideInLeft 0.4s ease-out' }}
+                >
+                  Questão {currentIndex + 1}/{totalQuestions}
+                </span>
+                {revealed && (
+                  <span
+                    className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
+                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceScale 0.5s ease-out' }}
+                  >
+                    Gabarito: {currentQuestion.correctAnswer}
+                  </span>
+                )}
+              </div>
 
-                              return (
-                                <g key={`slice-${i}`}>
+              {/* Question image */}
+              {currentQuestion.imageUrl && (
+                <div
+                  className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
+                  style={{ animation: 'scaleIn 0.4s ease-out 0.1s both' }}
+                >
+                  <img
+                    src={currentQuestion.imageUrl}
+                    alt="Imagem da questão"
+                    className="max-h-full max-w-full object-contain p-2"
+                  />
+                </div>
+              )}
+
+              {/* Question text */}
+              <div
+                className="flex-1 min-h-0 overflow-y-auto pr-2"
+                style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
+              >
+                <p
+                  className="text-[#E8EDFF] text-2xl leading-relaxed"
+                  style={{ fontFamily: 'var(--font-inter)' }}
+                >
+                  {currentQuestion.text}
+                </p>
+              </div>
+            </div>
+
+            {/* Center: Pie Chart */}
+            <div
+              className="w-[30%] flex flex-col items-center justify-center p-4 min-h-0"
+              style={{ animation: 'scaleIn 0.5s ease-out 0.1s both' }}
+            >
+              <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
+                {pieData.length > 0 ? (
+                  <svg viewBox="0 0 200 200" className="w-full h-full">
+                    {(() => {
+                      const R = 70
+                      const circumference = 2 * Math.PI * R
+                      const cx = 100
+                      const cy = 100
+                      const strokeWidth = 35
+                      let cumulativeOffset = 0
+
+                      return (
+                        <>
+                          {pieData.map((entry, i) => {
+                            const pct = entry.value / totalVotes
+                            const sliceLength = pct * circumference
+                            const rotation = (cumulativeOffset / circumference) * 360 - 90
+                            cumulativeOffset += entry.value
+
+                            const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+                            const midAngleDeg = rotation + (pct * 360) / 2
+                            const RADIAN = Math.PI / 180
+                            const labelR = R
+                            const lx = cx + labelR * Math.cos(-midAngleDeg * RADIAN)
+                            const ly = cy + labelR * Math.sin(-midAngleDeg * RADIAN)
+
+                            return (
+                              <g key={`slice-${i}`}>
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={R}
+                                  fill="none"
+                                  stroke={entry.color}
+                                  strokeWidth={strokeWidth}
+                                  strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+                                  strokeDashoffset={0}
+                                  strokeLinecap="butt"
+                                  transform={`rotate(${rotation} ${cx} ${cy})`}
+                                  opacity={revealed && !isCorrect ? 0.35 : 1}
+                                  style={{ transition: 'opacity 0.6s ease-out, stroke 0.4s ease-out' }}
+                                />
+                                {isCorrect && (
                                   <circle
                                     cx={cx}
                                     cy={cy}
                                     r={R}
                                     fill="none"
-                                    stroke={entry.color}
-                                    strokeWidth={strokeWidth}
+                                    stroke="#C8A84B"
+                                    strokeWidth={strokeWidth + 4}
                                     strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
                                     strokeDashoffset={0}
                                     strokeLinecap="butt"
                                     transform={`rotate(${rotation} ${cx} ${cy})`}
-                                    opacity={revealed && !isCorrect ? 0.35 : 1}
-                                    style={{ transition: 'opacity 0.6s ease-out, stroke 0.4s ease-out' }}
+                                    style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
                                   />
-                                  {isCorrect && (
-                                    <circle
-                                      cx={cx}
-                                      cy={cy}
-                                      r={R}
-                                      fill="none"
-                                      stroke="#C8A84B"
-                                      strokeWidth={strokeWidth + 4}
-                                      strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
-                                      strokeDashoffset={0}
-                                      strokeLinecap="butt"
-                                      transform={`rotate(${rotation} ${cx} ${cy})`}
-                                      style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
-                                    />
-                                  )}
-                                  {pct >= 0.05 && (
-                                    <text
-                                      x={lx}
-                                      y={ly}
-                                      fill="#E8EDFF"
-                                      textAnchor="middle"
-                                      dominantBaseline="central"
-                                      fontSize="11"
-                                      fontWeight="bold"
-                                      opacity={revealed && !isCorrect ? 0.35 : 1}
-                                      style={{
-                                        fontFamily: 'var(--font-space-grotesk)',
-                                        transition: 'opacity 0.6s ease-out',
-                                      }}
-                                    >
-                                      <tspan x={lx} dy="-0.5em">{entry.name}</tspan>
-                                      <tspan x={lx} dy="1.2em">{`${(pct * 100).toFixed(0)}%`}</tspan>
-                                    </text>
-                                  )}
-                                </g>
-                              )
-                            })}
-                          </>
-                        )
-                      })()}
-                    </svg>
-                  ) : (
-                    <motion.div
-                      className="h-full flex items-center justify-center"
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      <div className="text-center space-y-3">
-                        <motion.div
-                          className="w-28 h-28 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center"
-                          animate={{ rotate: [0, 360] }}
-                          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                        >
-                          <span className="text-[#8899CC] text-base" style={{ display: 'inline-block', transform: 'rotate(0deg)' }}>Sem votos</span>
-                        </motion.div>
-                        <p className="text-[#8899CC] text-lg">Aguardando votos...</p>
+                                )}
+                                {pct >= 0.05 && (
+                                  <text
+                                    x={lx}
+                                    y={ly}
+                                    fill="#E8EDFF"
+                                    textAnchor="middle"
+                                    dominantBaseline="central"
+                                    fontSize="11"
+                                    fontWeight="bold"
+                                    opacity={revealed && !isCorrect ? 0.35 : 1}
+                                    style={{
+                                      fontFamily: 'var(--font-space-grotesk)',
+                                      transition: 'opacity 0.6s ease-out',
+                                    }}
+                                  >
+                                    <tspan x={lx} dy="-0.5em">{entry.name}</tspan>
+                                    <tspan x={lx} dy="1.2em">{`${(pct * 100).toFixed(0)}%`}</tspan>
+                                  </text>
+                                )}
+                              </g>
+                            )
+                          })}
+                        </>
+                      )
+                    })()}
+                  </svg>
+                ) : (
+                  <div
+                    className="h-full flex items-center justify-center"
+                    style={{ animation: 'fadeInOut 2.5s ease-in-out infinite' }}
+                  >
+                    <div className="text-center space-y-3">
+                      <div
+                        className="w-28 h-28 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center"
+                        style={{ animation: 'rotateDashed 20s linear infinite' }}
+                      >
+                        <span className="text-[#8899CC] text-base" style={{ display: 'inline-block' }}>Sem votos</span>
                       </div>
-                    </motion.div>
-                  )}
-                </div>
-                {/* Total votes - animated */}
-                <motion.div
-                  className="mt-2 text-center"
-                  key={totalVotes}
-                  initial={{ scale: 1.2 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.3, type: 'spring', bounce: 0.4 }}
-                >
-                  <span className="text-[#8899CC] text-lg">
-                    Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
-                  </span>
-                </motion.div>
-              </motion.div>
+                      <p className="text-[#8899CC] text-lg">Aguardando votos...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Total votes */}
+              <div
+                className="mt-2 text-center"
+                key={totalVotes}
+                style={{ animation: 'bounceScale 0.3s ease-out' }}
+              >
+                <span className="text-[#8899CC] text-lg">
+                  Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+                </span>
+              </div>
+            </div>
 
-              {/* Right: Alternatives Legend */}
-              <div className="w-[25%] flex flex-col justify-center p-4 gap-2 min-h-0 overflow-y-auto">
-                <AnimatePresence>
-                  {ALT_LABELS.map((alt, idx) => {
-                    const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
-                    const votes = voteResults[alt] ?? 0
-                    const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
-                    const isCorrect = revealed && currentQuestion?.correctAnswer === alt
-                    const altText = currentQuestion?.[altKey] ?? ''
+            {/* Right: Alternatives Legend */}
+            <div className="w-[25%] flex flex-col justify-center p-4 gap-2 min-h-0 overflow-y-auto">
+              {ALT_LABELS.map((alt, idx) => {
+                const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+                const votes = voteResults[alt] ?? 0
+                const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
+                const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+                const altText = currentQuestion?.[altKey] ?? ''
 
-                    return (
-                      <motion.div
-                        key={alt}
-                        className={`rounded-xl px-4 py-3 ${
-                          isCorrect
-                            ? 'bg-[#C8A84B]/15 border-2 border-[#C8A84B]'
-                            : revealed
-                            ? 'opacity-35 border-2 border-transparent bg-[#0D1B3E]'
-                            : 'border-2 border-transparent bg-[#0D1B3E]'
-                        }`}
-                        initial={{ opacity: 0, x: 40 }}
-                        animate={{
-                          opacity: 1,
-                          x: 0,
-                          scale: isCorrect ? [1, 1.05, 1] : 1,
-                        }}
-                        transition={{
-                          duration: 0.3,
-                          delay: idx * 0.08,
-                          type: 'spring',
-                          bounce: 0.2,
+                return (
+                  <div
+                    key={alt}
+                    className={`rounded-xl px-4 py-3 ${
+                      isCorrect
+                        ? 'bg-[#C8A84B]/15 border-2 border-[#C8A84B]'
+                        : revealed
+                        ? 'opacity-35 border-2 border-transparent bg-[#0D1B3E]'
+                        : 'border-2 border-transparent bg-[#0D1B3E]'
+                    }`}
+                    style={{ animation: `slideInRight 0.3s ease-out ${idx * 0.08}s both` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-white shrink-0"
+                        style={{
+                          backgroundColor: COLORS[alt],
+                          animation: isCorrect ? 'glowPulse 1.5s ease-in-out infinite' : undefined,
                         }}
                       >
-                        <div className="flex items-center gap-3">
-                          <motion.span
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-white shrink-0"
-                            style={{ backgroundColor: COLORS[alt] }}
-                            animate={isCorrect ? {
-                              boxShadow: [
-                                '0 0 0px rgba(200, 168, 75, 0)',
-                                '0 0 15px rgba(200, 168, 75, 0.6)',
-                                '0 0 0px rgba(200, 168, 75, 0)',
-                              ],
-                            } : {}}
-                            transition={{ duration: 1.5, repeat: isCorrect ? Infinity : 0, ease: 'easeInOut' }}
-                          >
-                            {alt}
-                          </motion.span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[#8899CC] text-xs line-clamp-1">{altText}</p>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <motion.span
-                              className={`font-bold text-lg ${isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'}`}
-                              key={`${alt}-${pct}`}
-                              initial={{ scale: 1.3 }}
-                              animate={{ scale: 1 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              {pct}%
-                            </motion.span>
-                            <span className="text-[#8899CC] text-sm ml-1">
-                              ({votes})
-                            </span>
-                          </div>
-                        </div>
+                        {alt}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[#8899CC] text-xs line-clamp-1">{altText}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span
+                          className={`font-bold text-lg ${isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'}`}
+                          key={`${alt}-${pct}`}
+                          style={{ animation: 'bounceScale 0.2s ease-out' }}
+                        >
+                          {pct}%
+                        </span>
+                        <span className="text-[#8899CC] text-sm ml-1">
+                          ({votes})
+                        </span>
+                      </div>
+                    </div>
 
-                        {/* Animated vote bar */}
-                        {votes > 0 && (
-                          <motion.div
-                            className="mt-2 h-1.5 bg-[#1A2A5E] rounded-full overflow-hidden"
-                          >
-                            <motion.div
-                              className="h-full rounded-full"
-                              style={{ backgroundColor: COLORS[alt] }}
-                              initial={{ width: 0 }}
-                              animate={{ width: `${pct}%` }}
-                              transition={{ duration: 0.8, ease: 'easeOut', delay: idx * 0.08 + 0.2 }}
-                            />
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    )
-                  })}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                    {/* Animated vote bar */}
+                    {votes > 0 && (
+                      <div className="mt-2 h-1.5 bg-[#1A2A5E] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-800 ease-out"
+                          style={{
+                            backgroundColor: COLORS[alt],
+                            width: `${pct}%`,
+                            transitionDelay: `${idx * 0.08 + 0.2}s`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Bottom Bar ── */}

@@ -3,6 +3,42 @@
 ## Session: 2026-06-15
 
 ---
+Task ID: 12
+Agent: Main Agent (Cron Review)
+Task: Fix JSON.parse error, remove student identification, replace framer-motion with CSS animations
+
+Work Log:
+- Investigated JSON.parse error: caused by student identification flow calling /api/student which could return non-JSON (HTML error pages) or fail when server is under memory pressure
+- Completely removed student identification from /votar/[codigo]/page.tsx:
+  - Removed `identification` state from PageState type
+  - Removed all student-related state: studentName, studentRgm, studentId, isRegistering, nameError, rgmError
+  - Removed getStoredStudent, storeStudent callbacks
+  - Removed handleRegister function
+  - Removed identification screen UI (name/RGM input form)
+  - Students now go directly from loading → waiting/voting state
+  - Socket join-session now sends role:'student' without name/rgm
+  - Votes are submitted without studentId (studentId is optional in /api/vote)
+  - Score tracking still works via sessionStorage (no student registration needed)
+- Replaced ALL framer-motion usage across 3 pages with pure CSS animations:
+  - `/app/page.tsx` (landing page): Replaced motion.div/motion.img/motion.h1/motion.p/motion.footer with regular HTML + CSS animation styles (fadeInUp, fadeInDown, scaleIn, fadeIn, glow keyframes)
+  - `/app/apresentacao/[codigo]/page.tsx` (presenter): Replaced motion.div/motion.span/AnimatePresence with CSS animations + transition properties (spin, fadeIn, fadeInUp, scaleIn, slideInLeft, slideInRight, glow, textGlow, bounceScale, dotPulse, borderPulse, glowPulse, rotateScaleIn keyframes)
+  - `/votar/[codigo]/page.tsx` (voting): Replaced motion.div/motion.button/motion.span/AnimatePresence with CSS animations (spin, fadeIn, fadeInUp, scaleIn, bounceIn, slideInLeft, dotPulse, glowPulse, rotateScaleIn, pulseScale keyframes)
+- Added ANIMATION_STYLES constant to each page with @keyframes definitions
+- Used `dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }}` to inject CSS
+- AnimatedCounter component simplified: removed motion.span, now uses plain span
+- Fixed lint error: setState in useEffect for score initialization → changed to lazy initializer in useState
+- All 4 routes compile and return HTTP 200
+- Lint passes clean with 0 errors
+
+Stage Summary:
+- Student identification REMOVED — users can vote immediately without name/RGM
+- framer-motion COMPLETELY REMOVED from all pages — no more OOM crashes during compilation
+- All animations preserved using pure CSS @keyframes + transition properties
+- Pages compile much faster (300-900ms vs crashing before)
+- Dev server is much more stable without framer-motion
+- API vote endpoint already supports optional studentId — no backend changes needed
+
+---
 Task ID: 1
 Agent: Main Orchestrator
 Task: Project setup - Prisma schema, Socket.io mini-service, types, utilities
