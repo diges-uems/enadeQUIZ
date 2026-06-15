@@ -288,6 +288,45 @@ io.on('connection', (socket) => {
     console.log(`Session ${sessionCode} ended`)
   })
 
+  // Presenter resets the session
+  socket.on('session-reset', (data: { sessionCode: string }) => {
+    const { sessionCode } = data
+
+    // Clear all in-memory state for this session
+    sessionCurrentQuestion.set(sessionCode, null)
+    sessionVotingPaused.delete(sessionCode)
+    sessionScores.delete(sessionCode)
+
+    // Clear all vote counts for this session
+    for (const key of sessionVoteCounts.keys()) {
+      if (key.startsWith(`${sessionCode}:`)) {
+        sessionVoteCounts.delete(key)
+      }
+    }
+
+    // Clear voted questions for all sockets in this session
+    const participants = sessionParticipants.get(sessionCode)
+    if (participants) {
+      for (const socketId of participants) {
+        socketVotedQuestions.delete(socketId)
+      }
+    }
+
+    // Broadcast reset to all clients in the session
+    io.to(`session:${sessionCode}`).emit('session-reset', {
+      participantCount: participants?.size || 0,
+    })
+
+    console.log(`Session ${sessionCode} reset`)
+  })
+
+  // Toggle QR Code display on presentation screen
+  socket.on('show-qr', (data: { sessionCode: string; visible: boolean }) => {
+    const { sessionCode, visible } = data
+    io.to(`session:${sessionCode}`).emit('show-qr', { visible })
+    console.log(`QR Code display on session ${sessionCode}: ${visible ? 'shown' : 'hidden'}`)
+  })
+
   // Handle disconnect
   socket.on('disconnect', () => {
     // Get student info before cleaning up

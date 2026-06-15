@@ -1,0 +1,800 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import React, { useEffect, useState, useCallback, useRef } from 'react'
+     4→     4→import { io, Socket } from 'socket.io-client'
+     5→     5→import { QRCode } from 'react-qrcode-logo'
+     6→     6→import { Users } from 'lucide-react'
+     7→     7→
+     8→     8→// ─── Types ────────────────────────────────────────────────────────
+     9→     9→interface Question {
+    10→    10→  id: string
+    11→    11→  sessionId: string
+    12→    12→  text: string
+    13→    13→  year: number
+    14→    14→  course: string
+    15→    15→  altA: string
+    16→    16→  altB: string
+    17→    17→  altC: string
+    18→    18→  altD: string
+    19→    19→  altE: string
+    20→    20→  correctAnswer: string
+    21→    21→  imageUrl: string | null
+    22→    22→  isRevealed: boolean
+    23→    23→  orderIndex: number
+    24→    24→  createdAt: string
+    25→    25→  updatedAt: string
+    26→    26→}
+    27→    27→
+    28→    28→interface SessionData {
+    29→    29→  id: string
+    30→    30→  code: string
+    31→    31→  title: string
+    32→    32→  status: string
+    33→    33→  currentQuestionId: string | null
+    34→    34→  createdAt: string
+    35→    35→  updatedAt: string
+    36→    36→  questions: Question[]
+    37→    37→}
+    38→    38→
+    39→    39→interface VoteResults {
+    40→    40→  A: number
+    41→    41→  B: number
+    42→    42→  C: number
+    43→    43→  D: number
+    44→    44→  E: number
+    45→    45→  total: number
+    46→    46→}
+    47→    47→
+    48→    48→interface RankingEntry {
+    49→    49→  name: string
+    50→    50→  rgm: string
+    51→    51→  score: number
+    52→    52→  answers: number
+    53→    53→  corrects: number
+    54→    54→}
+    55→    55→
+    56→    56→// ─── Constants ────────────────────────────────────────────────────
+    57→    57→const COLORS: Record<string, string> = {
+    58→    58→  A: '#00338C',
+    59→    59→  B: '#C8A84B',
+    60→    60→  C: '#2196F3',
+    61→    61→  D: '#4CAF50',
+    62→    62→  E: '#F44336',
+    63→    63→}
+    64→    64→
+    65→    65→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+    66→    66→
+    67→    67→// ─── CSS Keyframes ────────────────────────────────────────────────
+    68→    68→const ANIMATION_STYLES = `
+    69→    69→  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    70→    70→  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    71→    71→  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    72→    72→  @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    73→    73→  @keyframes scaleIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+    74→    74→  @keyframes slideInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+    75→    75→  @keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+    76→    76→  @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(200,168,75,0); } 50% { box-shadow: 0 0 40px rgba(200,168,75,0.15); } }
+    77→    77→  @keyframes textGlow { 0%, 100% { text-shadow: 0 0 10px rgba(200,168,75,0); } 50% { text-shadow: 0 0 20px rgba(200,168,75,0.4); } }
+    78→    78→  @keyframes bounceScale { 0% { transform: scale(1.3); } 50% { transform: scale(0.95); } 100% { transform: scale(1); } }
+    79→    79→  @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.5); opacity: 1; } }
+    80→    80→  @keyframes borderPulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.01); } }
+    81→    81→  @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 0px rgba(200,168,75,0); } 50% { box-shadow: 0 0 15px rgba(200,168,75,0.6); } }
+    82→    82→  @keyframes rotateScaleIn { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: scale(1) rotate(0deg); } }
+    83→    83→  @keyframes fadeInOut { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    84→    84→  @keyframes rotateDashed { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    85→    85→  @keyframes pulseScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+    86→    86→`
+    87→    87→
+    88→    88→// ─── Animated Counter Component ──────────────────────────────────
+    89→    89→function AnimatedCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
+    90→    90→  const [displayValue, setDisplayValue] = useState(value)
+    91→    91→  const rafRef = useRef<number | null>(null)
+    92→    92→  const prevValueRef = useRef(value)
+    93→    93→
+    94→    94→  useEffect(() => {
+    95→    95→    if (prevValueRef.current !== value) {
+    96→    96→      const duration = 600
+    97→    97→      const startTime = Date.now()
+    98→    98→      const startValue = prevValueRef.current
+    99→    99→
+   100→   100→      const animate = () => {
+   101→   101→        const elapsed = Date.now() - startTime
+   102→   102→        const progress = Math.min(elapsed / duration, 1)
+   103→   103→        const eased = 1 - Math.pow(1 - progress, 3)
+   104→   104→        setDisplayValue(Math.round(startValue + (value - startValue) * eased))
+   105→   105→
+   106→   106→        if (progress < 1) {
+   107→   107→          rafRef.current = requestAnimationFrame(animate)
+   108→   108→        } else {
+   109→   109→          setDisplayValue(value)
+   110→   110→        }
+   111→   111→      }
+   112→   112→      rafRef.current = requestAnimationFrame(animate)
+   113→   113→      prevValueRef.current = value
+   114→   114→    }
+   115→   115→
+   116→   116→    return () => {
+   117→   117→      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+   118→   118→    }
+   119→   119→  }, [value])
+   120→   120→
+   121→   121→  return (
+   122→   122→    <span className={className} style={style}>
+   123→   123→      {displayValue}
+   124→   124→    </span>
+   125→   125→  )
+   126→   126→}
+   127→   127→
+   128→   128→// ─── Component ────────────────────────────────────────────────────
+   129→   129→export default function ApresentacaoPage({
+   130→   130→  params,
+   131→   131→}: {
+   132→   132→  params: Promise<{ codigo: string }>
+   133→   133→}) {
+   134→   134→  const { codigo } = React.use(params)
+   135→   135→
+   136→   136→  // ── State ──
+   137→   137→  const [session, setSession] = useState<SessionData | null>(null)
+   138→   138→  const [loading, setLoading] = useState(true)
+   139→   139→  const [notFound, setNotFound] = useState(false)
+   140→   140→  const [socket, setSocket] = useState<Socket | null>(null)
+   141→   141→  const [participantCount, setParticipantCount] = useState(0)
+   142→   142→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   143→   143→    A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
+   144→   144→  })
+   145→   145→  const [revealed, setRevealed] = useState(false)
+   146→   146→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   147→   147→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   148→   148→  const [sessionFinished, setSessionFinished] = useState(false)
+   149→   149→  const prevTotalVotes = useRef(0)
+   150→   150→
+   151→   151→  // ── Derived ──
+   152→   152→  const currentQuestion = session?.questions.find(
+   153→   153→    (q) => q.id === currentQuestionId
+   154→   154→  ) ?? null
+   155→   155→  const currentIndex = session?.questions.findIndex(
+   156→   156→    (q) => q.id === currentQuestionId
+   157→   157→  ) ?? -1
+   158→   158→  const totalQuestions = session?.questions.length ?? 0
+   159→   159→
+   160→   160→  // ── Fetch session data ──
+   161→   161→  const fetchSession = useCallback(async () => {
+   162→   162→    try {
+   163→   163→      const res = await fetch(`/api/session/${codigo}`)
+   164→   164→      if (!res.ok) {
+   165→   165→        setNotFound(true)
+   166→   166→        return
+   167→   167→      }
+   168→   168→      const data: SessionData = await res.json()
+   169→   169→      setSession(data)
+   170→   170→      setCurrentQuestionId(data.currentQuestionId)
+   171→   171→      if (data.status === 'finished') {
+   172→   172→        setSessionFinished(true)
+   173→   173→      }
+   174→   174→      if (data.currentQuestionId) {
+   175→   175→        const q = data.questions.find((q) => q.id === data.currentQuestionId)
+   176→   176→        if (q) setRevealed(q.isRevealed)
+   177→   177→      }
+   178→   178→    } catch {
+   179→   179→      setNotFound(true)
+   180→   180→    } finally {
+   181→   181→      setLoading(false)
+   182→   182→    }
+   183→   183→  }, [codigo])
+   184→   184→
+   185→   185→  // ── Socket connection ──
+   186→   186→  useEffect(() => {
+   187→   187→    fetchSession()
+   188→   188→  }, [fetchSession])
+   189→   189→
+   190→   190→  useEffect(() => {
+   191→   191→    if (!session) return
+   192→   192→
+   193→   193→    const socketInstance = io('/?XTransformPort=3003', {
+   194→   194→      transports: ['websocket', 'polling'],
+   195→   195→      forceNew: true,
+   196→   196→      reconnection: true,
+   197→   197→      reconnectionAttempts: 10,
+   198→   198→      reconnectionDelay: 1000,
+   199→   199→      timeout: 10000,
+   200→   200→    })
+   201→   201→
+   202→   202→    socketInstance.on('connect', () => {
+   203→   203→      socketInstance.emit('join-session', {
+   204→   204→        sessionCode: codigo,
+   205→   205→        role: 'presenter',
+   206→   206→      })
+   207→   207→    })
+   208→   208→
+   209→   209→    socketInstance.on('vote-results', (data: VoteResults) => {
+   210→   210→      setVoteResults(data)
+   211→   211→    })
+   212→   212→
+   213→   213→    socketInstance.on('participant-count', (count: number) => {
+   214→   214→      setParticipantCount(count)
+   215→   215→    })
+   216→   216→
+   217→   217→    socketInstance.on('session-state', (data: {
+   218→   218→      participantCount: number
+   219→   219→      currentQuestionId: string | null
+   220→   220→      votingPaused: boolean
+   221→   221→    }) => {
+   222→   222→      setParticipantCount(data.participantCount)
+   223→   223→      if (data.currentQuestionId !== currentQuestionId) {
+   224→   224→        setCurrentQuestionId(data.currentQuestionId)
+   225→   225→        if (data.currentQuestionId && session) {
+   226→   226→          const q = session.questions.find((q) => q.id === data.currentQuestionId)
+   227→   227→          if (q) setRevealed(q.isRevealed)
+   228→   228→        } else {
+   229→   229→          setRevealed(false)
+   230→   230→        }
+   231→   231→      }
+   232→   232→    })
+   233→   233→
+   234→   234→    socketInstance.on('question-activated', (data: { questionId: string }) => {
+   235→   235→      setCurrentQuestionId(data.questionId)
+   236→   236→      setRevealed(false)
+   237→   237→      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   238→   238→      prevTotalVotes.current = 0
+   239→   239→    })
+   240→   240→
+   241→   241→    socketInstance.on('answer-revealed', () => {
+   242→   242→      setRevealed(true)
+   243→   243→    })
+   244→   244→
+   245→   245→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   246→   246→      setRanking(data)
+   247→   247→    })
+   248→   248→
+   249→   249→    socketInstance.on('session-finished', () => {
+   250→   250→      socketInstance.emit('get-ranking', { sessionCode: codigo })
+   251→   251→      setSessionFinished(true)
+   252→   252→    })
+   253→   253→
+   254→   254→    setSocket(socketInstance)
+   255→   255→
+   256→   256→    return () => {
+   257→   257→      socketInstance.disconnect()
+   258→   258→    }
+   259→   259→  }, [session, codigo])
+   260→   260→
+   261→   261→  // ── Pie chart data ──
+   262→   262→  const pieData = ALT_LABELS.map((alt) => ({
+   263→   263→    name: alt,
+   264→   264→    value: voteResults[alt] ?? 0,
+   265→   265→    color: COLORS[alt],
+   266→   266→  })).filter((d) => d.value > 0)
+   267→   267→
+   268→   268→  const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
+   269→   269→
+   270→   270→  // ─── Loading state ───
+   271→   271→  if (loading) {
+   272→   272→    return (
+   273→   273→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   274→   274→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   275→   275→        <div className="flex flex-col items-center gap-4" style={{ animation: 'fadeIn 0.5s ease-out' }}>
+   276→   276→          <div
+   277→   277→            className="w-14 h-14 border-4 border-[#C8A84B] border-t-transparent rounded-full"
+   278→   278→            style={{ animation: 'spin 1s linear infinite' }}
+   279→   279→          />
+   280→   280→          <p
+   281→   281→            className="text-[#E8EDFF] text-xl"
+   282→   282→            style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'fadeInOut 2s ease-in-out infinite' }}
+   283→   283→          >
+   284→   284→            Carregando sessão...
+   285→   285→          </p>
+   286→   286→        </div>
+   287→   287→      </div>
+   288→   288→    )
+   289→   289→  }
+   290→   290→
+   291→   291→  // ─── Not found state ───
+   292→   292→  if (notFound || !session) {
+   293→   293→    return (
+   294→   294→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   295→   295→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   296→   296→        <div className="text-center space-y-4" style={{ animation: 'scaleIn 0.5s ease-out' }}>
+   297→   297→          <h1
+   298→   298→            className="text-4xl font-bold text-[#E8EDFF]"
+   299→   299→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   300→   300→          >
+   301→   301→            Sessão não encontrada
+   302→   302→          </h1>
+   303→   303→          <p className="text-[#8899CC] text-lg">
+   304→   304→            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   305→   305→          </p>
+   306→   306→        </div>
+   307→   307→      </div>
+   308→   308→    )
+   309→   309→  }
+   310→   310→
+   311→   311→  // ─── Session Finished State ───
+   312→   312→  if (sessionFinished) {
+   313→   313→    return (
+   314→   314→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   315→   315→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   316→   316→        <div className="max-w-2xl w-full mx-4 text-center" style={{ animation: 'fadeInUp 0.8s ease-out' }}>
+   317→   317→          {/* Trophy */}
+   318→   318→          <div className="mb-4" style={{ animation: 'rotateScaleIn 0.8s ease-out' }}>
+   319→   319→            <span className="text-7xl">🏆</span>
+   320→   320→          </div>
+   321→   321→
+   322→   322→          <h1
+   323→   323→            className="text-6xl font-bold mb-3"
+   324→   324→            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B', animation: 'fadeInUp 0.6s ease-out 0.3s both' }}
+   325→   325→          >
+   326→   326→            Sessão Encerrada
+   327→   327→          </h1>
+   328→   328→          <p
+   329→   329→            className="text-[#8899CC] text-2xl mb-10"
+   330→   330→            style={{ animation: 'fadeIn 0.5s ease-out 0.5s both' }}
+   331→   331→          >
+   332→   332→            Ranking Final
+   333→   333→          </p>
+   334→   334→
+   335→   335→          {ranking.length === 0 ? (
+   336→   336→            <div
+   337→   337→              className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8"
+   338→   338→              style={{ animation: 'fadeInUp 0.5s ease-out 0.6s both' }}
+   339→   339→            >
+   340→   340→              <p className="text-[#8899CC] text-xl">Nenhum voto registrado ainda</p>
+   341→   341→            </div>
+   342→   342→          ) : (
+   343→   343→            <div className="space-y-5">
+   344→   344→              {ranking.slice(0, 3).map((entry, idx) => {
+   345→   345→                const medals = ['🥇', '🥈', '🥉']
+   346→   346→                const medalColors = [
+   347→   347→                  'border-[#FFD700] bg-[#FFD700]/10',
+   348→   348→                  'border-[#C0C0C0] bg-[#C0C0C0]/10',
+   349→   349→                  'border-[#CD7F32] bg-[#CD7F32]/10',
+   350→   350→                ]
+   351→   351→                return (
+   352→   352→                  <div
+   353→   353→                    key={entry.rgm}
+   354→   354→                    className={`flex items-center gap-6 p-6 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
+   355→   355→                    style={{ animation: `fadeInUp 0.6s ease-out ${0.5 + idx * 0.3}s both` }}
+   356→   356→                  >
+   357→   357→                    <span className="text-6xl" style={{ animation: `rotateScaleIn 0.6s ease-out ${0.7 + idx * 0.3}s both` }}>
+   358→   358→                      {medals[idx]}
+   359→   359→                    </span>
+   360→   360→                    <div className="flex-1 min-w-0 text-left">
+   361→   361→                      <p
+   362→   362→                        className="text-[#E8EDFF] font-bold text-3xl truncate"
+   363→   363→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   364→   364→                      >
+   365→   365→                        {entry.name}
+   366→   366→                      </p>
+   367→   367→                      <p className="text-[#8899CC] text-lg">RGM: {entry.rgm}</p>
+   368→   368→                    </div>
+   369→   369→                    <div className="text-right shrink-0">
+   370→   370→                      <p
+   371→   371→                        className="text-[#C8A84B] font-bold text-4xl"
+   372→   372→                        style={{ fontFamily: 'var(--font-space-grotesk)', animation: `bounceScale 0.4s ease-out ${0.9 + idx * 0.3}s both` }}
+   373→   373→                      >
+   374→   374→                        {entry.corrects}/{totalQuestions}
+   375→   375→                      </p>
+   376→   376→                      <p className="text-[#8899CC] text-base">
+   377→   377→                        {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   378→   378→                      </p>
+   379→   379→                    </div>
+   380→   380→                  </div>
+   381→   381→                )
+   382→   382→              })}
+   383→   383→            </div>
+   384→   384→          )}
+   385→   385→        </div>
+   386→   386→      </div>
+   387→   387→    )
+   388→   388→  }
+   389→   389→
+   390→   390→  // ─── No questions state ───
+   391→   391→  if (session.questions.length === 0) {
+   392→   392→    return (
+   393→   393→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   394→   394→        <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   395→   395→        <div className="text-center space-y-4" style={{ animation: 'fadeInUp 0.5s ease-out' }}>
+   396→   396→          <h2
+   397→   397→            className="text-3xl font-bold text-[#E8EDFF]"
+   398→   398→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   399→   399→          >
+   400→   400→            Nenhuma questão cadastrada
+   401→   401→          </h2>
+   402→   402→          <p className="text-[#8899CC] text-lg">
+   403→   403→            Adicione questões à sessão antes de iniciar a apresentação.
+   404→   404→          </p>
+   405→   405→        </div>
+   406→   406→      </div>
+   407→   407→    )
+   408→   408→  }
+   409→   409→
+   410→   410→  // ─── Main presenter display ───
+   411→   411→  return (
+   412→   412→    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
+   413→   413→      <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
+   414→   414→
+   415→   415→      {/* ── Thin Header Bar ── */}
+   416→   416→      <header className="flex items-center justify-between px-6 py-1.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
+   417→   417→        <div className="flex items-center gap-3">
+   418→   418→          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+   419→   419→          <span
+   420→   420→            className="text-[#E8EDFF] text-lg font-semibold"
+   421→   421→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   422→   422→          >
+   423→   423→            ENADE Quiz
+   424→   424→          </span>
+   425→   425→          <span className="text-[#3A4A7E]">—</span>
+   426→   426→          <span className="text-[#8899CC] text-base">{session.title}</span>
+   427→   427→        </div>
+   428→   428→        <div className="flex items-center gap-4">
+   429→   429→          <div
+   430→   430→            className="flex items-center gap-1.5"
+   431→   431→            key={participantCount}
+   432→   432→            style={{ animation: 'bounceScale 0.3s ease-out' }}
+   433→   433→          >
+   434→   434→            <Users className="w-4 h-4 text-[#C8A84B]" />
+   435→   435→            <AnimatedCounter
+   436→   436→              value={participantCount}
+   437→   437→              className="text-[#E8EDFF] text-base font-medium"
+   438→   438→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   439→   439→            />
+   440→   440→          </div>
+   441→   441→          <span
+   442→   442→            className="px-3 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider"
+   443→   443→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   444→   444→          >
+   445→   445→            {codigo}
+   446→   446→          </span>
+   447→   447→        </div>
+   448→   448→      </header>
+   449→   449→
+   450→   450→      {/* ── Main Content Area ── */}
+   451→   451→      <div className="flex-1 flex min-h-0">
+   452→   452→        {!currentQuestion ? (
+   453→   453→          /* ── Waiting State: QR Code Center ── */
+   454→   454→          <div
+   455→   455→            className="flex-1 flex items-center justify-center gap-16 px-12"
+   456→   456→            style={{ animation: 'fadeIn 0.5s ease-out' }}
+   457→   457→          >
+   458→   458→            {/* QR Code Section */}
+   459→   459→            <div className="flex flex-col items-center gap-6">
+   460→   460→              <div
+   461→   461→                className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4 relative"
+   462→   462→                style={{ animation: 'glow 3s ease-in-out infinite' }}
+   463→   463→              >
+   464→   464→                {/* Pulsing border glow */}
+   465→   465→                <div
+   466→   466→                  className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/30 pointer-events-none"
+   467→   467→                  style={{ animation: 'borderPulse 2.5s ease-in-out infinite' }}
+   468→   468→                />
+   469→   469→                <QRCode
+   470→   470→                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+   471→   471→                  size={280}
+   472→   472→                  bgColor="#0D1B3E"
+   473→   473→                  fgColor="#E8EDFF"
+   474→   474→                  qrStyle="dots"
+   475→   475→                  eyeRadius={8}
+   476→   476→                  logoImage="/logo.svg"
+   477→   477→                  logoSize={56}
+   478→   478→                />
+   479→   479→                <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+   480→   480→                  <p className="text-[#8899CC] text-base">acesse:</p>
+   481→   481→                  <p
+   482→   482→                    className="text-[#E8EDFF] text-2xl font-bold"
+   483→   483→                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   484→   484→                  >
+   485→   485→                    enade.uems.br
+   486→   486→                  </p>
+   487→   487→                  <p className="text-[#8899CC] text-base">código:</p>
+   488→   488→                  <p
+   489→   489→                    className="text-[#C8A84B] text-4xl font-bold tracking-widest"
+   490→   490→                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'textGlow 2s ease-in-out infinite' }}
+   491→   491→                  >
+   492→   492→                    {codigo}
+   493→   493→                  </p>
+   494→   494→                </div>
+   495→   495→              </div>
+   496→   496→            </div>
+   497→   497→
+   498→   498→            {/* Welcome message */}
+   499→   499→            <div className="max-w-lg text-center space-y-4">
+   500→   500→              <h2
+   501→   501→                className="text-5xl font-bold text-[#E8EDFF]"
+   502→   502→                style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'fadeInUp 0.6s ease-out 0.2s both' }}
+   503→   503→              >
+   504→   504→                Aguardando Início
+   505→   505→              </h2>
+   506→   506→              <p
+   507→   507→                className="text-[#8899CC] text-xl"
+   508→   508→                style={{ animation: 'fadeInUp 0.6s ease-out 0.4s both' }}
+   509→   509→              >
+   510→   510→                Escaneie o QR Code ou acesse o endereço acima com o código da sessão para participar
+   511→   511→              </p>
+   512→   512→              <div
+   513→   513→                className="flex items-center justify-center gap-2 pt-2"
+   514→   514→                style={{ animation: 'fadeInUp 0.6s ease-out 0.6s both' }}
+   515→   515→              >
+   516→   516→                <div style={{ animation: 'pulseScale 1.5s ease-in-out infinite' }}>
+   517→   517→                  <Users className="w-6 h-6 text-[#C8A84B]" />
+   518→   518→                </div>
+   519→   519→                <span
+   520→   520→                  className="text-[#E8EDFF] text-2xl font-semibold"
+   521→   521→                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   522→   522→                >
+   523→   523→                  <AnimatedCounter value={participantCount} /> {participantCount === 1 ? 'participante' : 'participantes'}
+   524→   524→                </span>
+   525→   525→              </div>
+   526→   526→
+   527→   527→              {/* Animated dots indicator */}
+   528→   528→              <div
+   529→   529→                className="flex items-center justify-center gap-1.5 pt-4"
+   530→   530→                style={{ animation: 'fadeIn 0.5s ease-out 1s both' }}
+   531→   531→              >
+   532→   532→                {[0, 1, 2].map((i) => (
+   533→   533→                  <div
+   534→   534→                    key={i}
+   535→   535→                    className="w-2 h-2 rounded-full bg-[#C8A84B]"
+   536→   536→                    style={{
+   537→   537→                      animation: `dotPulse 1.2s ease-in-out ${i * 0.4}s infinite`,
+   538→   538→                    }}
+   539→   539→                  />
+   540→   540→                ))}
+   541→   541→              </div>
+   542→   542→            </div>
+   543→   543→          </div>
+   544→   544→        ) : (
+   545→   545→          /* ── Active Question State ── */
+   546→   546→          <div
+   547→   547→            key={currentQuestionId || 'question'}
+   548→   548→            className="flex-1 flex min-h-0"
+   549→   549→            style={{ animation: 'fadeInUp 0.4s ease-out' }}
+   550→   550→          >
+   551→   551→            {/* Left: Question Text + Image */}
+   552→   552→            <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
+   553→   553→              {/* Question number badge */}
+   554→   554→              <div className="shrink-0 flex items-center gap-3">
+   555→   555→                <span
+   556→   556→                  className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
+   557→   557→                  style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'slideInLeft 0.4s ease-out' }}
+   558→   558→                >
+   559→   559→                  Questão {currentIndex + 1}/{totalQuestions}
+   560→   560→                </span>
+   561→   561→                {revealed && (
+   562→   562→                  <span
+   563→   563→                    className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
+   564→   564→                    style={{ fontFamily: 'var(--font-space-grotesk)', animation: 'bounceScale 0.5s ease-out' }}
+   565→   565→                  >
+   566→   566→                    Gabarito: {currentQuestion.correctAnswer}
+   567→   567→                  </span>
+   568→   568→                )}
+   569→   569→              </div>
+   570→   570→
+   571→   571→              {/* Question image */}
+   572→   572→              {currentQuestion.imageUrl && (
+   573→   573→                <div
+   574→   574→                  className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
+   575→   575→                  style={{ animation: 'scaleIn 0.4s ease-out 0.1s both' }}
+   576→   576→                >
+   577→   577→                  <img
+   578→   578→                    src={currentQuestion.imageUrl}
+   579→   579→                    alt="Imagem da questão"
+   580→   580→                    className="max-h-full max-w-full object-contain p-2"
+   581→   581→                  />
+   582→   582→                </div>
+   583→   583→              )}
+   584→   584→
+   585→   585→              {/* Question text */}
+   586→   586→              <div
+   587→   587→                className="flex-1 min-h-0 overflow-y-auto pr-2"
+   588→   588→                style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
+   589→   589→              >
+   590→   590→                <p
+   591→   591→                  className="text-[#E8EDFF] text-2xl leading-relaxed"
+   592→   592→                  style={{ fontFamily: 'var(--font-inter)' }}
+   593→   593→                >
+   594→   594→                  {currentQuestion.text}
+   595→   595→                </p>
+   596→   596→              </div>
+   597→   597→            </div>
+   598→   598→
+   599→   599→            {/* Center: Pie Chart */}
+   600→   600→            <div
+   601→   601→              className="w-[30%] flex flex-col items-center justify-center p-4 min-h-0"
+   602→   602→              style={{ animation: 'scaleIn 0.5s ease-out 0.1s both' }}
+   603→   603→            >
+   604→   604→              <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
+   605→   605→                {pieData.length > 0 ? (
+   606→   606→                  <svg viewBox="0 0 200 200" className="w-full h-full">
+   607→   607→                    {(() => {
+   608→   608→                      const R = 70
+   609→   609→                      const circumference = 2 * Math.PI * R
+   610→   610→                      const cx = 100
+   611→   611→                      const cy = 100
+   612→   612→                      const strokeWidth = 35
+   613→   613→                      let cumulativeOffset = 0
+   614→   614→
+   615→   615→                      return (
+   616→   616→                        <>
+   617→   617→                          {pieData.map((entry, i) => {
+   618→   618→                            const pct = entry.value / totalVotes
+   619→   619→                            const sliceLength = pct * circumference
+   620→   620→                            const rotation = (cumulativeOffset / circumference) * 360 - 90
+   621→   621→                            cumulativeOffset += entry.value
+   622→   622→
+   623→   623→                            const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+   624→   624→                            const midAngleDeg = rotation + (pct * 360) / 2
+   625→   625→                            const RADIAN = Math.PI / 180
+   626→   626→                            const labelR = R
+   627→   627→                            const lx = cx + labelR * Math.cos(-midAngleDeg * RADIAN)
+   628→   628→                            const ly = cy + labelR * Math.sin(-midAngleDeg * RADIAN)
+   629→   629→
+   630→   630→                            return (
+   631→   631→                              <g key={`slice-${i}`}>
+   632→   632→                                <circle
+   633→   633→                                  cx={cx}
+   634→   634→                                  cy={cy}
+   635→   635→                                  r={R}
+   636→   636→                                  fill="none"
+   637→   637→                                  stroke={entry.color}
+   638→   638→                                  strokeWidth={strokeWidth}
+   639→   639→                                  strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+   640→   640→                                  strokeDashoffset={0}
+   641→   641→                                  strokeLinecap="butt"
+   642→   642→                                  transform={`rotate(${rotation} ${cx} ${cy})`}
+   643→   643→                                  opacity={revealed && !isCorrect ? 0.35 : 1}
+   644→   644→                                  style={{ transition: 'opacity 0.6s ease-out, stroke 0.4s ease-out' }}
+   645→   645→                                />
+   646→   646→                                {isCorrect && (
+   647→   647→                                  <circle
+   648→   648→                                    cx={cx}
+   649→   649→                                    cy={cy}
+   650→   650→                                    r={R}
+   651→   651→                                    fill="none"
+   652→   652→                                    stroke="#C8A84B"
+   653→   653→                                    strokeWidth={strokeWidth + 4}
+   654→   654→                                    strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+   655→   655→                                    strokeDashoffset={0}
+   656→   656→                                    strokeLinecap="butt"
+   657→   657→                                    transform={`rotate(${rotation} ${cx} ${cy})`}
+   658→   658→                                    style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
+   659→   659→                                  />
+   660→   660→                                )}
+   661→   661→                                {pct >= 0.05 && (
+   662→   662→                                  <text
+   663→   663→                                    x={lx}
+   664→   664→                                    y={ly}
+   665→   665→                                    fill="#E8EDFF"
+   666→   666→                                    textAnchor="middle"
+   667→   667→                                    dominantBaseline="central"
+   668→   668→                                    fontSize="11"
+   669→   669→                                    fontWeight="bold"
+   670→   670→                                    opacity={revealed && !isCorrect ? 0.35 : 1}
+   671→   671→                                    style={{
+   672→   672→                                      fontFamily: 'var(--font-space-grotesk)',
+   673→   673→                                      transition: 'opacity 0.6s ease-out',
+   674→   674→                                    }}
+   675→   675→                                  >
+   676→   676→                                    <tspan x={lx} dy="-0.5em">{entry.name}</tspan>
+   677→   677→                                    <tspan x={lx} dy="1.2em">{`${(pct * 100).toFixed(0)}%`}</tspan>
+   678→   678→                                  </text>
+   679→   679→                                )}
+   680→   680→                              </g>
+   681→   681→                            )
+   682→   682→                          })}
+   683→   683→                        </>
+   684→   684→                      )
+   685→   685→                    })()}
+   686→   686→                  </svg>
+   687→   687→                ) : (
+   688→   688→                  <div
+   689→   689→                    className="h-full flex items-center justify-center"
+   690→   690→                    style={{ animation: 'fadeInOut 2.5s ease-in-out infinite' }}
+   691→   691→                  >
+   692→   692→                    <div className="text-center space-y-3">
+   693→   693→                      <div
+   694→   694→                        className="w-28 h-28 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center"
+   695→   695→                        style={{ animation: 'rotateDashed 20s linear infinite' }}
+   696→   696→                      >
+   697→   697→                        <span className="text-[#8899CC] text-base" style={{ display: 'inline-block' }}>Sem votos</span>
+   698→   698→                      </div>
+   699→   699→                      <p className="text-[#8899CC] text-lg">Aguardando votos...</p>
+   700→   700→                    </div>
+   701→   701→                  </div>
+   702→   702→                )}
+   703→   703→              </div>
+   704→   704→              {/* Total votes */}
+   705→   705→              <div
+   706→   706→                className="mt-2 text-center"
+   707→   707→                key={totalVotes}
+   708→   708→                style={{ animation: 'bounceScale 0.3s ease-out' }}
+   709→   709→              >
+   710→   710→                <span className="text-[#8899CC] text-lg">
+   711→   711→                  Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+   712→   712→                </span>
+   713→   713→              </div>
+   714→   714→            </div>
+   715→   715→
+   716→   716→            {/* Right: Alternatives Legend */}
+   717→   717→            <div className="w-[25%] flex flex-col justify-center p-4 gap-2 min-h-0 overflow-y-auto">
+   718→   718→              {ALT_LABELS.map((alt, idx) => {
+   719→   719→                const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+   720→   720→                const votes = voteResults[alt] ?? 0
+   721→   721→                const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
+   722→   722→                const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+   723→   723→                const altText = currentQuestion?.[altKey] ?? ''
+   724→   724→
+   725→   725→                return (
+   726→   726→                  <div
+   727→   727→                    key={alt}
+   728→   728→                    className={`rounded-xl px-4 py-3 ${
+   729→   729→                      isCorrect
+   730→   730→                        ? 'bg-[#C8A84B]/15 border-2 border-[#C8A84B]'
+   731→   731→                        : revealed
+   732→   732→                        ? 'opacity-35 border-2 border-transparent bg-[#0D1B3E]'
+   733→   733→                        : 'border-2 border-transparent bg-[#0D1B3E]'
+   734→   734→                    }`}
+   735→   735→                    style={{ animation: `slideInRight 0.3s ease-out ${idx * 0.08}s both` }}
+   736→   736→                  >
+   737→   737→                    <div className="flex items-center gap-3">
+   738→   738→                      <span
+   739→   739→                        className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-white shrink-0"
+   740→   740→                        style={{
+   741→   741→                          backgroundColor: COLORS[alt],
+   742→   742→                          animation: isCorrect ? 'glowPulse 1.5s ease-in-out infinite' : undefined,
+   743→   743→                        }}
+   744→   744→                      >
+   745→   745→                        {alt}
+   746→   746→                      </span>
+   747→   747→                      <div className="flex-1 min-w-0">
+   748→   748→                        <p className="text-[#8899CC] text-xs line-clamp-1">{altText}</p>
+   749→   749→                      </div>
+   750→   750→                      <div className="shrink-0 text-right">
+   751→   751→                        <span
+   752→   752→                          className={`font-bold text-lg ${isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'}`}
+   753→   753→                          key={`${alt}-${pct}`}
+   754→   754→                          style={{ animation: 'bounceScale 0.2s ease-out' }}
+   755→   755→                        >
+   756→   756→                          {pct}%
+   757→   757→                        </span>
+   758→   758→                        <span className="text-[#8899CC] text-sm ml-1">
+   759→   759→                          ({votes})
+   760→   760→                        </span>
+   761→   761→                      </div>
+   762→   762→                    </div>
+   763→   763→
+   764→   764→                    {/* Animated vote bar */}
+   765→   765→                    {votes > 0 && (
+   766→   766→                      <div className="mt-2 h-1.5 bg-[#1A2A5E] rounded-full overflow-hidden">
+   767→   767→                        <div
+   768→   768→                          className="h-full rounded-full transition-all duration-800 ease-out"
+   769→   769→                          style={{
+   770→   770→                            backgroundColor: COLORS[alt],
+   771→   771→                            width: `${pct}%`,
+   772→   772→                            transitionDelay: `${idx * 0.08 + 0.2}s`,
+   773→   773→                          }}
+   774→   774→                        />
+   775→   775→                      </div>
+   776→   776→                    )}
+   777→   777→                  </div>
+   778→   778→                )
+   779→   779→              })}
+   780→   780→            </div>
+   781→   781→          </div>
+   782→   782→        )}
+   783→   783→      </div>
+   784→   784→
+   785→   785→      {/* ── Bottom Bar ── */}
+   786→   786→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-1.5 flex items-center justify-between">
+   787→   787→        <div className="flex items-center gap-2">
+   788→   788→          <img src="/logo.svg" alt="UEMS" className="h-5 w-5 object-contain opacity-50" />
+   789→   789→          <span className="text-[#3A4A7E] text-xs">UEMS/DIGES — ENADE Quiz</span>
+   790→   790→        </div>
+   791→   791→        {currentQuestion && (
+   792→   792→          <span className="text-[#3A4A7E] text-xs">
+   793→   793→            {currentQuestion.year} • {currentQuestion.course}
+   794→   794→          </span>
+   795→   795→        )}
+   796→   796→      </div>
+   797→   797→    </div>
+   798→   798→  )
+   799→   799→}
+   800→   800→

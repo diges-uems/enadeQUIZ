@@ -280,6 +280,25 @@ export default function StudentVotingPage({
           setPageState('finished')
         })
 
+        socket.on('session-reset', () => {
+          // Clear all stored votes from sessionStorage
+          if (typeof window !== 'undefined' && sessionFetchedRef.current) {
+            for (const q of sessionFetchedRef.current.questions) {
+              sessionStorage.removeItem(`voted_${q.id}`)
+            }
+            sessionStorage.removeItem(`score_${codigo}`)
+          }
+          // Reset all state
+          setSelectedChoice(null)
+          setCorrectAnswer(null)
+          setVotingPaused(false)
+          setCorrectCount(0)
+          setAnsweredCount(0)
+          setCurrentQuestion(null)
+          setPageState('waiting')
+          toast.info('Sessão reiniciada pelo apresentador')
+        })
+
         socket.on('participant-count', (count: number) => {
           setParticipantCount(count)
         })

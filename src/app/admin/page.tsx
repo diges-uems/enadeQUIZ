@@ -776,6 +776,8 @@ export default function AdminPage() {
   const [isNavigating, setIsNavigating] = useState(false)
   const [ranking, setRanking] = useState<RankingEntry[]>([])
   const [showRanking, setShowRanking] = useState(false)
+  const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   // DnD sensors
   const sensors = useSensors(
@@ -1192,6 +1194,36 @@ export default function AdminPage() {
     setShowRanking(true)
   }
 
+  const handleResetSession = async () => {
+    if (!selectedSession) return
+    try {
+      const res = await fetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setSelectedSession(data)
+      setCurrentQuestionId(null)
+      setRevealed(false)
+      setVotingPaused(false)
+      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+      setRanking([])
+      setShowQrOnPresentation(false)
+      socket?.emit('session-reset', { sessionCode: selectedSession.code })
+      toast.success('Sessão resetada com sucesso!')
+    } catch {
+      toast.error('Erro ao resetar sessão.')
+    }
+    setResetConfirmOpen(false)
+  }
+
+  const handleShowQr = () => {
+    const newVisible = !showQrOnPresentation
+    setShowQrOnPresentation(newVisible)
+    socket?.emit('show-qr', {
+      sessionCode: selectedSession?.code,
+      visible: newVisible,
+    })
+  }
+
   const handleSelectQuestion = async (questionId: string) => {
     if (isNavigating || !selectedSession) return
     setIsNavigating(true)
@@ -1466,30 +1498,52 @@ export default function AdminPage() {
                           {selectedSession.status === 'finished' && 'Encerrada'}
                         </span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-2">
                         {selectedSession.status === 'waiting' && (
-                          <Button
-                            onClick={handleStartSession}
-                            disabled={selectedSession.questions.length === 0}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <PlayCircle className="size-4" />
-                            Iniciar Sessão
-                          </Button>
+                          <>
+                            <Button
+                              onClick={handleStartSession}
+                              disabled={selectedSession.questions.length === 0}
+                              className="bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-lg shadow-green-600/20"
+                            >
+                              <PlayCircle className="size-5" />
+                              ▶ Iniciar Apresentação
+                            </Button>
+                            {selectedSession.questions.length === 0 && (
+                              <p className="text-xs text-destructive">Adicione questões antes de iniciar</p>
+                            )}
+                          </>
                         )}
                         {selectedSession.status === 'active' && (
-                          <Button
-                            onClick={handleEndSession}
-                            variant="destructive"
-                          >
-                            <StopCircle className="size-4" />
-                            Encerrar Sessão
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={handleEndSession}
+                              variant="destructive"
+                              className="h-10"
+                            >
+                              <StopCircle className="size-4" />
+                              Encerrar Sessão
+                            </Button>
+                            <Button
+                              onClick={handleShowQr}
+                              variant={showQrOnPresentation ? 'default' : 'outline'}
+                              className={showQrOnPresentation
+                                ? 'bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] h-10'
+                                : 'border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10 h-10'
+                              }
+                            >
+                              <Monitor className="size-4" />
+                              {showQrOnPresentation ? 'Ocultar QR Code' : 'Mostrar QR Code'}
+                            </Button>
+                          </div>
                         )}
                         {selectedSession.status === 'finished' && (
-                          <p className="text-sm text-muted-foreground">
-                            Sessão encerrada. Não é possível reiniciar.
-                          </p>
+                          <Button
+                            onClick={() => setResetConfirmOpen(true)}
+                            className="bg-amber-600 hover:bg-amber-700 text-white h-10"
+                          >
+                            🔄 Resetar Sessão
+                          </Button>
                         )}
                       </div>
                     </CardContent>
@@ -1851,6 +1905,30 @@ export default function AdminPage() {
           ranking={ranking}
           totalQuestions={totalQuestions}
         />
+
+        {/* Reset Session Confirmation */}
+        <AlertDialog
+          open={resetConfirmOpen}
+          onOpenChange={setResetConfirmOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resetar Sessão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja resetar a sessão? Todos os votos serão apagados, as questões serão desmarcadas e a sessão voltará ao estado &quot;Aguardando&quot;. Os participantes conectados serão notificados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleResetSession}
+                className="bg-amber-600 text-white hover:bg-amber-700"
+              >
+                🔄 Resetar Sessão
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }
