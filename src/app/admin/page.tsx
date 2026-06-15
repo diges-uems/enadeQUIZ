@@ -20,7 +20,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { io, Socket } from 'socket.io-client'
 import { toast } from 'sonner'
-// Recharts removed - using CSS bar charts instead for lighter compilation
 import {
   Card,
   CardContent,
@@ -165,7 +164,7 @@ function SortableQuestionItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
+      className={`flex items-start gap-3 rounded-lg border p-3 ${
         isDragging
           ? 'z-50 border-[#C8A84B] bg-[#C8A84B]/5 shadow-lg'
           : 'border-border bg-card hover:bg-accent/50'
@@ -437,7 +436,7 @@ function QuestionFormDialog({
                   <button
                     type="button"
                     onClick={handleRemoveImage}
-                    className="absolute top-1 right-1 size-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 size-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
                     title="Remover imagem"
                   >
                     <X className="size-3" />
@@ -1553,7 +1552,7 @@ export default function AdminPage() {
                           <button
                             key={q.id}
                             onClick={() => handleSelectQuestion(q.id)}
-                            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                            className={`px-3 py-1 rounded-md text-xs font-medium ${
                               q.id === currentQuestionId
                                 ? 'bg-[#00338C] text-white'
                                 : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -1682,7 +1681,7 @@ export default function AdminPage() {
                                 </span>
                                 <div className="flex-1 h-7 bg-muted/50 rounded-full overflow-hidden relative">
                                   <div
-                                    className="h-full rounded-full transition-all duration-500 ease-out"
+                                    className="h-full rounded-full"
                                     style={{
                                       width: `${pct}%`,
                                       backgroundColor: CHART_COLORS[alt],
@@ -1872,7 +1871,7 @@ export default function AdminPage() {
             {sessions.map((session) => (
               <Card
                 key={session.id}
-                className="overflow-hidden transition-shadow hover:shadow-md"
+                className="overflow-hidden"
               >
                 <CardContent className="p-4 sm:p-5">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
