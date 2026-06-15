@@ -1,0 +1,730 @@
+     1→'use client'
+     2→
+     3→import React, { useEffect, useState, useCallback } from 'react'
+     4→import { useRouter } from 'next/navigation'
+     5→import { io, Socket } from 'socket.io-client'
+     6→import { QRCodeSVG } from 'react-qrcode-logo'
+     7→import {
+     8→  PieChart,
+     9→  Pie,
+    10→  Cell,
+    11→  ResponsiveContainer,
+    12→  Tooltip,
+    13→} from 'recharts'
+    14→import {
+    15→  ChevronLeft,
+    16→  ChevronRight,
+    17→  Pause,
+    18→  Play,
+    19→  KeyRound,
+    20→  Users,
+    21→  ArrowLeft,
+    22→  ArrowRight,
+    23→} from 'lucide-react'
+    24→
+    25→// ─── Types ────────────────────────────────────────────────────────
+    26→interface Question {
+    27→  id: string
+    28→  sessionId: string
+    29→  text: string
+    30→  year: number
+    31→  course: string
+    32→  altA: string
+    33→  altB: string
+    34→  altC: string
+    35→  altD: string
+    36→  altE: string
+    37→  correctAnswer: string
+    38→  imageUrl: string | null
+    39→  isRevealed: boolean
+    40→  orderIndex: number
+    41→  createdAt: string
+    42→  updatedAt: string
+    43→}
+    44→
+    45→interface SessionData {
+    46→  id: string
+    47→  code: string
+    48→  title: string
+    49→  status: string
+    50→  currentQuestionId: string | null
+    51→  createdAt: string
+    52→  updatedAt: string
+    53→  questions: Question[]
+    54→}
+    55→
+    56→interface VoteResults {
+    57→  A: number
+    58→  B: number
+    59→  C: number
+    60→  D: number
+    61→  E: number
+    62→  total: number
+    63→}
+    64→
+    65→// ─── Constants ────────────────────────────────────────────────────
+    66→const COLORS: Record<string, string> = {
+    67→  A: '#00338C',
+    68→  B: '#C8A84B',
+    69→  C: '#2196F3',
+    70→  D: '#4CAF50',
+    71→  E: '#F44336',
+    72→}
+    73→
+    74→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+    75→
+    76→// ─── Component ────────────────────────────────────────────────────
+    77→export default function ApresentacaoPage({
+    78→  params,
+    79→}: {
+    80→  params: Promise<{ codigo: string }>
+    81→}) {
+    82→  const { codigo } = React.use(params)
+    83→  const router = useRouter()
+    84→
+    85→  // ── State ──
+    86→  const [session, setSession] = useState<SessionData | null>(null)
+    87→  const [loading, setLoading] = useState(true)
+    88→  const [notFound, setNotFound] = useState(false)
+    89→  const [socket, setSocket] = useState<Socket | null>(null)
+    90→  const [participantCount, setParticipantCount] = useState(0)
+    91→  const [votingPaused, setVotingPaused] = useState(false)
+    92→  const [voteResults, setVoteResults] = useState<VoteResults>({
+    93→    A: 0,
+    94→    B: 0,
+    95→    C: 0,
+    96→    D: 0,
+    97→    E: 0,
+    98→    total: 0,
+    99→  })
+   100→  const [revealed, setRevealed] = useState(false)
+   101→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   102→  const [isNavigating, setIsNavigating] = useState(false)
+   103→
+   104→  // ── Derived ──
+   105→  const currentQuestion = session?.questions.find(
+   106→    (q) => q.id === currentQuestionId
+   107→  ) ?? null
+   108→  const currentIndex = session?.questions.findIndex(
+   109→    (q) => q.id === currentQuestionId
+   110→  ) ?? -1
+   111→  const totalQuestions = session?.questions.length ?? 0
+   112→  const hasPrev = currentIndex > 0
+   113→  const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
+   114→
+   115→  // ── Fetch session data ──
+   116→  const fetchSession = useCallback(async () => {
+   117→    try {
+   118→      const res = await fetch(`/api/session/${codigo}`)
+   119→      if (!res.ok) {
+   120→        setNotFound(true)
+   121→        return
+   122→      }
+   123→      const data: SessionData = await res.json()
+   124→      setSession(data)
+   125→      setCurrentQuestionId(data.currentQuestionId)
+   126→      if (data.currentQuestionId) {
+   127→        const q = data.questions.find((q) => q.id === data.currentQuestionId)
+   128→        if (q) setRevealed(q.isRevealed)
+   129→      }
+   130→    } catch {
+   131→      setNotFound(true)
+   132→    } finally {
+   133→      setLoading(false)
+   134→    }
+   135→  }, [codigo])
+   136→
+   137→  // ── Socket connection ──
+   138→  useEffect(() => {
+   139→    fetchSession()
+   140→  }, [fetchSession])
+   141→
+   142→  useEffect(() => {
+   143→    if (!session) return
+   144→
+   145→    const socketInstance = io('/?XTransformPort=3003', {
+   146→      transports: ['websocket', 'polling'],
+   147→      forceNew: true,
+   148→      reconnection: true,
+   149→      reconnectionAttempts: 10,
+   150→      reconnectionDelay: 1000,
+   151→      timeout: 10000,
+   152→    })
+   153→
+   154→    socketInstance.on('connect', () => {
+   155→      socketInstance.emit('join-session', {
+   156→        sessionCode: codigo,
+   157→        role: 'presenter',
+   158→      })
+   159→    })
+   160→
+   161→    socketInstance.on('vote-results', (data: VoteResults) => {
+   162→      setVoteResults(data)
+   163→    })
+   164→
+   165→    socketInstance.on('participant-count', (count: number) => {
+   166→      setParticipantCount(count)
+   167→    })
+   168→
+   169→    socketInstance.on('session-state', (data: {
+   170→      participantCount: number
+   171→      currentQuestionId: string | null
+   172→      votingPaused: boolean
+   173→    }) => {
+   174→      setParticipantCount(data.participantCount)
+   175→      setCurrentQuestionId(data.currentQuestionId)
+   176→      setVotingPaused(data.votingPaused)
+   177→    })
+   178→
+   179→    setSocket(socketInstance)
+   180→
+   181→    return () => {
+   182→      socketInstance.disconnect()
+   183→    }
+   184→  }, [session, codigo])
+   185→
+   186→  // ── Update session on server ──
+   187→  const updateSession = async (updates: {
+   188→    status?: string
+   189→    currentQuestionId?: string | null
+   190→  }) => {
+   191→    try {
+   192→      await fetch(`/api/session/${codigo}`, {
+   193→        method: 'PATCH',
+   194→        headers: { 'Content-Type': 'application/json' },
+   195→        body: JSON.stringify(updates),
+   196→      })
+   197→    } catch (err) {
+   198→      console.error('Failed to update session:', err)
+   199→    }
+   200→  }
+   201→
+   202→  // ── Navigation handlers ──
+   203→  const handlePrevious = async () => {
+   204→    if (!session || !hasPrev || isNavigating) return
+   205→    setIsNavigating(true)
+   206→    const prevQuestion = session.questions[currentIndex - 1]
+   207→    setCurrentQuestionId(prevQuestion.id)
+   208→    setRevealed(prevQuestion.isRevealed)
+   209→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   210→    await updateSession({ currentQuestionId: prevQuestion.id })
+   211→    socket?.emit('activate-question', {
+   212→      sessionCode: codigo,
+   213→      questionId: prevQuestion.id,
+   214→    })
+   215→    setTimeout(() => setIsNavigating(false), 300)
+   216→  }
+   217→
+   218→  const handleNext = async () => {
+   219→    if (!session || !hasNext || isNavigating) return
+   220→    setIsNavigating(true)
+   221→    const nextQuestion = session.questions[currentIndex + 1]
+   222→    setCurrentQuestionId(nextQuestion.id)
+   223→    setRevealed(nextQuestion.isRevealed)
+   224→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   225→    await updateSession({ currentQuestionId: nextQuestion.id })
+   226→    socket?.emit('next-question', {
+   227→      sessionCode: codigo,
+   228→      questionId: nextQuestion.id,
+   229→    })
+   230→    setTimeout(() => setIsNavigating(false), 300)
+   231→  }
+   232→
+   233→  const handleToggleVoting = () => {
+   234→    const newPaused = !votingPaused
+   235→    setVotingPaused(newPaused)
+   236→    socket?.emit('toggle-voting', {
+   237→      sessionCode: codigo,
+   238→      paused: newPaused,
+   239→    })
+   240→  }
+   241→
+   242→  const handleRevealAnswer = async () => {
+   243→    if (!currentQuestion) return
+   244→    setRevealed(true)
+   245→    // Update DB
+   246→    await fetch(
+   247→      `/api/session/${codigo}/questions/${currentQuestion.id}`,
+   248→      {
+   249→        method: 'PUT',
+   250→        headers: { 'Content-Type': 'application/json' },
+   251→        body: JSON.stringify({ isRevealed: true }),
+   252→      }
+   253→    )
+   254→    socket?.emit('reveal-answer', {
+   255→      sessionCode: codigo,
+   256→      questionId: currentQuestion.id,
+   257→      correctAnswer: currentQuestion.correctAnswer,
+   258→    })
+   259→  }
+   260→
+   261→  const handleSelectQuestion = async (questionId: string) => {
+   262→    if (isNavigating) return
+   263→    setIsNavigating(true)
+   264→    const q = session?.questions.find((q) => q.id === questionId)
+   265→    setCurrentQuestionId(questionId)
+   266→    setRevealed(q?.isRevealed ?? false)
+   267→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   268→    await updateSession({ currentQuestionId: questionId })
+   269→    socket?.emit('activate-question', {
+   270→      sessionCode: codigo,
+   271→      questionId,
+   272→    })
+   273→    setTimeout(() => setIsNavigating(false), 300)
+   274→  }
+   275→
+   276→  // ── Pie chart data ──
+   277→  const pieData = ALT_LABELS.map((alt) => ({
+   278→    name: alt,
+   279→    value: voteResults[alt] ?? 0,
+   280→    color: COLORS[alt],
+   281→  })).filter((d) => d.value > 0)
+   282→
+   283→  const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
+   284→
+   285→  // ── Custom label renderer for pie slices ──
+   286→  const renderCustomLabel = ({
+   287→    cx,
+   288→    cy,
+   289→    midAngle,
+   290→    innerRadius,
+   291→    outerRadius,
+   292→    name,
+   293→    percent,
+   294→  }: {
+   295→    cx: number
+   296→    cy: number
+   297→    midAngle: number
+   298→    innerRadius: number
+   299→    outerRadius: number
+   300→    name: string
+   301→    percent: number
+   302→  }) => {
+   303→    if (percent < 0.05) return null
+   304→    const RADIAN = Math.PI / 180
+   305→    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+   306→    const x = cx + radius * Math.cos(-midAngle * RADIAN)
+   307→    const y = cy + radius * Math.sin(-midAngle * RADIAN)
+   308→    return (
+   309→      <text
+   310→        x={x}
+   311→        y={y}
+   312→        fill="#E8EDFF"
+   313→        textAnchor="middle"
+   314→        dominantBaseline="central"
+   315→        fontSize={14}
+   316→        fontWeight="bold"
+   317→        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   318→      >
+   319→        <tspan x={x} dy="-0.5em">{name}</tspan>
+   320→        <tspan x={x} dy="1.2em">{`${(percent * 100).toFixed(0)}%`}</tspan>
+   321→      </text>
+   322→    )
+   323→  }
+   324→
+   325→  // ── Custom tooltip ──
+   326→  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
+   327→    if (active && payload && payload.length) {
+   328→      const item = payload[0]
+   329→      const pct = totalVotes > 0 ? ((item.value / totalVotes) * 100).toFixed(1) : '0.0'
+   330→      return (
+   331→        <div className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-lg px-3 py-2 shadow-xl">
+   332→          <p className="text-[#E8EDFF] font-bold" style={{ fontFamily: 'var(--font-space-grotesk)' }}>
+   333→            {item.name} — {pct}%
+   334→          </p>
+   335→          <p className="text-[#8899CC] text-sm">
+   336→            {item.value} {item.value === 1 ? 'voto' : 'votos'}
+   337→          </p>
+   338→        </div>
+   339→      )
+   340→    }
+   341→    return null
+   342→  }
+   343→
+   344→  // ─── Loading state ───
+   345→  if (loading) {
+   346→    return (
+   347→      <div className="h-screen flex items-center justify-center" style={{ background: '#050A1A' }}>
+   348→        <div className="flex flex-col items-center gap-4">
+   349→          <div className="w-12 h-12 border-4 border-[#C8A84B] border-t-transparent rounded-full animate-spin" />
+   350→          <p className="text-[#E8EDFF] text-lg" style={{ fontFamily: 'var(--font-space-grotesk)' }}>
+   351→            Carregando sessão...
+   352→          </p>
+   353→        </div>
+   354→      </div>
+   355→    )
+   356→  }
+   357→
+   358→  // ─── Not found state ───
+   359→  if (notFound || !session) {
+   360→    return (
+   361→      <div className="h-screen flex items-center justify-center" style={{ background: '#050A1A' }}>
+   362→        <div className="text-center space-y-4">
+   363→          <h1
+   364→            className="text-4xl font-bold text-[#E8EDFF]"
+   365→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   366→          >
+   367→            Sessão não encontrada
+   368→          </h1>
+   369→          <p className="text-[#8899CC] text-lg">
+   370→            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   371→          </p>
+   372→          <button
+   373→            onClick={() => router.push('/')}
+   374→            className="mt-6 px-6 py-3 bg-[#C8A84B] text-[#050A1A] font-bold rounded-lg hover:bg-[#d4b85c] transition-colors"
+   375→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   376→          >
+   377→            Voltar ao Início
+   378→          </button>
+   379→        </div>
+   380→      </div>
+   381→    )
+   382→  }
+   383→
+   384→  // ─── No questions state ───
+   385→  if (session.questions.length === 0) {
+   386→    return (
+   387→      <div className="h-screen flex flex-col" style={{ background: '#050A1A' }}>
+   388→        {/* Header */}
+   389→        <header className="flex items-center justify-between px-6 py-4 border-b border-[#1A2A5E]">
+   390→          <div className="flex items-center gap-3">
+   391→            <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+   392→            <span
+   393→              className="text-[#E8EDFF] text-lg font-semibold"
+   394→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   395→            >
+   396→              ENADE Quiz
+   397→            </span>
+   398→          </div>
+   399→          <div className="flex items-center gap-4">
+   400→            <span className="text-[#8899CC]">{session.title}</span>
+   401→            <span className="px-3 py-1 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm">
+   402→              {codigo}
+   403→            </span>
+   404→          </div>
+   405→        </header>
+   406→        <div className="flex-1 flex items-center justify-center">
+   407→          <div className="text-center space-y-4">
+   408→            <h2
+   409→              className="text-3xl font-bold text-[#E8EDFF]"
+   410→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   411→            >
+   412→              Nenhuma questão cadastrada
+   413→            </h2>
+   414→            <p className="text-[#8899CC] text-lg">
+   415→              Adicione questões à sessão antes de iniciar a apresentação.
+   416→            </p>
+   417→          </div>
+   418→        </div>
+   419→      </div>
+   420→    )
+   421→  }
+   422→
+   423→  // ─── Main presenter screen ───
+   424→  return (
+   425→    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
+   426→      {/* ── Header Bar ── */}
+   427→      <header className="flex items-center justify-between px-6 py-3 border-b border-[#1A2A5E] shrink-0">
+   428→        <div className="flex items-center gap-3">
+   429→          <img src="/logo.svg" alt="Logo" className="h-8 w-8" />
+   430→          <span
+   431→            className="text-[#E8EDFF] text-lg font-semibold"
+   432→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   433→          >
+   434→            ENADE Quiz
+   435→          </span>
+   436→          <span className="text-[#8899CC]">—</span>
+   437→          <span className="text-[#8899CC]">{session.title}</span>
+   438→        </div>
+   439→        <div className="flex items-center gap-4">
+   440→          <span className="px-3 py-1 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider">
+   441→            {codigo}
+   442→          </span>
+   443→        </div>
+   444→      </header>
+   445→
+   446→      {/* ── Main Content: QR + Chart ── */}
+   447→      <div className="flex-1 flex min-h-0">
+   448→        {/* Left: QR Code */}
+   449→        <div className="w-[380px] shrink-0 flex flex-col items-center justify-center p-6 border-r border-[#1A2A5E]">
+   450→          <div
+   451→            className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4"
+   452→          >
+   453→            <QRCodeSVG
+   454→              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+   455→              size={280}
+   456→              bgColor="#0D1B3E"
+   457→              fgColor="#E8EDFF"
+   458→              qrStyle="dots"
+   459→              eyeRadius={8}
+   460→              logoImage="/logo.svg"
+   461→              logoSize={50}
+   462→            />
+   463→            <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+   464→              <p className="text-[#8899CC] text-sm">acesse:</p>
+   465→              <p
+   466→                className="text-[#E8EDFF] text-lg font-bold"
+   467→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   468→              >
+   469→                enade.uems.br
+   470→              </p>
+   471→              <p className="text-[#8899CC] text-sm">código:</p>
+   472→              <p
+   473→                className="text-[#C8A84B] text-2xl font-bold tracking-widest"
+   474→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   475→              >
+   476→                {codigo}
+   477→              </p>
+   478→            </div>
+   479→            <div className="flex items-center gap-2 pt-2">
+   480→              <Users className="w-5 h-5 text-[#C8A84B]" />
+   481→              <span
+   482→                className="text-[#E8EDFF] text-lg font-semibold"
+   483→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   484→              >
+   485→                {participantCount} {participantCount === 1 ? 'participante' : 'participantes'}
+   486→              </span>
+   487→            </div>
+   488→          </div>
+   489→        </div>
+   490→
+   491→        {/* Right: Chart + Legend */}
+   492→        <div className="flex-1 flex flex-col items-center justify-center p-6 min-w-0">
+   493→          {!currentQuestion ? (
+   494→            <div className="text-center space-y-4">
+   495→              <h2
+   496→                className="text-2xl font-bold text-[#E8EDFF]"
+   497→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   498→              >
+   499→                Selecione uma questão para começar
+   500→              </h2>
+   501→              <div className="flex flex-wrap gap-2 justify-center mt-4">
+   502→                {session.questions.map((q, idx) => (
+   503→                  <button
+   504→                    key={q.id}
+   505→                    onClick={() => handleSelectQuestion(q.id)}
+   506→                    className="px-4 py-2 bg-[#0D1B3E] border border-[#1A2A5E] rounded-lg text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B] transition-colors"
+   507→                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   508→                  >
+   509→                    Q{idx + 1}
+   510→                  </button>
+   511→                ))}
+   512→              </div>
+   513→            </div>
+   514→          ) : (
+   515→            <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+   516→              {/* Pie Chart */}
+   517→              <div className="w-full max-w-md aspect-square">
+   518→                {pieData.length > 0 ? (
+   519→                  <ResponsiveContainer width="100%" height="100%">
+   520→                    <PieChart>
+   521→                      <Pie
+   522→                        data={pieData}
+   523→                        cx="50%"
+   524→                        cy="50%"
+   525→                        outerRadius="80%"
+   526→                        innerRadius="25%"
+   527→                        dataKey="value"
+   528→                        labelLine={false}
+   529→                        label={renderCustomLabel}
+   530→                        isAnimationActive={true}
+   531→                        animationDuration={300}
+   532→                      >
+   533→                        {pieData.map((entry, index) => {
+   534→                          const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+   535→                          return (
+   536→                            <Cell
+   537→                              key={`cell-${index}`}
+   538→                              fill={entry.color}
+   539→                              stroke={isCorrect ? '#C8A84B' : 'transparent'}
+   540→                              strokeWidth={isCorrect ? 3 : 0}
+   541→                              opacity={revealed && !isCorrect ? 0.4 : 1}
+   542→                            />
+   543→                          )
+   544→                        })}
+   545→                      </Pie>
+   546→                      <Tooltip content={<CustomTooltip />} />
+   547→                    </PieChart>
+   548→                  </ResponsiveContainer>
+   549→                ) : (
+   550→                  <div className="h-full flex items-center justify-center">
+   551→                    <div className="text-center space-y-2">
+   552→                      <div className="w-24 h-24 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center">
+   553→                        <span className="text-[#8899CC] text-sm">Sem votos</span>
+   554→                      </div>
+   555→                      <p className="text-[#8899CC] text-sm">Aguardando votos...</p>
+   556→                    </div>
+   557→                  </div>
+   558→                )}
+   559→              </div>
+   560→
+   561→              {/* Legend */}
+   562→              <div className="grid grid-cols-1 gap-1 w-full max-w-sm">
+   563→                {ALT_LABELS.map((alt) => {
+   564→                  const votes = voteResults[alt] ?? 0
+   565→                  const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
+   566→                  const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+   567→                  const altText = currentQuestion
+   568→                    ? (currentQuestion as Record<string, string>)[`alt${alt}` as keyof Question] ?? ''
+   569→                    : ''
+   570→
+   571→                  return (
+   572→                    <div
+   573→                      key={alt}
+   574→                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+   575→                        isCorrect
+   576→                          ? 'bg-[#C8A84B]/10 border border-[#C8A84B]/40'
+   577→                          : revealed
+   578→                          ? 'opacity-40'
+   579→                          : ''
+   580→                      }`}
+   581→                    >
+   582→                      <span
+   583→                        className="w-3 h-3 rounded-full shrink-0"
+   584→                        style={{ backgroundColor: COLORS[alt] }}
+   585→                      />
+   586→                      <span
+   587→                        className={`font-bold text-sm ${
+   588→                          isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'
+   589→                        }`}
+   590→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   591→                      >
+   592→                        {alt}
+   593→                      </span>
+   594→                      <span className="text-[#8899CC] text-sm flex-1 truncate">
+   595→                        — {altText}
+   596→                      </span>
+   597→                      <span className="text-[#E8EDFF] font-bold text-sm shrink-0">
+   598→                        {pct}%
+   599→                      </span>
+   600→                      <span className="text-[#8899CC] text-xs shrink-0">
+   601→                        ({votes} {votes === 1 ? 'voto' : 'votos'})
+   602→                      </span>
+   603→                    </div>
+   604→                  )
+   605→                })}
+   606→                <div className="flex justify-center pt-2 border-t border-[#1A2A5E] mt-1">
+   607→                  <span className="text-[#8899CC] text-sm">
+   608→                    Total: <strong className="text-[#E8EDFF]">{totalVotes}</strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+   609→                  </span>
+   610→                </div>
+   611→              </div>
+   612→            </div>
+   613→          )}
+   614→        </div>
+   615→      </div>
+   616→
+   617→      {/* ── Question Bar ── */}
+   618→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0D1B3E] px-6 py-4">
+   619→        {currentQuestion ? (
+   620→          <div className="flex items-start gap-4">
+   621→            <span
+   622→              className="text-[#C8A84B] font-bold text-lg shrink-0 pt-0.5"
+   623→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   624→            >
+   625→              Questão {currentIndex + 1}/{totalQuestions}:
+   626→            </span>
+   627→            <p className="text-[#E8EDFF] text-base leading-relaxed line-clamp-3">
+   628→              {currentQuestion.text}
+   629→            </p>
+   630→            {revealed && (
+   631→              <span className="shrink-0 px-3 py-1 bg-[#C8A84B] text-[#050A1A] font-bold rounded text-sm"
+   632→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   633→              >
+   634→                Gabarito: {currentQuestion.correctAnswer}
+   635→              </span>
+   636→            )}
+   637→            {votingPaused && !revealed && (
+   638→              <span className="shrink-0 px-3 py-1 bg-[#F44336]/20 border border-[#F44336]/40 text-[#F44336] font-bold rounded text-sm"
+   639→                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   640→              >
+   641→                ⏸ Votação pausada
+   642→              </span>
+   643→            )}
+   644→          </div>
+   645→        ) : (
+   646→          <p className="text-[#8899CC] text-center text-lg">
+   647→            Selecione uma questão para começar
+   648→          </p>
+   649→        )}
+   650→      </div>
+   651→
+   652→      {/* ── Control Bar ── */}
+   653→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-3">
+   654→        <div className="flex items-center justify-center gap-3 flex-wrap">
+   655→          {/* Previous */}
+   656→          <button
+   657→            onClick={handlePrevious}
+   658→            disabled={!hasPrev || isNavigating}
+   659→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   660→              hasPrev && !isNavigating
+   661→                ? 'bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]'
+   662→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   663→            }`}
+   664→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   665→          >
+   666→            <ChevronLeft className="w-4 h-4" />
+   667→            Anterior
+   668→          </button>
+   669→
+   670→          {/* Pause/Resume */}
+   671→          <button
+   672→            onClick={handleToggleVoting}
+   673→            disabled={!currentQuestion || revealed}
+   674→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   675→              currentQuestion && !revealed
+   676→                ? votingPaused
+   677→                  ? 'bg-[#4CAF50] text-[#050A1A] hover:bg-[#66BB6A]'
+   678→                  : 'bg-[#F44336] text-white hover:bg-[#EF5350]'
+   679→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   680→            }`}
+   681→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   682→          >
+   683→            {votingPaused ? (
+   684→              <>
+   685→                <Play className="w-4 h-4" />
+   686→                Retomar
+   687→              </>
+   688→            ) : (
+   689→              <>
+   690→                <Pause className="w-4 h-4" />
+   691→                Pausar
+   692→              </>
+   693→            )}
+   694→          </button>
+   695→
+   696→          {/* Next */}
+   697→          <button
+   698→            onClick={handleNext}
+   699→            disabled={!hasNext || isNavigating}
+   700→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   701→              hasNext && !isNavigating
+   702→                ? 'bg-[#0D1B3E] border border-[#1A2A5E] text-[#E8EDFF] hover:border-[#C8A84B] hover:text-[#C8A84B]'
+   703→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   704→            }`}
+   705→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   706→          >
+   707→            Próxima
+   708→            <ChevronRight className="w-4 h-4" />
+   709→          </button>
+   710→
+   711→          {/* Reveal Answer */}
+   712→          <button
+   713→            onClick={handleRevealAnswer}
+   714→            disabled={!currentQuestion || revealed}
+   715→            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+   716→              currentQuestion && !revealed
+   717→                ? 'bg-[#C8A84B] text-[#050A1A] hover:bg-[#d4b85c]'
+   718→                : 'bg-[#0D1B3E]/50 border border-[#1A2A5E]/50 text-[#8899CC]/50 cursor-not-allowed'
+   719→            }`}
+   720→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   721→          >
+   722→            <KeyRound className="w-4 h-4" />
+   723→            Gabarito
+   724→          </button>
+   725→        </div>
+   726→      </div>
+   727→    </div>
+   728→  )
+   729→}
+   730→
