@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Users, Wifi, WifiOff } from 'lucide-react'
 import type { Session, Question } from '@/types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ export default function StudentVotingPage({
   const [votingPaused, setVotingPaused] = useState(false)
   const [participantCount, setParticipantCount] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
 
   // ── Student identification state ────────────────────────────────────────
   const [studentName, setStudentName] = useState('')
@@ -66,6 +68,10 @@ export default function StudentVotingPage({
 
   const socketRef = useRef<Socket | null>(null)
   const sessionFetchedRef = useRef<Session | null>(null)
+
+  // ── Score tracking ──────────────────────────────────────────────────────
+  const [correctCount, setCorrectCount] = useState(0)
+  const [answeredCount, setAnsweredCount] = useState(0)
 
   // ── Anti-fraud: sessionStorage helpers ───────────────────────────────────
   const getStoredVote = useCallback(
@@ -100,12 +106,39 @@ export default function StudentVotingPage({
     sessionStorage.setItem(`student_${codigo}`, JSON.stringify(info))
   }, [codigo])
 
+  // ── Score from sessionStorage ────────────────────────────────────────────
+  const loadScore = useCallback((): { correct: number; answered: number } => {
+    if (typeof window === 'undefined') return { correct: 0, answered: 0 }
+    const stored = sessionStorage.getItem(`score_${codigo}`)
+    if (stored) {
+      try {
+        return JSON.parse(stored) as { correct: number; answered: number }
+      } catch {
+        return { correct: 0, answered: 0 }
+      }
+    }
+    return { correct: 0, answered: 0 }
+  }, [codigo])
+
+  const saveScore = useCallback((correct: number, answered: number) => {
+    if (typeof window === 'undefined') return
+    sessionStorage.setItem(`score_${codigo}`, JSON.stringify({ correct, answered }))
+  }, [codigo])
+
   // ── Question progress (e.g., "3 / 10") ─────────────────────────────────
   const questionProgress = useCallback((): string => {
     if (!session || !currentQuestion) return ''
     const idx = session.questions.findIndex((q) => q.id === currentQuestion.id)
     if (idx === -1) return ''
     return `${idx + 1} / ${session.questions.length}`
+  }, [session, currentQuestion])
+
+  // ── Question progress fraction ─────────────────────────────────────────
+  const questionProgressPercent = useCallback((): number => {
+    if (!session || !currentQuestion) return 0
+    const idx = session.questions.findIndex((q) => q.id === currentQuestion.id)
+    if (idx === -1) return 0
+    return ((idx + 1) / session.questions.length) * 100
   }, [session, currentQuestion])
 
   // ── Handle student registration ─────────────────────────────────────────
@@ -223,6 +256,11 @@ export default function StudentVotingPage({
       setStudentId(storedStudent.studentId)
     }
 
+    // Load score from session
+    const score = loadScore()
+    setCorrectCount(score.correct)
+    setAnsweredCount(score.answered)
+
     // Fetch session data
     const fetchSession = async () => {
       try {
@@ -277,6 +315,7 @@ export default function StudentVotingPage({
         socketRef.current = socket
 
         socket.on('connect', () => {
+          setIsConnected(true)
           const student = getStoredStudent()
           if (student) {
             // Already registered, just join
@@ -430,6 +469,16 @@ export default function StudentVotingPage({
         socket.on('answer-revealed', (data: { questionId: string; correctAnswer: string }) => {
           setCorrectAnswer(data.correctAnswer)
           setPageState('revealed')
+
+          // Update score tracking
+          const currentStoredVote = getStoredVote(data.questionId)
+          if (currentStoredVote) {
+            const newAnswered = answeredCount + 1
+            const newCorrect = data.correctAnswer === currentStoredVote ? correctCount + 1 : correctCount
+            setAnsweredCount(newAnswered)
+            setCorrectCount(newCorrect)
+            saveScore(newCorrect, newAnswered)
+          }
         })
 
         socket.on('voting-toggled', (data: { paused: boolean }) => {
@@ -452,12 +501,16 @@ export default function StudentVotingPage({
           setParticipantCount(count)
         })
 
-        socket.on('connect_error', (err) => {
-          console.error('Socket connection error:', err)
+        socket.on('connect_error', () => {
+          setIsConnected(false)
         })
 
         socket.on('disconnect', () => {
-          console.log('Socket disconnected')
+          setIsConnected(false)
+        })
+
+        socket.on('reconnect', () => {
+          setIsConnected(true)
         })
       } catch {
         setPageState('error')
@@ -529,13 +582,19 @@ export default function StudentVotingPage({
   // Loading state
   if (pageState === 'loading') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: '#050A1A' }}>
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-          className="w-10 h-10 border-4 border-[#00338C] border-t-transparent rounded-full mb-4"
+          className="w-12 h-12 border-4 border-[#C8A84B] border-t-transparent rounded-full mb-4"
         />
-        <p className="text-gray-500 text-sm">Carregando sessão...</p>
+        <motion.p
+          className="text-[#8899CC] text-base"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          Carregando sessão...
+        </motion.p>
       </div>
     )
   }
@@ -543,19 +602,38 @@ export default function StudentVotingPage({
   // Error state
   if (pageState === 'error') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
-        <div className="text-5xl mb-4">😕</div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Sessão não encontrada</h1>
-        <p className="text-gray-500 text-center text-sm mb-6">
-          O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
-          Verifique o QR Code e tente novamente.
-        </p>
-        <Button
-          onClick={() => router.push('/')}
-          className="bg-[#00338C] hover:bg-[#002468] text-white"
+      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#050A1A' }}>
+        <motion.div
+          className="text-center space-y-4"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
         >
-          Voltar ao início
-        </Button>
+          <motion.div
+            className="text-5xl mb-2"
+            initial={{ y: -20 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            😕
+          </motion.div>
+          <h1
+            className="text-2xl font-bold text-[#E8EDFF]"
+            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+          >
+            Sessão não encontrada
+          </h1>
+          <p className="text-[#8899CC] text-sm max-w-sm mx-auto">
+            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+            Verifique o QR Code e tente novamente.
+          </p>
+          <Button
+            onClick={() => router.push('/')}
+            className="bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
+          >
+            Voltar ao início
+          </Button>
+        </motion.div>
       </div>
     )
   }
@@ -563,44 +641,144 @@ export default function StudentVotingPage({
   // Finished state
   if (pageState === 'finished') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#050A1A' }}>
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-          className="text-6xl mb-4"
+          className="max-w-sm w-full text-center"
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
         >
-          🎉
+          {/* Trophy animation */}
+          <motion.div
+            className="mb-4"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ duration: 0.8, type: 'spring', bounce: 0.5 }}
+          >
+            <span className="text-7xl">🏆</span>
+          </motion.div>
+
+          <motion.h1
+            className="text-3xl font-bold mb-2"
+            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            Sessão Encerrada
+          </motion.h1>
+
+          <motion.p
+            className="text-[#8899CC] text-base mb-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            Obrigado por participar, {studentName || 'estudante'}!
+          </motion.p>
+
+          {answeredCount > 0 && (
+            <motion.div
+              className="mb-6"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.6 }}
+            >
+              <span
+                className="inline-block px-4 py-1.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded-full text-[#C8A84B] font-bold text-lg"
+                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+              >
+                {correctCount}/{answeredCount} acertos
+              </span>
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.7 }}
+          >
+            <Button
+              onClick={() => router.push('/')}
+              className="bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
+            >
+              Voltar ao início
+            </Button>
+          </motion.div>
         </motion.div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Sessão encerrada!</h1>
-        <p className="text-gray-500 text-center text-sm mb-6">
-          Obrigado por participar, {studentName || 'estudante'}! A sessão foi finalizada pelo apresentador.
-        </p>
-        <Button
-          onClick={() => router.push('/')}
-          className="bg-[#00338C] hover:bg-[#002468] text-white"
-        >
-          Voltar ao início
-        </Button>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen flex flex-col" style={{ background: '#050A1A' }}>
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="bg-[#00338C] text-white px-4 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
+        <div className="flex items-center gap-2.5">
           <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
-          <span className="font-bold text-sm tracking-wide">ENADE Quiz</span>
+          <span
+            className="text-[#E8EDFF] text-sm font-semibold"
+            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+          >
+            ENADE Quiz
+          </span>
         </div>
-        <div className="flex items-center gap-3 text-xs opacity-80">
-          <span>Código: {codigo}</span>
-          {participantCount > 0 && (
-            <span>👥 {participantCount}</span>
+        <div className="flex items-center gap-3">
+          {/* Score badge - shown when student has answered questions correctly */}
+          {answeredCount > 0 && pageState !== 'identification' && (
+            <motion.span
+              className="px-2.5 py-0.5 bg-[#C8A84B]/15 border border-[#C8A84B]/40 rounded-full text-[#C8A84B] text-xs font-bold"
+              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', bounce: 0.4 }}
+            >
+              {correctCount} acerto{correctCount !== 1 ? 's' : ''}
+            </motion.span>
           )}
+
+          {/* Participant count */}
+          {participantCount > 0 && pageState !== 'identification' && (
+            <div className="flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-[#C8A84B]" />
+              <span className="text-[#E8EDFF] text-xs font-medium">{participantCount}</span>
+            </div>
+          )}
+
+          {/* Session code badge */}
+          <span
+            className="px-2.5 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-xs tracking-wider"
+            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+          >
+            {codigo}
+          </span>
+
+          {/* Connection status indicator */}
+          <motion.div
+            className="relative"
+            animate={{ scale: isConnected ? 1 : [1, 1.2, 1] }}
+            transition={isConnected ? {} : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            {isConnected ? (
+              <Wifi className="w-4 h-4 text-green-400" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-red-400" />
+            )}
+          </motion.div>
         </div>
       </header>
+
+      {/* ── Question progress bar ───────────────────────────────────────── */}
+      {(pageState === 'voting' || pageState === 'voted' || pageState === 'revealed') && session && currentQuestion && (
+        <div className="h-1 bg-[#0D1B3E] shrink-0">
+          <motion.div
+            className="h-full bg-[#C8A84B]"
+            initial={{ width: 0 }}
+            animate={{ width: `${questionProgressPercent()}%` }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          />
+        </div>
+      )}
 
       {/* ── Main content ────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
@@ -615,108 +793,130 @@ export default function StudentVotingPage({
               transition={{ duration: 0.3 }}
               className="flex-1 flex flex-col items-center justify-center"
             >
-              {/* UEMS branding */}
               <div className="w-full max-w-sm">
+                {/* UEMS branding */}
                 <div className="text-center mb-8">
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.1, type: 'spring' }}
-                    className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#00338C] mb-4"
+                    className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#0D1B3E] border border-[#1A2A5E] mb-4"
                   >
                     <img src="/logo.svg" alt="UEMS" className="h-12 w-12 object-contain" />
                   </motion.div>
-                  <h1 className="text-2xl font-bold text-[#00338C] mb-1">
+                  <h1
+                    className="text-2xl font-bold text-[#E8EDFF] mb-1"
+                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  >
                     ENADE Quiz
                   </h1>
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-[#8899CC] text-sm">
                     Identifique-se para participar da sessão
                   </p>
                 </div>
 
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      {/* Name field */}
-                      <div>
-                        <label
-                          htmlFor="student-name"
-                          className="block text-sm font-medium text-gray-700 mb-1.5"
-                        >
-                          Nome completo
-                        </label>
-                        <Input
-                          id="student-name"
-                          type="text"
-                          placeholder="Digite seu nome completo"
-                          value={studentName}
-                          onChange={(e) => {
-                            setStudentName(e.target.value)
-                            if (nameError) setNameError('')
-                          }}
-                          className={`h-12 text-base ${nameError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
-                          disabled={isRegistering}
-                          autoComplete="name"
-                        />
-                        {nameError && (
-                          <p className="text-red-500 text-xs mt-1">{nameError}</p>
-                        )}
-                      </div>
+                {/* Dark card with glow effect */}
+                <motion.div
+                  className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 relative"
+                  animate={{
+                    boxShadow: [
+                      '0 0 20px rgba(200, 168, 75, 0)',
+                      '0 0 40px rgba(200, 168, 75, 0.1)',
+                      '0 0 20px rgba(200, 168, 75, 0)',
+                    ],
+                  }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  {/* Pulsing border glow */}
+                  <motion.div
+                    className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/20 pointer-events-none"
+                    animate={{
+                      opacity: [0.2, 0.6, 0.2],
+                      scale: [1, 1.005, 1],
+                    }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
 
-                      {/* RGM field */}
-                      <div>
-                        <label
-                          htmlFor="student-rgm"
-                          className="block text-sm font-medium text-gray-700 mb-1.5"
-                        >
-                          RGM
-                          <span className="text-gray-400 font-normal ml-1">
-                            (Registro Geral Matrícula)
-                          </span>
-                        </label>
-                        <Input
-                          id="student-rgm"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="Somente números"
-                          value={studentRgm}
-                          onChange={(e) => {
-                            setStudentRgm(e.target.value)
-                            if (rgmError) setRgmError('')
-                          }}
-                          className={`h-12 text-base ${rgmError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
-                          disabled={isRegistering}
-                          autoComplete="off"
-                        />
-                        {rgmError && (
-                          <p className="text-red-500 text-xs mt-1">{rgmError}</p>
-                        )}
-                      </div>
-
-                      {/* Submit button */}
-                      <Button
-                        onClick={handleRegister}
-                        disabled={isRegistering}
-                        className="w-full h-12 text-base font-semibold bg-[#00338C] hover:bg-[#002468] text-white mt-2"
+                  <div className="space-y-4 relative z-10">
+                    {/* Name field */}
+                    <div>
+                      <label
+                        htmlFor="student-name"
+                        className="block text-sm font-medium text-[#8899CC] mb-1.5"
                       >
-                        {isRegistering ? (
-                          <span className="flex items-center gap-2">
-                            <motion.span
-                              animate={{ rotate: 360 }}
-                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                              className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                            />
-                            Registrando...
-                          </span>
-                        ) : (
-                          'Participar'
-                        )}
-                      </Button>
+                        Nome completo
+                      </label>
+                      <Input
+                        id="student-name"
+                        type="text"
+                        placeholder="Digite seu nome completo"
+                        value={studentName}
+                        onChange={(e) => {
+                          setStudentName(e.target.value)
+                          if (nameError) setNameError('')
+                        }}
+                        className={`h-12 text-base bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#5A6A9E] focus-visible:ring-[#C8A84B] focus-visible:border-[#C8A84B] ${nameError ? 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500' : ''}`}
+                        disabled={isRegistering}
+                        autoComplete="name"
+                      />
+                      {nameError && (
+                        <p className="text-red-400 text-xs mt-1">{nameError}</p>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
 
-                <p className="text-center text-xs text-gray-400 mt-4">
+                    {/* RGM field */}
+                    <div>
+                      <label
+                        htmlFor="student-rgm"
+                        className="block text-sm font-medium text-[#8899CC] mb-1.5"
+                      >
+                        RGM
+                        <span className="text-[#5A6A9E] font-normal ml-1">
+                          (Registro Geral Matrícula)
+                        </span>
+                      </label>
+                      <Input
+                        id="student-rgm"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Somente números"
+                        value={studentRgm}
+                        onChange={(e) => {
+                          setStudentRgm(e.target.value)
+                          if (rgmError) setRgmError('')
+                        }}
+                        className={`h-12 text-base bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#5A6A9E] focus-visible:ring-[#C8A84B] focus-visible:border-[#C8A84B] ${rgmError ? 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500' : ''}`}
+                        disabled={isRegistering}
+                        autoComplete="off"
+                      />
+                      {rgmError && (
+                        <p className="text-red-400 text-xs mt-1">{rgmError}</p>
+                      )}
+                    </div>
+
+                    {/* Submit button */}
+                    <Button
+                      onClick={handleRegister}
+                      disabled={isRegistering}
+                      className="w-full h-12 text-base font-semibold bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] mt-2"
+                    >
+                      {isRegistering ? (
+                        <span className="flex items-center gap-2">
+                          <motion.span
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                            className="inline-block w-4 h-4 border-2 border-[#050A1A] border-t-transparent rounded-full"
+                          />
+                          Registrando...
+                        </span>
+                      ) : (
+                        'Participar'
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
+
+                <p className="text-center text-xs text-[#5A6A9E] mt-4">
                   UEMS — Universidade Estadual de Mato Grosso do Sul
                 </p>
               </div>
@@ -733,22 +933,43 @@ export default function StudentVotingPage({
               transition={{ duration: 0.3 }}
               className="flex-1 flex flex-col items-center justify-center text-center"
             >
+              {/* Pulsing dots animation */}
               <motion.div
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                className="text-6xl mb-6"
+                className="flex items-center justify-center gap-2 mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
               >
-                ⏳
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-3 h-3 rounded-full bg-[#C8A84B]"
+                    animate={{
+                      scale: [1, 1.5, 1],
+                      opacity: [0.3, 1, 0.3],
+                    }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      delay: i * 0.4,
+                      ease: 'easeInOut',
+                    }}
+                  />
+                ))}
               </motion.div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">
+
+              <h2
+                className="text-lg font-semibold text-[#E8EDFF] mb-2"
+                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+              >
                 Aguardando a próxima questão...
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-[#8899CC]">
                 O apresentador iniciará a questão em breve.
               </p>
               {votingPaused && currentQuestion && (
-                <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-amber-700 text-sm font-medium">
+                <div className="mt-4 px-4 py-2 bg-[#C8A84B]/10 border border-[#C8A84B]/30 rounded-lg">
+                  <p className="text-[#C8A84B] text-sm font-medium">
                     ⏸ Votação pausada
                   </p>
                 </div>
@@ -771,18 +992,21 @@ export default function StudentVotingPage({
                 <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
                   ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900 leading-snug">
+                <h2
+                  className="text-lg font-semibold text-[#E8EDFF] leading-snug"
+                  style={{ fontFamily: 'var(--font-inter)' }}
+                >
                   {currentQuestion.text}
                 </h2>
               </div>
 
               {/* Optional image */}
               {currentQuestion.imageUrl && (
-                <div className="mb-4 rounded-xl overflow-hidden border border-gray-200">
+                <div className="mb-4 rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#0D1B3E]">
                   <img
                     src={currentQuestion.imageUrl}
                     alt="Imagem da questão"
-                    className="w-full h-auto max-h-64 object-contain bg-gray-50"
+                    className="w-full h-auto max-h-64 object-contain p-2"
                   />
                 </div>
               )}
@@ -799,19 +1023,15 @@ export default function StudentVotingPage({
                       whileHover={{ scale: 1.01 }}
                       onClick={() => handleVote(letter)}
                       disabled={isSubmitting}
-                      className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-white border-[#00338C] hover:bg-[#00338C] hover:text-white active:bg-[#00338C] active:text-white disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                      className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-[#0D1B3E] border-[#1A2A5E] hover:border-[#C8A84B] hover:shadow-[0_0_15px_rgba(200,168,75,0.15)] active:bg-[#1A2A5E] disabled:opacity-50 disabled:cursor-not-allowed text-left"
                     >
                       <span
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border-2 transition-colors"
-                        style={{
-                          borderColor: color,
-                          color: color,
-                          backgroundColor: 'transparent',
-                        }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+                        style={{ backgroundColor: color }}
                       >
                         {letter}
                       </span>
-                      <span className="flex-1 leading-snug">{altText}</span>
+                      <span className="flex-1 leading-snug text-[#E8EDFF]">{altText}</span>
                     </motion.button>
                   )
                 })}
@@ -829,35 +1049,72 @@ export default function StudentVotingPage({
               transition={{ duration: 0.3 }}
               className="flex-1 flex flex-col items-center justify-center text-center"
             >
+              {/* Gold checkmark animation */}
               <motion.div
-                animate={{ scale: [1, 1.15, 1] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                className="text-6xl mb-6"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                className="mb-6"
               >
-                ✅
+                <motion.div
+                  className="w-20 h-20 rounded-full bg-[#C8A84B]/15 border-2 border-[#C8A84B] flex items-center justify-center"
+                  animate={{
+                    boxShadow: [
+                      '0 0 0px rgba(200, 168, 75, 0)',
+                      '0 0 25px rgba(200, 168, 75, 0.3)',
+                      '0 0 0px rgba(200, 168, 75, 0)',
+                    ],
+                  }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <span className="text-[#C8A84B] text-3xl font-bold">✓</span>
+                </motion.div>
               </motion.div>
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">
+
+              <h2
+                className="text-lg font-semibold text-[#E8EDFF] mb-2"
+                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+              >
                 Você votou na alternativa{' '}
                 <span
-                  className="font-bold"
-                  style={{ color: ALT_COLORS[selectedChoice] }}
+                  className="font-bold text-[#C8A84B]"
                 >
                   {selectedChoice}
                 </span>
                 {studentName && (
-                  <span className="text-gray-500 font-normal">, {studentName}</span>
+                  <span className="text-[#8899CC] font-normal">, {studentName}</span>
                 )}
               </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Aguardando o gabarito...
-              </p>
-              <Card className="w-full mt-4">
-                <CardContent className="p-4">
-                  <p className="text-sm text-gray-600 italic">
+
+              {/* Timer indicator with pulsing circle */}
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <motion.div
+                  className="w-2 h-2 rounded-full bg-[#C8A84B]"
+                  animate={{
+                    scale: [1, 1.4, 1],
+                    opacity: [0.5, 1, 0.5],
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <p className="text-sm text-[#8899CC]">
+                  Aguardando o gabarito...
+                </p>
+              </div>
+
+              {/* Dark card for selected answer display */}
+              <div className="w-full mt-4 bg-[#0D1B3E] border border-[#1A2A5E] rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+                    style={{ backgroundColor: ALT_COLORS[selectedChoice] }}
+                  >
+                    {selectedChoice}
+                  </span>
+                  <p className="text-sm text-[#8899CC] italic leading-relaxed">
                     &quot;{getAltText(selectedChoice, currentQuestion)}&quot;
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -873,9 +1130,15 @@ export default function StudentVotingPage({
             >
               {/* Correct answer header */}
               <div className="text-center mb-5">
-                <div className="inline-block bg-[#C8A84B] text-white text-sm font-bold px-4 py-2 rounded-full">
+                <motion.span
+                  className="inline-block bg-[#C8A84B] text-[#050A1A] text-sm font-bold px-4 py-2 rounded-full"
+                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', bounce: 0.5 }}
+                >
                   Gabarito: <span className="text-lg">{correctAnswer}</span>
-                </div>
+                </motion.span>
               </div>
 
               {/* All alternatives with results */}
@@ -887,19 +1150,42 @@ export default function StudentVotingPage({
                   const isWrongChoice = isStudentChoice && !isCorrect
 
                   let containerClass = 'w-full rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all text-left'
-                  let letterBg = 'bg-gray-100 text-gray-500'
+                  let letterStyle: React.CSSProperties = {}
+                  let letterClass = ''
                   let iconEl: React.ReactNode = null
 
                   if (isCorrect) {
-                    containerClass += ' bg-green-50 border-[#C8A84B]'
-                    letterBg = 'bg-[#C8A84B] text-white'
-                    iconEl = <span className="text-green-600 text-lg font-bold">✓</span>
+                    containerClass += ' bg-[#C8A84B]/15 border-[#C8A84B]'
+                    letterClass = 'text-white'
+                    letterStyle = { backgroundColor: '#C8A84B' }
+                    iconEl = (
+                      <motion.span
+                        className="text-[#C8A84B] text-lg font-bold"
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
+                      >
+                        ✓
+                      </motion.span>
+                    )
                   } else if (isWrongChoice) {
-                    containerClass += ' bg-red-50 border-red-300 opacity-80'
-                    letterBg = 'bg-red-500 text-white'
-                    iconEl = <span className="text-red-500 text-lg font-bold">✗</span>
+                    containerClass += ' bg-red-500/10 border-red-500/40'
+                    letterClass = 'text-white'
+                    letterStyle = { backgroundColor: '#EF4444' }
+                    iconEl = (
+                      <motion.span
+                        className="text-red-400 text-lg font-bold"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: 'spring', bounce: 0.3, delay: 0.1 }}
+                      >
+                        ✗
+                      </motion.span>
+                    )
                   } else {
-                    containerClass += ' bg-gray-50 border-gray-200 opacity-50'
+                    containerClass += ' bg-[#0D1B3E] border-[#1A2A5E] opacity-40'
+                    letterClass = 'text-white'
+                    letterStyle = { backgroundColor: ALT_COLORS[letter] }
                   }
 
                   return (
@@ -911,11 +1197,14 @@ export default function StudentVotingPage({
                       className={containerClass}
                     >
                       <span
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${letterBg}`}
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${letterClass}`}
+                        style={letterStyle}
                       >
                         {letter}
                       </span>
-                      <span className={`flex-1 leading-snug ${isCorrect ? 'text-green-800' : isWrongChoice ? 'text-red-700' : 'text-gray-500'}`}>
+                      <span className={`flex-1 leading-snug ${
+                        isCorrect ? 'text-[#E8EDFF]' : isWrongChoice ? 'text-[#E8EDFF]' : 'text-[#8899CC]'
+                      }`}>
                         {altText}
                       </span>
                       {iconEl}
@@ -932,7 +1221,8 @@ export default function StudentVotingPage({
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.4, type: 'spring' }}
-                      className="text-lg font-bold text-green-600"
+                      className="text-lg font-bold text-[#C8A84B]"
+                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
                     >
                       ✅ Você acertou!
                     </motion.div>
@@ -941,7 +1231,8 @@ export default function StudentVotingPage({
                       initial={{ scale: 0.8, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ delay: 0.4, type: 'spring' }}
-                      className="text-lg font-bold text-red-500"
+                      className="text-lg font-bold text-red-400"
+                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
                     >
                       ❌ Você errou
                     </motion.div>
@@ -951,7 +1242,7 @@ export default function StudentVotingPage({
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.4, type: 'spring' }}
-                    className="text-base text-gray-500"
+                    className="text-base text-[#8899CC]"
                   >
                     Você não votou nesta questão.
                   </motion.div>
@@ -963,9 +1254,12 @@ export default function StudentVotingPage({
       </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="bg-gray-50 border-t border-gray-200 px-4 py-3 mt-auto">
-        <div className="max-w-lg mx-auto flex items-center justify-between text-xs text-gray-400">
-          <span>UEMS / DIGES</span>
+      <footer className="border-t border-[#1A2A5E] px-4 py-3 mt-auto" style={{ background: '#0A1128' }}>
+        <div className="max-w-lg mx-auto flex items-center justify-between text-xs text-[#5A6A9E]">
+          <div className="flex items-center gap-1.5">
+            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-40" />
+            <span>UEMS / DIGES</span>
+          </div>
           <span>
             {currentQuestion ? `Questão ${questionProgress()}` : `Sessão ${codigo}`}
           </span>

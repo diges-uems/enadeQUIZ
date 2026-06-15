@@ -98,6 +98,14 @@ const nextConfig: NextConfig = {
   // Desativada aqui porque o nginx/Ingress faz gzip melhor.
   // Ativar ambos causa double-compression e desperdiça CPU.
   compress: false,
+
+  // ─── Dev Cross-Origin ─────────────────────────────────────────────
+  // Permite acesso ao HMR/Turbopack a partir do preview do sandbox.
+  allowedDevOrigins: [
+    /\.space-z\.ai$/,
+    "localhost",
+    "127.0.0.1",
+  ],
 };
 
 export default nextConfig;

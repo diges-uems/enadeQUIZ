@@ -1,0 +1,977 @@
+     1→     1→     1→'use client'
+     2→     2→     2→
+     3→     3→     3→import React, { useEffect, useState, useCallback, useRef } from 'react'
+     4→     4→     4→import { useRouter } from 'next/navigation'
+     5→     5→     5→import { io, Socket } from 'socket.io-client'
+     6→     6→     6→import { motion, AnimatePresence } from 'framer-motion'
+     7→     7→     7→import { toast } from 'sonner'
+     8→     8→     8→import { Button } from '@/components/ui/button'
+     9→     9→     9→import { Card, CardContent } from '@/components/ui/card'
+    10→    10→    10→import { Input } from '@/components/ui/input'
+    11→    11→    11→import type { Session, Question } from '@/types'
+    12→    12→    12→
+    13→    13→    13→// ─── Types ──────────────────────────────────────────────────────────────────
+    14→    14→    14→
+    15→    15→    15→type PageState = 'loading' | 'error' | 'identification' | 'waiting' | 'voting' | 'voted' | 'revealed' | 'finished'
+    16→    16→    16→
+    17→    17→    17→interface SessionStatePayload {
+    18→    18→    18→  participantCount: number
+    19→    19→    19→  currentQuestionId: string | null
+    20→    20→    20→  votingPaused: boolean
+    21→    21→    21→}
+    22→    22→    22→
+    23→    23→    23→interface StudentInfo {
+    24→    24→    24→  name: string
+    25→    25→    25→  rgm: string
+    26→    26→    26→  studentId: string
+    27→    27→    27→}
+    28→    28→    28→
+    29→    29→    29→// ─── Alternative colors (subtle indicators per letter) ──────────────────────
+    30→    30→    30→
+    31→    31→    31→const ALT_COLORS: Record<string, string> = {
+    32→    32→    32→  A: '#00338C',
+    33→    33→    33→  B: '#C8A84B',
+    34→    34→    34→  C: '#2196F3',
+    35→    35→    35→  D: '#4CAF50',
+    36→    36→    36→  E: '#F44336',
+    37→    37→    37→}
+    38→    38→    38→
+    39→    39→    39→// ─── Component ──────────────────────────────────────────────────────────────
+    40→    40→    40→
+    41→    41→    41→export default function StudentVotingPage({
+    42→    42→    42→  params,
+    43→    43→    43→}: {
+    44→    44→    44→  params: Promise<{ codigo: string }>
+    45→    45→    45→}) {
+    46→    46→    46→  const { codigo } = React.use(params)
+    47→    47→    47→  const router = useRouter()
+    48→    48→    48→
+    49→    49→    49→  // ── State ───────────────────────────────────────────────────────────────
+    50→    50→    50→  const [pageState, setPageState] = useState<PageState>('loading')
+    51→    51→    51→  const [session, setSession] = useState<Session | null>(null)
+    52→    52→    52→  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
+    53→    53→    53→  const [selectedChoice, setSelectedChoice] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null)
+    54→    54→    54→  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
+    55→    55→    55→  const [votingPaused, setVotingPaused] = useState(false)
+    56→    56→    56→  const [participantCount, setParticipantCount] = useState(0)
+    57→    57→    57→  const [isSubmitting, setIsSubmitting] = useState(false)
+    58→    58→    58→
+    59→    59→    59→  // ── Student identification state ────────────────────────────────────────
+    60→    60→    60→  const [studentName, setStudentName] = useState('')
+    61→    61→    61→  const [studentRgm, setStudentRgm] = useState('')
+    62→    62→    62→  const [studentId, setStudentId] = useState<string | null>(null)
+    63→    63→    63→  const [isRegistering, setIsRegistering] = useState(false)
+    64→    64→    64→  const [nameError, setNameError] = useState('')
+    65→    65→    65→  const [rgmError, setRgmError] = useState('')
+    66→    66→    66→
+    67→    67→    67→  const socketRef = useRef<Socket | null>(null)
+    68→    68→    68→  const sessionFetchedRef = useRef<Session | null>(null)
+    69→    69→    69→
+    70→    70→    70→  // ── Anti-fraud: sessionStorage helpers ───────────────────────────────────
+    71→    71→    71→  const getStoredVote = useCallback(
+    72→    72→    72→    (questionId: string): string | null => {
+    73→    73→    73→      if (typeof window === 'undefined') return null
+    74→    74→    74→      return sessionStorage.getItem(`voted_${questionId}`)
+    75→    75→    75→    },
+    76→    76→    76→    []
+    77→    77→    77→  )
+    78→    78→    78→
+    79→    79→    79→  const storeVote = useCallback((questionId: string, choice: string) => {
+    80→    80→    80→    if (typeof window === 'undefined') return
+    81→    81→    81→    sessionStorage.setItem(`voted_${questionId}`, choice)
+    82→    82→    82→  }, [])
+    83→    83→    83→
+    84→    84→    84→  // ── Student info from sessionStorage ────────────────────────────────────
+    85→    85→    85→  const getStoredStudent = useCallback((): StudentInfo | null => {
+    86→    86→    86→    if (typeof window === 'undefined') return null
+    87→    87→    87→    const stored = sessionStorage.getItem(`student_${codigo}`)
+    88→    88→    88→    if (stored) {
+    89→    89→    89→      try {
+    90→    90→    90→        return JSON.parse(stored) as StudentInfo
+    91→    91→    91→      } catch {
+    92→    92→    92→        return null
+    93→    93→    93→      }
+    94→    94→    94→    }
+    95→    95→    95→    return null
+    96→    96→    96→  }, [codigo])
+    97→    97→    97→
+    98→    98→    98→  const storeStudent = useCallback((info: StudentInfo) => {
+    99→    99→    99→    if (typeof window === 'undefined') return
+   100→   100→   100→    sessionStorage.setItem(`student_${codigo}`, JSON.stringify(info))
+   101→   101→   101→  }, [codigo])
+   102→   102→   102→
+   103→   103→   103→  // ── Question progress (e.g., "3 / 10") ─────────────────────────────────
+   104→   104→   104→  const questionProgress = useCallback((): string => {
+   105→   105→   105→    if (!session || !currentQuestion) return ''
+   106→   106→   106→    const idx = session.questions.findIndex((q) => q.id === currentQuestion.id)
+   107→   107→   107→    if (idx === -1) return ''
+   108→   108→   108→    return `${idx + 1} / ${session.questions.length}`
+   109→   109→   109→  }, [session, currentQuestion])
+   110→   110→   110→
+   111→   111→   111→  // ── Handle student registration ─────────────────────────────────────────
+   112→   112→   112→  const handleRegister = useCallback(async () => {
+   113→   113→   113→    // Validate
+   114→   114→   114→    let valid = true
+   115→   115→   115→    setNameError('')
+   116→   116→   116→    setRgmError('')
+   117→   117→   117→
+   118→   118→   118→    if (!studentName.trim()) {
+   119→   119→   119→      setNameError('Nome é obrigatório')
+   120→   120→   120→      valid = false
+   121→   121→   121→    }
+   122→   122→   122→
+   123→   123→   123→    if (!studentRgm.trim()) {
+   124→   124→   124→      setRgmError('RGM é obrigatório')
+   125→   125→   125→      valid = false
+   126→   126→   126→    } else if (!/^\d+$/.test(studentRgm.trim())) {
+   127→   127→   127→      setRgmError('RGM deve conter apenas números')
+   128→   128→   128→      valid = false
+   129→   129→   129→    }
+   130→   130→   130→
+   131→   131→   131→    if (!valid) return
+   132→   132→   132→
+   133→   133→   133→    setIsRegistering(true)
+   134→   134→   134→
+   135→   135→   135→    try {
+   136→   136→   136→      // Register student via API
+   137→   137→   137→      const res = await fetch('/api/student', {
+   138→   138→   138→        method: 'POST',
+   139→   139→   139→        headers: { 'Content-Type': 'application/json' },
+   140→   140→   140→        body: JSON.stringify({
+   141→   141→   141→          sessionCode: codigo,
+   142→   142→   142→          name: studentName.trim(),
+   143→   143→   143→          rgm: studentRgm.trim(),
+   144→   144→   144→        }),
+   145→   145→   145→      })
+   146→   146→   146→
+   147→   147→   147→      if (!res.ok) {
+   148→   148→   148→        toast.error('Erro ao registrar. Tente novamente.')
+   149→   149→   149→        setIsRegistering(false)
+   150→   150→   150→        return
+   151→   151→   151→      }
+   152→   152→   152→
+   153→   153→   153→      const data = await res.json()
+   154→   154→   154→      const sid = data.student.id
+   155→   155→   155→
+   156→   156→   156→      // Store student info
+   157→   157→   157→      const info: StudentInfo = {
+   158→   158→   158→        name: studentName.trim(),
+   159→   159→   159→        rgm: studentRgm.trim(),
+   160→   160→   160→        studentId: sid,
+   161→   161→   161→      }
+   162→   162→   162→      setStudentId(sid)
+   163→   163→   163→      storeStudent(info)
+   164→   164→   164→
+   165→   165→   165→      // Register with socket
+   166→   166→   166→      if (socketRef.current) {
+   167→   167→   167→        socketRef.current.emit('join-session', {
+   168→   168→   168→          sessionCode: codigo,
+   169→   169→   169→          role: 'student',
+   170→   170→   170→          name: studentName.trim(),
+   171→   171→   171→          rgm: studentRgm.trim(),
+   172→   172→   172→        })
+   173→   173→   173→        socketRef.current.emit('register-student', {
+   174→   174→   174→          sessionCode: codigo,
+   175→   175→   175→          name: studentName.trim(),
+   176→   176→   176→          rgm: studentRgm.trim(),
+   177→   177→   177→        })
+   178→   178→   178→      }
+   179→   179→   179→
+   180→   180→   180→      toast.success(`Bem-vindo(a), ${studentName.trim()}!`)
+   181→   181→   181→
+   182→   182→   182→      // Transition to waiting state immediately (don't wait for socket confirmation)
+   183→   183→   183→      const sessionData = sessionFetchedRef.current
+   184→   184→   184→      if (sessionData?.currentQuestionId) {
+   185→   185→   185→        const q = sessionData.questions.find((q) => q.id === sessionData.currentQuestionId)
+   186→   186→   186→        if (q) {
+   187→   187→   187→          setCurrentQuestion(q)
+   188→   188→   188→          const stored = getStoredVote(q.id)
+   189→   189→   189→          if (stored) {
+   190→   190→   190→            setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   191→   191→   191→            if (q.isRevealed) {
+   192→   192→   192→              setCorrectAnswer(q.correctAnswer)
+   193→   193→   193→              setPageState('revealed')
+   194→   194→   194→            } else {
+   195→   195→   195→              setPageState('voted')
+   196→   196→   196→            }
+   197→   197→   197→          } else if (q.isRevealed) {
+   198→   198→   198→            setCorrectAnswer(q.correctAnswer)
+   199→   199→   199→            setPageState('revealed')
+   200→   200→   200→          } else {
+   201→   201→   201→            setPageState('voting')
+   202→   202→   202→          }
+   203→   203→   203→        } else {
+   204→   204→   204→          setPageState('waiting')
+   205→   205→   205→        }
+   206→   206→   206→      } else {
+   207→   207→   207→        setPageState('waiting')
+   208→   208→   208→      }
+   209→   209→   209→    } catch {
+   210→   210→   210→      toast.error('Erro de conexão. Tente novamente.')
+   211→   211→   211→    } finally {
+   212→   212→   212→      setIsRegistering(false)
+   213→   213→   213→    }
+   214→   214→   214→  }, [codigo, studentName, studentRgm, storeStudent])
+   215→   215→   215→
+   216→   216→   216→  // ── Socket setup & event listeners ──────────────────────────────────────
+   217→   217→   217→  useEffect(() => {
+   218→   218→   218→    // Check if student is already registered
+   219→   219→   219→    const storedStudent = getStoredStudent()
+   220→   220→   220→    if (storedStudent) {
+   221→   221→   221→      setStudentName(storedStudent.name)
+   222→   222→   222→      setStudentRgm(storedStudent.rgm)
+   223→   223→   223→      setStudentId(storedStudent.studentId)
+   224→   224→   224→    }
+   225→   225→   225→
+   226→   226→   226→    // Fetch session data
+   227→   227→   227→    const fetchSession = async () => {
+   228→   228→   228→      try {
+   229→   229→   229→        const res = await fetch(`/api/session/${codigo}`)
+   230→   230→   230→        if (!res.ok) {
+   231→   231→   231→          setPageState('error')
+   232→   232→   232→          return
+   233→   233→   233→        }
+   234→   234→   234→        const data: Session = await res.json()
+   235→   235→   235→        setSession(data)
+   236→   236→   236→        sessionFetchedRef.current = data
+   237→   237→   237→
+   238→   238→   238→        // Show identification or waiting screen immediately (don't wait for socket)
+   239→   239→   239→        const storedStudent = getStoredStudent()
+   240→   240→   240→        if (!storedStudent) {
+   241→   241→   241→          setPageState('identification')
+   242→   242→   242→        } else {
+   243→   243→   243→          // Student already registered, check current state
+   244→   244→   244→          if (data.currentQuestionId) {
+   245→   245→   245→            const q = data.questions.find((q) => q.id === data.currentQuestionId)
+   246→   246→   246→            if (q) {
+   247→   247→   247→              setCurrentQuestion(q)
+   248→   248→   248→              const storedVote = getStoredVote(q.id)
+   249→   249→   249→              if (storedVote) {
+   250→   250→   250→                setSelectedChoice(storedVote as 'A' | 'B' | 'C' | 'D' | 'E')
+   251→   251→   251→                if (q.isRevealed) {
+   252→   252→   252→                  setCorrectAnswer(q.correctAnswer)
+   253→   253→   253→                  setPageState('revealed')
+   254→   254→   254→                } else {
+   255→   255→   255→                  setPageState('voted')
+   256→   256→   256→                }
+   257→   257→   257→              } else if (q.isRevealed) {
+   258→   258→   258→                setCorrectAnswer(q.correctAnswer)
+   259→   259→   259→                setPageState('revealed')
+   260→   260→   260→              } else {
+   261→   261→   261→                setPageState('voting')
+   262→   262→   262→              }
+   263→   263→   263→            }
+   264→   264→   264→          } else {
+   265→   265→   265→            setPageState('waiting')
+   266→   266→   266→          }
+   267→   267→   267→        }
+   268→   268→   268→
+   269→   269→   269→        // Connect socket (non-blocking - UI already shown)
+   270→   270→   270→        const socket = io('/?XTransformPort=3003', {
+   271→   271→   271→          transports: ['websocket', 'polling'],
+   272→   272→   272→          timeout: 10000,
+   273→   273→   273→          reconnection: true,
+   274→   274→   274→          reconnectionAttempts: 5,
+   275→   275→   275→          reconnectionDelay: 2000,
+   276→   276→   276→        })
+   277→   277→   277→        socketRef.current = socket
+   278→   278→   278→
+   279→   279→   279→        socket.on('connect', () => {
+   280→   280→   280→          const student = getStoredStudent()
+   281→   281→   281→          if (student) {
+   282→   282→   282→            // Already registered, just join
+   283→   283→   283→            socket.emit('join-session', {
+   284→   284→   284→              sessionCode: codigo,
+   285→   285→   285→              role: 'student',
+   286→   286→   286→              name: student.name,
+   287→   287→   287→              rgm: student.rgm,
+   288→   288→   288→            })
+   289→   289→   289→            socket.emit('register-student', {
+   290→   290→   290→              sessionCode: codigo,
+   291→   291→   291→              name: student.name,
+   292→   292→   292→              rgm: student.rgm,
+   293→   293→   293→            })
+   294→   294→   294→          } else {
+   295→   295→   295→            // Not registered yet, just join the room for state updates
+   296→   296→   296→            socket.emit('join-session', { sessionCode: codigo, role: 'student' })
+   297→   297→   297→          }
+   298→   298→   298→        })
+   299→   299→   299→
+   300→   300→   300→        socket.on('session-state', (state: SessionStatePayload) => {
+   301→   301→   301→          setParticipantCount(state.participantCount)
+   302→   302→   302→          setVotingPaused(state.votingPaused)
+   303→   303→   303→
+   304→   304→   304→          const student = getStoredStudent()
+   305→   305→   305→          if (!student) {
+   306→   306→   306→            // Show identification screen
+   307→   307→   307→            setPageState('identification')
+   308→   308→   308→            return
+   309→   309→   309→          }
+   310→   310→   310→
+   311→   311→   311→          if (state.currentQuestionId) {
+   312→   312→   312→            const q = data.questions.find((q) => q.id === state.currentQuestionId)
+   313→   313→   313→            if (q) {
+   314→   314→   314→              setCurrentQuestion(q)
+   315→   315→   315→              // Check if already voted
+   316→   316→   316→              const stored = getStoredVote(q.id)
+   317→   317→   317→              if (stored) {
+   318→   318→   318→                setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   319→   319→   319→                if (q.isRevealed) {
+   320→   320→   320→                  setCorrectAnswer(q.correctAnswer)
+   321→   321→   321→                  setPageState('revealed')
+   322→   322→   322→                } else {
+   323→   323→   323→                  setPageState('voted')
+   324→   324→   324→                }
+   325→   325→   325→              } else if (q.isRevealed) {
+   326→   326→   326→                setCorrectAnswer(q.correctAnswer)
+   327→   327→   327→                setPageState('revealed')
+   328→   328→   328→              } else if (state.votingPaused) {
+   329→   329→   329→                setPageState('waiting')
+   330→   330→   330→              } else {
+   331→   331→   331→                setPageState('voting')
+   332→   332→   332→              }
+   333→   333→   333→            }
+   334→   334→   334→          } else {
+   335→   335→   335→            setPageState('waiting')
+   336→   336→   336→          }
+   337→   337→   337→        })
+   338→   338→   338→
+   339→   339→   339→        socket.on('student-registered', () => {
+   340→   340→   340→          // After registration is confirmed, transition to appropriate state
+   341→   341→   341→          const currentQ = sessionFetchedRef.current
+   342→   342→   342→          if (currentQ) {
+   343→   343→   343→            const activeQId = sessionCurrentQuestionRef.current
+   344→   344→   344→            if (activeQId) {
+   345→   345→   345→              const q = currentQ.questions.find((q) => q.id === activeQId)
+   346→   346→   346→              if (q) {
+   347→   347→   347→                setCurrentQuestion(q)
+   348→   348→   348→                const stored = getStoredVote(q.id)
+   349→   349→   349→                if (stored) {
+   350→   350→   350→                  setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   351→   351→   351→                  setPageState('voted')
+   352→   352→   352→                } else {
+   353→   353→   353→                  setPageState('voting')
+   354→   354→   354→                }
+   355→   355→   355→              } else {
+   356→   356→   356→                setPageState('waiting')
+   357→   357→   357→              }
+   358→   358→   358→            } else {
+   359→   359→   359→              setPageState('waiting')
+   360→   360→   360→            }
+   361→   361→   361→          } else {
+   362→   362→   362→            setPageState('waiting')
+   363→   363→   363→          }
+   364→   364→   364→        })
+   365→   365→   365→
+   366→   366→   366→        socket.on('question-activated', (data: { questionId: string; votingPaused: boolean }) => {
+   367→   367→   367→          const student = getStoredStudent()
+   368→   368→   368→          if (!student) {
+   369→   369→   369→            setPageState('identification')
+   370→   370→   370→            return
+   371→   371→   371→          }
+   372→   372→   372→
+   373→   373→   373→          setSession((prev) => {
+   374→   374→   374→            if (prev) {
+   375→   375→   375→              const found = prev.questions.find((q) => q.id === data.questionId)
+   376→   376→   376→              if (found) {
+   377→   377→   377→                setCurrentQuestion(found)
+   378→   378→   378→                setVotingPaused(data.votingPaused)
+   379→   379→   379→                const stored = getStoredVote(found.id)
+   380→   380→   380→                if (stored) {
+   381→   381→   381→                  setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   382→   382→   382→                  setPageState('voted')
+   383→   383→   383→                } else {
+   384→   384→   384→                  setSelectedChoice(null)
+   385→   385→   385→                  setCorrectAnswer(null)
+   386→   386→   386→                  if (data.votingPaused) {
+   387→   387→   387→                    setPageState('waiting')
+   388→   388→   388→                  } else {
+   389→   389→   389→                    setPageState('voting')
+   390→   390→   390→                  }
+   391→   391→   391→                }
+   392→   392→   392→              }
+   393→   393→   393→            }
+   394→   394→   394→            return prev
+   395→   395→   395→          })
+   396→   396→   396→        })
+   397→   397→   397→
+   398→   398→   398→        socket.on('vote-accepted', async (data: { choice: string; questionId: string }) => {
+   399→   399→   399→          setSelectedChoice(data.choice as 'A' | 'B' | 'C' | 'D' | 'E')
+   400→   400→   400→          storeVote(data.questionId, data.choice)
+   401→   401→   401→          setPageState('voted')
+   402→   402→   402→          setIsSubmitting(false)
+   403→   403→   403→          toast.success('Voto registrado com sucesso!')
+   404→   404→   404→
+   405→   405→   405→          // Also persist to DB via API
+   406→   406→   406→          const student = getStoredStudent()
+   407→   407→   407→          if (student?.studentId) {
+   408→   408→   408→            try {
+   409→   409→   409→              await fetch('/api/vote', {
+   410→   410→   410→                method: 'POST',
+   411→   411→   411→                headers: { 'Content-Type': 'application/json' },
+   412→   412→   412→                body: JSON.stringify({
+   413→   413→   413→                  sessionCode: codigo,
+   414→   414→   414→                  questionId: data.questionId,
+   415→   415→   415→                  choice: data.choice,
+   416→   416→   416→                  studentId: student.studentId,
+   417→   417→   417→                }),
+   418→   418→   418→              })
+   419→   419→   419→            } catch (err) {
+   420→   420→   420→              console.error('Failed to persist vote to DB:', err)
+   421→   421→   421→            }
+   422→   422→   422→          }
+   423→   423→   423→        })
+   424→   424→   424→
+   425→   425→   425→        socket.on('vote-rejected', (data: { reason: string }) => {
+   426→   426→   426→          setIsSubmitting(false)
+   427→   427→   427→          toast.error(data.reason || 'Voto rejeitado')
+   428→   428→   428→        })
+   429→   429→   429→
+   430→   430→   430→        socket.on('answer-revealed', (data: { questionId: string; correctAnswer: string }) => {
+   431→   431→   431→          setCorrectAnswer(data.correctAnswer)
+   432→   432→   432→          setPageState('revealed')
+   433→   433→   433→        })
+   434→   434→   434→
+   435→   435→   435→        socket.on('voting-toggled', (data: { paused: boolean }) => {
+   436→   436→   436→          setVotingPaused(data.paused)
+   437→   437→   437→          if (data.paused && pageState === 'voting') {
+   438→   438→   438→            setPageState('waiting')
+   439→   439→   439→          } else if (!data.paused && pageState === 'waiting' && currentQuestion) {
+   440→   440→   440→            const stored = getStoredVote(currentQuestion.id)
+   441→   441→   441→            if (!stored) {
+   442→   442→   442→              setPageState('voting')
+   443→   443→   443→            }
+   444→   444→   444→          }
+   445→   445→   445→        })
+   446→   446→   446→
+   447→   447→   447→        socket.on('session-finished', () => {
+   448→   448→   448→          setPageState('finished')
+   449→   449→   449→        })
+   450→   450→   450→
+   451→   451→   451→        socket.on('participant-count', (count: number) => {
+   452→   452→   452→          setParticipantCount(count)
+   453→   453→   453→        })
+   454→   454→   454→
+   455→   455→   455→        socket.on('connect_error', (err) => {
+   456→   456→   456→          console.error('Socket connection error:', err)
+   457→   457→   457→        })
+   458→   458→   458→
+   459→   459→   459→        socket.on('disconnect', () => {
+   460→   460→   460→          console.log('Socket disconnected')
+   461→   461→   461→        })
+   462→   462→   462→      } catch {
+   463→   463→   463→        setPageState('error')
+   464→   464→   464→      }
+   465→   465→   465→    }
+   466→   466→   466→
+   467→   467→   467→    fetchSession()
+   468→   468→   468→
+   469→   469→   469→    return () => {
+   470→   470→   470→      if (socketRef.current) {
+   471→   471→   471→        socketRef.current.emit('leave-session', { sessionCode: codigo })
+   472→   472→   472→        socketRef.current.disconnect()
+   473→   473→   473→        socketRef.current = null
+   474→   474→   474→      }
+   475→   475→   475→    }
+   476→   476→   476→  }, [codigo, getStoredVote, getStoredStudent, storeVote])
+   477→   477→   477→
+   478→   478→   478→  // Track current question ID for student-registered handler
+   479→   479→   479→  const sessionCurrentQuestionRef = useRef<string | null>(null)
+   480→   480→   480→  useEffect(() => {
+   481→   481→   481→    sessionCurrentQuestionRef.current = currentQuestion?.id || null
+   482→   482→   482→  }, [currentQuestion])
+   483→   483→   483→
+   484→   484→   484→  // ── Submit vote ─────────────────────────────────────────────────────────
+   485→   485→   485→  const handleVote = useCallback(
+   486→   486→   486→    (choice: 'A' | 'B' | 'C' | 'D' | 'E') => {
+   487→   487→   487→      if (!currentQuestion || !socketRef.current || isSubmitting) return
+   488→   488→   488→
+   489→   489→   489→      const student = getStoredStudent()
+   490→   490→   490→      if (!student) {
+   491→   491→   491→        setPageState('identification')
+   492→   492→   492→        return
+   493→   493→   493→      }
+   494→   494→   494→
+   495→   495→   495→      // Anti-fraud: check if already voted
+   496→   496→   496→      const stored = getStoredVote(currentQuestion.id)
+   497→   497→   497→      if (stored) {
+   498→   498→   498→        setSelectedChoice(stored as 'A' | 'B' | 'C' | 'D' | 'E')
+   499→   499→   499→        setPageState('voted')
+   500→   500→   500→        toast.info('Você já votou nesta questão.')
+   501→   501→   501→        return
+   502→   502→   502→      }
+   503→   503→   503→
+   504→   504→   504→      setIsSubmitting(true)
+   505→   505→   505→      socketRef.current.emit('submit-vote', {
+   506→   506→   506→        sessionCode: codigo,
+   507→   507→   507→        questionId: currentQuestion.id,
+   508→   508→   508→        choice,
+   509→   509→   509→        studentId: student.rgm,
+   510→   510→   510→      })
+   511→   511→   511→    },
+   512→   512→   512→    [codigo, currentQuestion, getStoredVote, getStoredStudent, isSubmitting]
+   513→   513→   513→  )
+   514→   514→   514→
+   515→   515→   515→  // ── Get alternative text ────────────────────────────────────────────────
+   516→   516→   516→  const getAltText = (letter: string, q: Question): string => {
+   517→   517→   517→    switch (letter) {
+   518→   518→   518→      case 'A': return q.altA
+   519→   519→   519→      case 'B': return q.altB
+   520→   520→   520→      case 'C': return q.altC
+   521→   521→   521→      case 'D': return q.altD
+   522→   522→   522→      case 'E': return q.altE
+   523→   523→   523→      default: return ''
+   524→   524→   524→    }
+   525→   525→   525→  }
+   526→   526→   526→
+   527→   527→   527→  // ── Render ──────────────────────────────────────────────────────────────
+   528→   528→   528→
+   529→   529→   529→  // Loading state
+   530→   530→   530→  if (pageState === 'loading') {
+   531→   531→   531→    return (
+   532→   532→   532→      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+   533→   533→   533→        <motion.div
+   534→   534→   534→          animate={{ rotate: 360 }}
+   535→   535→   535→          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+   536→   536→   536→          className="w-10 h-10 border-4 border-[#00338C] border-t-transparent rounded-full mb-4"
+   537→   537→   537→        />
+   538→   538→   538→        <p className="text-gray-500 text-sm">Carregando sessão...</p>
+   539→   539→   539→      </div>
+   540→   540→   540→    )
+   541→   541→   541→  }
+   542→   542→   542→
+   543→   543→   543→  // Error state
+   544→   544→   544→  if (pageState === 'error') {
+   545→   545→   545→    return (
+   546→   546→   546→      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
+   547→   547→   547→        <div className="text-5xl mb-4">😕</div>
+   548→   548→   548→        <h1 className="text-xl font-bold text-gray-900 mb-2">Sessão não encontrada</h1>
+   549→   549→   549→        <p className="text-gray-500 text-center text-sm mb-6">
+   550→   550→   550→          O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   551→   551→   551→          Verifique o QR Code e tente novamente.
+   552→   552→   552→        </p>
+   553→   553→   553→        <Button
+   554→   554→   554→          onClick={() => router.push('/')}
+   555→   555→   555→          className="bg-[#00338C] hover:bg-[#002468] text-white"
+   556→   556→   556→        >
+   557→   557→   557→          Voltar ao início
+   558→   558→   558→        </Button>
+   559→   559→   559→      </div>
+   560→   560→   560→    )
+   561→   561→   561→  }
+   562→   562→   562→
+   563→   563→   563→  // Finished state
+   564→   564→   564→  if (pageState === 'finished') {
+   565→   565→   565→    return (
+   566→   566→   566→      <div className="min-h-screen flex flex-col items-center justify-center bg-white p-6">
+   567→   567→   567→        <motion.div
+   568→   568→   568→          initial={{ scale: 0 }}
+   569→   569→   569→          animate={{ scale: 1 }}
+   570→   570→   570→          transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+   571→   571→   571→          className="text-6xl mb-4"
+   572→   572→   572→        >
+   573→   573→   573→          🎉
+   574→   574→   574→        </motion.div>
+   575→   575→   575→        <h1 className="text-xl font-bold text-gray-900 mb-2">Sessão encerrada!</h1>
+   576→   576→   576→        <p className="text-gray-500 text-center text-sm mb-6">
+   577→   577→   577→          Obrigado por participar, {studentName || 'estudante'}! A sessão foi finalizada pelo apresentador.
+   578→   578→   578→        </p>
+   579→   579→   579→        <Button
+   580→   580→   580→          onClick={() => router.push('/')}
+   581→   581→   581→          className="bg-[#00338C] hover:bg-[#002468] text-white"
+   582→   582→   582→        >
+   583→   583→   583→          Voltar ao início
+   584→   584→   584→        </Button>
+   585→   585→   585→      </div>
+   586→   586→   586→    )
+   587→   587→   587→  }
+   588→   588→   588→
+   589→   589→   589→  return (
+   590→   590→   590→    <div className="min-h-screen flex flex-col bg-white">
+   591→   591→   591→      {/* ── Header ──────────────────────────────────────────────────────── */}
+   592→   592→   592→      <header className="bg-[#00338C] text-white px-4 py-3 flex items-center justify-between shrink-0">
+   593→   593→   593→        <div className="flex items-center gap-2">
+   594→   594→   594→          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+   595→   595→   595→          <span className="font-bold text-sm tracking-wide">ENADE Quiz</span>
+   596→   596→   596→        </div>
+   597→   597→   597→        <div className="flex items-center gap-3 text-xs opacity-80">
+   598→   598→   598→          <span>Código: {codigo}</span>
+   599→   599→   599→          {participantCount > 0 && (
+   600→   600→   600→            <span>👥 {participantCount}</span>
+   601→   601→   601→          )}
+   602→   602→   602→        </div>
+   603→   603→   603→      </header>
+   604→   604→   604→
+   605→   605→   605→      {/* ── Main content ────────────────────────────────────────────────── */}
+   606→   606→   606→      <main className="flex-1 flex flex-col p-4 max-w-lg mx-auto w-full">
+   607→   607→   607→        <AnimatePresence mode="wait">
+   608→   608→   608→          {/* ── State 0: Identification ─────────────────────────────────── */}
+   609→   609→   609→          {pageState === 'identification' && (
+   610→   610→   610→            <motion.div
+   611→   611→   611→              key="identification"
+   612→   612→   612→              initial={{ opacity: 0, y: 20 }}
+   613→   613→   613→              animate={{ opacity: 1, y: 0 }}
+   614→   614→   614→              exit={{ opacity: 0, y: -20 }}
+   615→   615→   615→              transition={{ duration: 0.3 }}
+   616→   616→   616→              className="flex-1 flex flex-col items-center justify-center"
+   617→   617→   617→            >
+   618→   618→   618→              {/* UEMS branding */}
+   619→   619→   619→              <div className="w-full max-w-sm">
+   620→   620→   620→                <div className="text-center mb-8">
+   621→   621→   621→                  <motion.div
+   622→   622→   622→                    initial={{ scale: 0.8, opacity: 0 }}
+   623→   623→   623→                    animate={{ scale: 1, opacity: 1 }}
+   624→   624→   624→                    transition={{ delay: 0.1, type: 'spring' }}
+   625→   625→   625→                    className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-[#00338C] mb-4"
+   626→   626→   626→                  >
+   627→   627→   627→                    <img src="/logo.svg" alt="UEMS" className="h-12 w-12 object-contain" />
+   628→   628→   628→                  </motion.div>
+   629→   629→   629→                  <h1 className="text-2xl font-bold text-[#00338C] mb-1">
+   630→   630→   630→                    ENADE Quiz
+   631→   631→   631→                  </h1>
+   632→   632→   632→                  <p className="text-gray-500 text-sm">
+   633→   633→   633→                    Identifique-se para participar da sessão
+   634→   634→   634→                  </p>
+   635→   635→   635→                </div>
+   636→   636→   636→
+   637→   637→   637→                <Card className="border-0 shadow-lg">
+   638→   638→   638→                  <CardContent className="p-6">
+   639→   639→   639→                    <div className="space-y-4">
+   640→   640→   640→                      {/* Name field */}
+   641→   641→   641→                      <div>
+   642→   642→   642→                        <label
+   643→   643→   643→                          htmlFor="student-name"
+   644→   644→   644→                          className="block text-sm font-medium text-gray-700 mb-1.5"
+   645→   645→   645→                        >
+   646→   646→   646→                          Nome completo
+   647→   647→   647→                        </label>
+   648→   648→   648→                        <Input
+   649→   649→   649→                          id="student-name"
+   650→   650→   650→                          type="text"
+   651→   651→   651→                          placeholder="Digite seu nome completo"
+   652→   652→   652→                          value={studentName}
+   653→   653→   653→                          onChange={(e) => {
+   654→   654→   654→                            setStudentName(e.target.value)
+   655→   655→   655→                            if (nameError) setNameError('')
+   656→   656→   656→                          }}
+   657→   657→   657→                          className={`h-12 text-base ${nameError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
+   658→   658→   658→                          disabled={isRegistering}
+   659→   659→   659→                          autoComplete="name"
+   660→   660→   660→                        />
+   661→   661→   661→                        {nameError && (
+   662→   662→   662→                          <p className="text-red-500 text-xs mt-1">{nameError}</p>
+   663→   663→   663→                        )}
+   664→   664→   664→                      </div>
+   665→   665→   665→
+   666→   666→   666→                      {/* RGM field */}
+   667→   667→   667→                      <div>
+   668→   668→   668→                        <label
+   669→   669→   669→                          htmlFor="student-rgm"
+   670→   670→   670→                          className="block text-sm font-medium text-gray-700 mb-1.5"
+   671→   671→   671→                        >
+   672→   672→   672→                          RGM
+   673→   673→   673→                          <span className="text-gray-400 font-normal ml-1">
+   674→   674→   674→                            (Registro Geral Matrícula)
+   675→   675→   675→                          </span>
+   676→   676→   676→                        </label>
+   677→   677→   677→                        <Input
+   678→   678→   678→                          id="student-rgm"
+   679→   679→   679→                          type="text"
+   680→   680→   680→                          inputMode="numeric"
+   681→   681→   681→                          placeholder="Somente números"
+   682→   682→   682→                          value={studentRgm}
+   683→   683→   683→                          onChange={(e) => {
+   684→   684→   684→                            setStudentRgm(e.target.value)
+   685→   685→   685→                            if (rgmError) setRgmError('')
+   686→   686→   686→                          }}
+   687→   687→   687→                          className={`h-12 text-base ${rgmError ? 'border-red-400 focus-visible:ring-red-400' : 'border-gray-300 focus-visible:ring-[#00338C]'}`}
+   688→   688→   688→                          disabled={isRegistering}
+   689→   689→   689→                          autoComplete="off"
+   690→   690→   690→                        />
+   691→   691→   691→                        {rgmError && (
+   692→   692→   692→                          <p className="text-red-500 text-xs mt-1">{rgmError}</p>
+   693→   693→   693→                        )}
+   694→   694→   694→                      </div>
+   695→   695→   695→
+   696→   696→   696→                      {/* Submit button */}
+   697→   697→   697→                      <Button
+   698→   698→   698→                        onClick={handleRegister}
+   699→   699→   699→                        disabled={isRegistering}
+   700→   700→   700→                        className="w-full h-12 text-base font-semibold bg-[#00338C] hover:bg-[#002468] text-white mt-2"
+   701→   701→   701→                      >
+   702→   702→   702→                        {isRegistering ? (
+   703→   703→   703→                          <span className="flex items-center gap-2">
+   704→   704→   704→                            <motion.span
+   705→   705→   705→                              animate={{ rotate: 360 }}
+   706→   706→   706→                              transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+   707→   707→   707→                              className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+   708→   708→   708→                            />
+   709→   709→   709→                            Registrando...
+   710→   710→   710→                          </span>
+   711→   711→   711→                        ) : (
+   712→   712→   712→                          'Participar'
+   713→   713→   713→                        )}
+   714→   714→   714→                      </Button>
+   715→   715→   715→                    </div>
+   716→   716→   716→                  </CardContent>
+   717→   717→   717→                </Card>
+   718→   718→   718→
+   719→   719→   719→                <p className="text-center text-xs text-gray-400 mt-4">
+   720→   720→   720→                  UEMS — Universidade Estadual de Mato Grosso do Sul
+   721→   721→   721→                </p>
+   722→   722→   722→              </div>
+   723→   723→   723→            </motion.div>
+   724→   724→   724→          )}
+   725→   725→   725→
+   726→   726→   726→          {/* ── State 1: Waiting ─────────────────────────────────────────── */}
+   727→   727→   727→          {pageState === 'waiting' && (
+   728→   728→   728→            <motion.div
+   729→   729→   729→              key="waiting"
+   730→   730→   730→              initial={{ opacity: 0, y: 20 }}
+   731→   731→   731→              animate={{ opacity: 1, y: 0 }}
+   732→   732→   732→              exit={{ opacity: 0, y: -20 }}
+   733→   733→   733→              transition={{ duration: 0.3 }}
+   734→   734→   734→              className="flex-1 flex flex-col items-center justify-center text-center"
+   735→   735→   735→            >
+   736→   736→   736→              <motion.div
+   737→   737→   737→                animate={{ opacity: [0.5, 1, 0.5] }}
+   738→   738→   738→                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+   739→   739→   739→                className="text-6xl mb-6"
+   740→   740→   740→              >
+   741→   741→   741→                ⏳
+   742→   742→   742→              </motion.div>
+   743→   743→   743→              <h2 className="text-lg font-semibold text-gray-800 mb-2">
+   744→   744→   744→                Aguardando a próxima questão...
+   745→   745→   745→              </h2>
+   746→   746→   746→              <p className="text-sm text-gray-500">
+   747→   747→   747→                O apresentador iniciará a questão em breve.
+   748→   748→   748→              </p>
+   749→   749→   749→              {votingPaused && currentQuestion && (
+   750→   750→   750→                <div className="mt-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+   751→   751→   751→                  <p className="text-amber-700 text-sm font-medium">
+   752→   752→   752→                    ⏸ Votação pausada
+   753→   753→   753→                  </p>
+   754→   754→   754→                </div>
+   755→   755→   755→              )}
+   756→   756→   756→            </motion.div>
+   757→   757→   757→          )}
+   758→   758→   758→
+   759→   759→   759→          {/* ── State 2: Voting ──────────────────────────────────────────── */}
+   760→   760→   760→          {pageState === 'voting' && currentQuestion && (
+   761→   761→   761→            <motion.div
+   762→   762→   762→              key="voting"
+   763→   763→   763→              initial={{ opacity: 0, y: 20 }}
+   764→   764→   764→              animate={{ opacity: 1, y: 0 }}
+   765→   765→   765→              exit={{ opacity: 0, y: -20 }}
+   766→   766→   766→              transition={{ duration: 0.3 }}
+   767→   767→   767→              className="flex-1 flex flex-col"
+   768→   768→   768→            >
+   769→   769→   769→              {/* Question header */}
+   770→   770→   770→              <div className="mb-4">
+   771→   771→   771→                <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
+   772→   772→   772→                  ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
+   773→   773→   773→                </div>
+   774→   774→   774→                <h2 className="text-lg font-semibold text-gray-900 leading-snug">
+   775→   775→   775→                  {currentQuestion.text}
+   776→   776→   776→                </h2>
+   777→   777→   777→              </div>
+   778→   778→   778→
+   779→   779→   779→              {/* Optional image */}
+   780→   780→   780→              {currentQuestion.imageUrl && (
+   781→   781→   781→                <div className="mb-4 rounded-xl overflow-hidden border border-gray-200">
+   782→   782→   782→                  <img
+   783→   783→   783→                    src={currentQuestion.imageUrl}
+   784→   784→   784→                    alt="Imagem da questão"
+   785→   785→   785→                    className="w-full h-auto max-h-64 object-contain bg-gray-50"
+   786→   786→   786→                  />
+   787→   787→   787→                </div>
+   788→   788→   788→              )}
+   789→   789→   789→
+   790→   790→   790→              {/* Answer buttons */}
+   791→   791→   791→              <div className="flex flex-col gap-3 mt-2">
+   792→   792→   792→                {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+   793→   793→   793→                  const altText = getAltText(letter, currentQuestion)
+   794→   794→   794→                  const color = ALT_COLORS[letter]
+   795→   795→   795→                  return (
+   796→   796→   796→                    <motion.button
+   797→   797→   797→                      key={letter}
+   798→   798→   798→                      whileTap={{ scale: 0.97 }}
+   799→   799→   799→                      whileHover={{ scale: 1.01 }}
+   800→   800→   800→                      onClick={() => handleVote(letter)}
+   801→   801→   801→                      disabled={isSubmitting}
+   802→   802→   802→                      className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-white border-[#00338C] hover:bg-[#00338C] hover:text-white active:bg-[#00338C] active:text-white disabled:opacity-50 disabled:cursor-not-allowed text-left"
+   803→   803→   803→                    >
+   804→   804→   804→                      <span
+   805→   805→   805→                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border-2 transition-colors"
+   806→   806→   806→                        style={{
+   807→   807→   807→                          borderColor: color,
+   808→   808→   808→                          color: color,
+   809→   809→   809→                          backgroundColor: 'transparent',
+   810→   810→   810→                        }}
+   811→   811→   811→                      >
+   812→   812→   812→                        {letter}
+   813→   813→   813→                      </span>
+   814→   814→   814→                      <span className="flex-1 leading-snug">{altText}</span>
+   815→   815→   815→                    </motion.button>
+   816→   816→   816→                  )
+   817→   817→   817→                })}
+   818→   818→   818→              </div>
+   819→   819→   819→            </motion.div>
+   820→   820→   820→          )}
+   821→   821→   821→
+   822→   822→   822→          {/* ── State 3: Already voted ───────────────────────────────────── */}
+   823→   823→   823→          {pageState === 'voted' && currentQuestion && selectedChoice && (
+   824→   824→   824→            <motion.div
+   825→   825→   825→              key="voted"
+   826→   826→   826→              initial={{ opacity: 0, y: 20 }}
+   827→   827→   827→              animate={{ opacity: 1, y: 0 }}
+   828→   828→   828→              exit={{ opacity: 0, y: -20 }}
+   829→   829→   829→              transition={{ duration: 0.3 }}
+   830→   830→   830→              className="flex-1 flex flex-col items-center justify-center text-center"
+   831→   831→   831→            >
+   832→   832→   832→              <motion.div
+   833→   833→   833→                animate={{ scale: [1, 1.15, 1] }}
+   834→   834→   834→                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+   835→   835→   835→                className="text-6xl mb-6"
+   836→   836→   836→              >
+   837→   837→   837→                ✅
+   838→   838→   838→              </motion.div>
+   839→   839→   839→              <h2 className="text-lg font-semibold text-gray-800 mb-2">
+   840→   840→   840→                Você votou na alternativa{' '}
+   841→   841→   841→                <span
+   842→   842→   842→                  className="font-bold"
+   843→   843→   843→                  style={{ color: ALT_COLORS[selectedChoice] }}
+   844→   844→   844→                >
+   845→   845→   845→                  {selectedChoice}
+   846→   846→   846→                </span>
+   847→   847→   847→                {studentName && (
+   848→   848→   848→                  <span className="text-gray-500 font-normal">, {studentName}</span>
+   849→   849→   849→                )}
+   850→   850→   850→              </h2>
+   851→   851→   851→              <p className="text-sm text-gray-500 mb-4">
+   852→   852→   852→                Aguardando o gabarito...
+   853→   853→   853→              </p>
+   854→   854→   854→              <Card className="w-full mt-4">
+   855→   855→   855→                <CardContent className="p-4">
+   856→   856→   856→                  <p className="text-sm text-gray-600 italic">
+   857→   857→   857→                    &quot;{getAltText(selectedChoice, currentQuestion)}&quot;
+   858→   858→   858→                  </p>
+   859→   859→   859→                </CardContent>
+   860→   860→   860→              </Card>
+   861→   861→   861→            </motion.div>
+   862→   862→   862→          )}
+   863→   863→   863→
+   864→   864→   864→          {/* ── State 4: Answer revealed ─────────────────────────────────── */}
+   865→   865→   865→          {pageState === 'revealed' && currentQuestion && correctAnswer && (
+   866→   866→   866→            <motion.div
+   867→   867→   867→              key="revealed"
+   868→   868→   868→              initial={{ opacity: 0, y: 20 }}
+   869→   869→   869→              animate={{ opacity: 1, y: 0 }}
+   870→   870→   870→              exit={{ opacity: 0, y: -20 }}
+   871→   871→   871→              transition={{ duration: 0.3 }}
+   872→   872→   872→              className="flex-1 flex flex-col"
+   873→   873→   873→            >
+   874→   874→   874→              {/* Correct answer header */}
+   875→   875→   875→              <div className="text-center mb-5">
+   876→   876→   876→                <div className="inline-block bg-[#C8A84B] text-white text-sm font-bold px-4 py-2 rounded-full">
+   877→   877→   877→                  Gabarito: <span className="text-lg">{correctAnswer}</span>
+   878→   878→   878→                </div>
+   879→   879→   879→              </div>
+   880→   880→   880→
+   881→   881→   881→              {/* All alternatives with results */}
+   882→   882→   882→              <div className="flex flex-col gap-2.5">
+   883→   883→   883→                {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+   884→   884→   884→                  const altText = getAltText(letter, currentQuestion)
+   885→   885→   885→                  const isCorrect = letter === correctAnswer
+   886→   886→   886→                  const isStudentChoice = letter === selectedChoice
+   887→   887→   887→                  const isWrongChoice = isStudentChoice && !isCorrect
+   888→   888→   888→
+   889→   889→   889→                  let containerClass = 'w-full rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all text-left'
+   890→   890→   890→                  let letterBg = 'bg-gray-100 text-gray-500'
+   891→   891→   891→                  let iconEl: React.ReactNode = null
+   892→   892→   892→
+   893→   893→   893→                  if (isCorrect) {
+   894→   894→   894→                    containerClass += ' bg-green-50 border-[#C8A84B]'
+   895→   895→   895→                    letterBg = 'bg-[#C8A84B] text-white'
+   896→   896→   896→                    iconEl = <span className="text-green-600 text-lg font-bold">✓</span>
+   897→   897→   897→                  } else if (isWrongChoice) {
+   898→   898→   898→                    containerClass += ' bg-red-50 border-red-300 opacity-80'
+   899→   899→   899→                    letterBg = 'bg-red-500 text-white'
+   900→   900→   900→                    iconEl = <span className="text-red-500 text-lg font-bold">✗</span>
+   901→   901→   901→                  } else {
+   902→   902→   902→                    containerClass += ' bg-gray-50 border-gray-200 opacity-50'
+   903→   903→   903→                  }
+   904→   904→   904→
+   905→   905→   905→                  return (
+   906→   906→   906→                    <motion.div
+   907→   907→   907→                      key={letter}
+   908→   908→   908→                      initial={{ opacity: 0, x: -10 }}
+   909→   909→   909→                      animate={{ opacity: 1, x: 0 }}
+   910→   910→   910→                      transition={{ delay: 0.05 * ['A','B','C','D','E'].indexOf(letter) }}
+   911→   911→   911→                      className={containerClass}
+   912→   912→   912→                    >
+   913→   913→   913→                      <span
+   914→   914→   914→                        className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${letterBg}`}
+   915→   915→   915→                      >
+   916→   916→   916→                        {letter}
+   917→   917→   917→                      </span>
+   918→   918→   918→                      <span className={`flex-1 leading-snug ${isCorrect ? 'text-green-800' : isWrongChoice ? 'text-red-700' : 'text-gray-500'}`}>
+   919→   919→   919→                        {altText}
+   920→   920→   920→                      </span>
+   921→   921→   921→                      {iconEl}
+   922→   922→   922→                    </motion.div>
+   923→   923→   923→                  )
+   924→   924→   924→                })}
+   925→   925→   925→              </div>
+   926→   926→   926→
+   927→   927→   927→              {/* Result summary */}
+   928→   928→   928→              <div className="mt-6 text-center">
+   929→   929→   929→                {selectedChoice ? (
+   930→   930→   930→                  selectedChoice === correctAnswer ? (
+   931→   931→   931→                    <motion.div
+   932→   932→   932→                      initial={{ scale: 0.8, opacity: 0 }}
+   933→   933→   933→                      animate={{ scale: 1, opacity: 1 }}
+   934→   934→   934→                      transition={{ delay: 0.4, type: 'spring' }}
+   935→   935→   935→                      className="text-lg font-bold text-green-600"
+   936→   936→   936→                    >
+   937→   937→   937→                      ✅ Você acertou!
+   938→   938→   938→                    </motion.div>
+   939→   939→   939→                  ) : (
+   940→   940→   940→                    <motion.div
+   941→   941→   941→                      initial={{ scale: 0.8, opacity: 0 }}
+   942→   942→   942→                      animate={{ scale: 1, opacity: 1 }}
+   943→   943→   943→                      transition={{ delay: 0.4, type: 'spring' }}
+   944→   944→   944→                      className="text-lg font-bold text-red-500"
+   945→   945→   945→                    >
+   946→   946→   946→                      ❌ Você errou
+   947→   947→   947→                    </motion.div>
+   948→   948→   948→                  )
+   949→   949→   949→                ) : (
+   950→   950→   950→                  <motion.div
+   951→   951→   951→                    initial={{ scale: 0.8, opacity: 0 }}
+   952→   952→   952→                    animate={{ scale: 1, opacity: 1 }}
+   953→   953→   953→                    transition={{ delay: 0.4, type: 'spring' }}
+   954→   954→   954→                    className="text-base text-gray-500"
+   955→   955→   955→                  >
+   956→   956→   956→                    Você não votou nesta questão.
+   957→   957→   957→                  </motion.div>
+   958→   958→   958→                )}
+   959→   959→   959→              </div>
+   960→   960→   960→            </motion.div>
+   961→   961→   961→          )}
+   962→   962→   962→        </AnimatePresence>
+   963→   963→   963→      </main>
+   964→   964→   964→
+   965→   965→   965→      {/* ── Footer ──────────────────────────────────────────────────────── */}
+   966→   966→   966→      <footer className="bg-gray-50 border-t border-gray-200 px-4 py-3 mt-auto">
+   967→   967→   967→        <div className="max-w-lg mx-auto flex items-center justify-between text-xs text-gray-400">
+   968→   968→   968→          <span>UEMS / DIGES</span>
+   969→   969→   969→          <span>
+   970→   970→   970→            {currentQuestion ? `Questão ${questionProgress()}` : `Sessão ${codigo}`}
+   971→   971→   971→          </span>
+   972→   972→   972→        </div>
+   973→   973→   973→      </footer>
+   974→   974→   974→    </div>
+   975→   975→   975→  )
+   976→   976→   976→}
+   977→   977→   977→

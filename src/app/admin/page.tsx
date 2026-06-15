@@ -978,6 +978,51 @@ export default function AdminPage() {
     }
   }
 
+  const handleDuplicateSession = async (sourceCode: string) => {
+    try {
+      // Fetch the source session
+      const res = await fetch(`/api/session/${sourceCode}`)
+      if (!res.ok) throw new Error()
+      const source: Session = await res.json()
+
+      // Create a new session with "- Cópia" suffix
+      const createRes = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${source.title} — Cópia`,
+        }),
+      })
+      if (!createRes.ok) throw new Error()
+      const newSession = await createRes.json()
+
+      // Copy all questions to the new session
+      for (const q of source.questions) {
+        await fetch(`/api/session/${newSession.code}/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: q.text,
+            year: q.year,
+            course: q.course,
+            altA: q.altA,
+            altB: q.altB,
+            altC: q.altC,
+            altD: q.altD,
+            altE: q.altE,
+            correctAnswer: q.correctAnswer,
+            imageUrl: q.imageUrl,
+          }),
+        })
+      }
+
+      toast.success(`Sessão duplicada: ${newSession.code}`)
+      fetchSessions()
+    } catch {
+      toast.error('Erro ao duplicar sessão.')
+    }
+  }
+
   const handleDeleteQuestion = async () => {
     if (!deleteQuestionId || !selectedSession) return
     setDeleting(true)
@@ -1224,8 +1269,11 @@ export default function AdminPage() {
             </form>
           </CardContent>
         </Card>
-        <footer className="mt-auto pt-8 text-center text-xs text-white/40">
-          UEMS / DIGES — Sistema ENADE Quiz
+        <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
+          <div className="flex items-center justify-center gap-2">
+            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+          </div>
         </footer>
       </div>
     )
@@ -1744,8 +1792,11 @@ export default function AdminPage() {
           </Tabs>
         </main>
 
-        <footer className="mt-auto border-t bg-white dark:bg-[#0D1B3E] py-3 text-center text-xs text-muted-foreground">
-          UEMS / DIGES — Sistema ENADE Quiz
+        <footer className="mt-auto border-t border-[#1A2A5E] bg-[#0A1128] py-3 text-center text-xs text-[#3A4A7E]">
+          <div className="flex items-center justify-center gap-2">
+            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+          </div>
         </footer>
 
         {/* Question Form Dialog */}
@@ -1811,9 +1862,7 @@ export default function AdminPage() {
       <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-md bg-[#00338C]">
-              <span className="text-xs font-bold text-white">EQ</span>
-            </div>
+            <img src="/logo.svg" alt="UEMS" className="size-8 object-contain rounded-md bg-[#00338C] p-1" />
             <div>
               <h1 className="text-sm font-bold text-foreground leading-none">
                 ENADE Quiz
@@ -1921,6 +1970,16 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="flex-1 sm:flex-none border-[#00338C]/30 text-[#00338C] dark:text-[#2196F3] hover:bg-[#00338C]/10 dark:hover:bg-[#2196F3]/10"
+                        onClick={() => handleDuplicateSession(session.code)}
+                        title="Duplicar sessão"
+                      >
+                        <Copy className="size-3.5" />
+                        <span className="sm:hidden">Duplicar</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="flex-1 sm:flex-none text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60 hover:bg-destructive/10"
                         onClick={() => setDeleteSessionCode(session.code)}
                       >
@@ -1936,8 +1995,11 @@ export default function AdminPage() {
         )}
       </main>
 
-      <footer className="mt-auto border-t bg-white dark:bg-[#0D1B3E] py-3 text-center text-xs text-muted-foreground">
-        UEMS / DIGES — Sistema ENADE Quiz
+      <footer className="mt-auto border-t border-[#1A2A5E] bg-[#0A1128] py-3 text-center text-xs text-[#3A4A7E]">
+        <div className="flex items-center justify-center gap-2">
+          <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+          <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+        </div>
       </footer>
 
       {/* New Session Dialog */}

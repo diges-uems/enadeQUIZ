@@ -1,0 +1,929 @@
+     1→'use client'
+     2→
+     3→import React, { useEffect, useState, useCallback, useRef } from 'react'
+     4→import { io, Socket } from 'socket.io-client'
+     5→import { QRCode } from 'react-qrcode-logo'
+     6→import { Users } from 'lucide-react'
+     7→import { motion, AnimatePresence } from 'framer-motion'
+     8→
+     9→// ─── Types ────────────────────────────────────────────────────────
+    10→interface Question {
+    11→  id: string
+    12→  sessionId: string
+    13→  text: string
+    14→  year: number
+    15→  course: string
+    16→  altA: string
+    17→  altB: string
+    18→  altC: string
+    19→  altD: string
+    20→  altE: string
+    21→  correctAnswer: string
+    22→  imageUrl: string | null
+    23→  isRevealed: boolean
+    24→  orderIndex: number
+    25→  createdAt: string
+    26→  updatedAt: string
+    27→}
+    28→
+    29→interface SessionData {
+    30→  id: string
+    31→  code: string
+    32→  title: string
+    33→  status: string
+    34→  currentQuestionId: string | null
+    35→  createdAt: string
+    36→  updatedAt: string
+    37→  questions: Question[]
+    38→}
+    39→
+    40→interface VoteResults {
+    41→  A: number
+    42→  B: number
+    43→  C: number
+    44→  D: number
+    45→  E: number
+    46→  total: number
+    47→}
+    48→
+    49→interface RankingEntry {
+    50→  name: string
+    51→  rgm: string
+    52→  score: number
+    53→  answers: number
+    54→  corrects: number
+    55→}
+    56→
+    57→// ─── Constants ────────────────────────────────────────────────────
+    58→const COLORS: Record<string, string> = {
+    59→  A: '#00338C',
+    60→  B: '#C8A84B',
+    61→  C: '#2196F3',
+    62→  D: '#4CAF50',
+    63→  E: '#F44336',
+    64→}
+    65→
+    66→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+    67→
+    68→// ─── Animated Counter Component ──────────────────────────────────
+    69→function AnimatedCounter({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
+    70→  const [displayValue, setDisplayValue] = useState(value)
+    71→  const rafRef = useRef<number | null>(null)
+    72→  const prevValueRef = useRef(value)
+    73→
+    74→  useEffect(() => {
+    75→    if (prevValueRef.current !== value) {
+    76→      const duration = 600
+    77→      const startTime = Date.now()
+    78→      const startValue = prevValueRef.current
+    79→
+    80→      const animate = () => {
+    81→        const elapsed = Date.now() - startTime
+    82→        const progress = Math.min(elapsed / duration, 1)
+    83→        // Ease out cubic
+    84→        const eased = 1 - Math.pow(1 - progress, 3)
+    85→        setDisplayValue(Math.round(startValue + (value - startValue) * eased))
+    86→
+    87→        if (progress < 1) {
+    88→          rafRef.current = requestAnimationFrame(animate)
+    89→        } else {
+    90→          setDisplayValue(value)
+    91→        }
+    92→      }
+    93→      rafRef.current = requestAnimationFrame(animate)
+    94→      prevValueRef.current = value
+    95→    }
+    96→
+    97→    return () => {
+    98→      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    99→    }
+   100→  }, [value])
+   101→
+   102→  return (
+   103→    <motion.span
+   104→      className={className}
+   105→      style={style}
+   106→      key={value}
+   107→      initial={{ scale: 1.25 }}
+   108→      animate={{ scale: 1 }}
+   109→      transition={{ duration: 0.3, type: 'spring', bounce: 0.5 }}
+   110→    >
+   111→      {displayValue}
+   112→    </motion.span>
+   113→  )
+   114→}
+   115→
+   116→// ─── Component ────────────────────────────────────────────────────
+   117→export default function ApresentacaoPage({
+   118→  params,
+   119→}: {
+   120→  params: Promise<{ codigo: string }>
+   121→}) {
+   122→  const { codigo } = React.use(params)
+   123→
+   124→  // ── State ──
+   125→  const [session, setSession] = useState<SessionData | null>(null)
+   126→  const [loading, setLoading] = useState(true)
+   127→  const [notFound, setNotFound] = useState(false)
+   128→  const [socket, setSocket] = useState<Socket | null>(null)
+   129→  const [participantCount, setParticipantCount] = useState(0)
+   130→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   131→    A: 0,
+   132→    B: 0,
+   133→    C: 0,
+   134→    D: 0,
+   135→    E: 0,
+   136→    total: 0,
+   137→  })
+   138→  const [revealed, setRevealed] = useState(false)
+   139→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   140→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   141→  const [sessionFinished, setSessionFinished] = useState(false)
+   142→  const prevTotalVotes = useRef(0)
+   143→
+   144→  // ── Derived ──
+   145→  const currentQuestion = session?.questions.find(
+   146→    (q) => q.id === currentQuestionId
+   147→  ) ?? null
+   148→  const currentIndex = session?.questions.findIndex(
+   149→    (q) => q.id === currentQuestionId
+   150→  ) ?? -1
+   151→  const totalQuestions = session?.questions.length ?? 0
+   152→
+   153→  // ── Fetch session data ──
+   154→  const fetchSession = useCallback(async () => {
+   155→    try {
+   156→      const res = await fetch(`/api/session/${codigo}`)
+   157→      if (!res.ok) {
+   158→        setNotFound(true)
+   159→        return
+   160→      }
+   161→      const data: SessionData = await res.json()
+   162→      setSession(data)
+   163→      setCurrentQuestionId(data.currentQuestionId)
+   164→      if (data.status === 'finished') {
+   165→        setSessionFinished(true)
+   166→      }
+   167→      if (data.currentQuestionId) {
+   168→        const q = data.questions.find((q) => q.id === data.currentQuestionId)
+   169→        if (q) setRevealed(q.isRevealed)
+   170→      }
+   171→    } catch {
+   172→      setNotFound(true)
+   173→    } finally {
+   174→      setLoading(false)
+   175→    }
+   176→  }, [codigo])
+   177→
+   178→  // ── Socket connection ──
+   179→  useEffect(() => {
+   180→    fetchSession()
+   181→  }, [fetchSession])
+   182→
+   183→  useEffect(() => {
+   184→    if (!session) return
+   185→
+   186→    const socketInstance = io('/?XTransformPort=3003', {
+   187→      transports: ['websocket', 'polling'],
+   188→      forceNew: true,
+   189→      reconnection: true,
+   190→      reconnectionAttempts: 10,
+   191→      reconnectionDelay: 1000,
+   192→      timeout: 10000,
+   193→    })
+   194→
+   195→    socketInstance.on('connect', () => {
+   196→      socketInstance.emit('join-session', {
+   197→        sessionCode: codigo,
+   198→        role: 'presenter',
+   199→      })
+   200→    })
+   201→
+   202→    socketInstance.on('vote-results', (data: VoteResults) => {
+   203→      setVoteResults(data)
+   204→    })
+   205→
+   206→    socketInstance.on('participant-count', (count: number) => {
+   207→      setParticipantCount(count)
+   208→    })
+   209→
+   210→    socketInstance.on('session-state', (data: {
+   211→      participantCount: number
+   212→      currentQuestionId: string | null
+   213→      votingPaused: boolean
+   214→    }) => {
+   215→      setParticipantCount(data.participantCount)
+   216→      if (data.currentQuestionId !== currentQuestionId) {
+   217→        setCurrentQuestionId(data.currentQuestionId)
+   218→        if (data.currentQuestionId && session) {
+   219→          const q = session.questions.find((q) => q.id === data.currentQuestionId)
+   220→          if (q) setRevealed(q.isRevealed)
+   221→        } else {
+   222→          setRevealed(false)
+   223→        }
+   224→      }
+   225→    })
+   226→
+   227→    socketInstance.on('question-activated', (data: { questionId: string }) => {
+   228→      setCurrentQuestionId(data.questionId)
+   229→      setRevealed(false)
+   230→      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   231→      prevTotalVotes.current = 0
+   232→    })
+   233→
+   234→    socketInstance.on('answer-revealed', () => {
+   235→      setRevealed(true)
+   236→    })
+   237→
+   238→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   239→      setRanking(data)
+   240→    })
+   241→
+   242→    socketInstance.on('session-finished', () => {
+   243→      socketInstance.emit('get-ranking', { sessionCode: codigo })
+   244→      setSessionFinished(true)
+   245→    })
+   246→
+   247→    setSocket(socketInstance)
+   248→
+   249→    return () => {
+   250→      socketInstance.disconnect()
+   251→    }
+   252→  }, [session, codigo])
+   253→
+   254→  // ── Pie chart data ──
+   255→  const pieData = ALT_LABELS.map((alt) => ({
+   256→    name: alt,
+   257→    value: voteResults[alt] ?? 0,
+   258→    color: COLORS[alt],
+   259→  })).filter((d) => d.value > 0)
+   260→
+   261→  const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
+   262→
+   263→  // ─── Loading state ───
+   264→  if (loading) {
+   265→    return (
+   266→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   267→        <motion.div
+   268→          className="flex flex-col items-center gap-4"
+   269→          initial={{ opacity: 0, y: 20 }}
+   270→          animate={{ opacity: 1, y: 0 }}
+   271→          transition={{ duration: 0.5 }}
+   272→        >
+   273→          <motion.div
+   274→            className="w-14 h-14 border-4 border-[#C8A84B] border-t-transparent rounded-full"
+   275→            animate={{ rotate: 360 }}
+   276→            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+   277→          />
+   278→          <motion.p
+   279→            className="text-[#E8EDFF] text-xl"
+   280→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   281→            animate={{ opacity: [0.5, 1, 0.5] }}
+   282→            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+   283→          >
+   284→            Carregando sessão...
+   285→          </motion.p>
+   286→        </motion.div>
+   287→      </div>
+   288→    )
+   289→  }
+   290→
+   291→  // ─── Not found state ───
+   292→  if (notFound || !session) {
+   293→    return (
+   294→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   295→        <motion.div
+   296→          className="text-center space-y-4"
+   297→          initial={{ opacity: 0, scale: 0.9 }}
+   298→          animate={{ opacity: 1, scale: 1 }}
+   299→          transition={{ duration: 0.5 }}
+   300→        >
+   301→          <motion.h1
+   302→            className="text-4xl font-bold text-[#E8EDFF]"
+   303→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   304→            initial={{ y: -20 }}
+   305→            animate={{ y: 0 }}
+   306→            transition={{ duration: 0.5, delay: 0.1 }}
+   307→          >
+   308→            Sessão não encontrada
+   309→          </motion.h1>
+   310→          <p className="text-[#8899CC] text-lg">
+   311→            O código &quot;{codigo}&quot; não corresponde a nenhuma sessão ativa.
+   312→          </p>
+   313→        </motion.div>
+   314→      </div>
+   315→    )
+   316→  }
+   317→
+   318→  // ─── Session Finished State ───
+   319→  if (sessionFinished) {
+   320→    return (
+   321→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   322→        <motion.div
+   323→          className="max-w-2xl w-full mx-4 text-center"
+   324→          initial={{ y: 60, opacity: 0 }}
+   325→          animate={{ y: 0, opacity: 1 }}
+   326→          transition={{ duration: 0.8, ease: 'easeOut' }}
+   327→        >
+   328→          {/* Trophy animation */}
+   329→          <motion.div
+   330→            className="mb-4"
+   331→            initial={{ scale: 0, rotate: -180 }}
+   332→            animate={{ scale: 1, rotate: 0 }}
+   333→            transition={{ duration: 0.8, type: 'spring', bounce: 0.5 }}
+   334→          >
+   335→            <span className="text-7xl">🏆</span>
+   336→          </motion.div>
+   337→
+   338→          <motion.h1
+   339→            className="text-6xl font-bold mb-3"
+   340→            style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
+   341→            initial={{ y: 30, opacity: 0 }}
+   342→            animate={{ y: 0, opacity: 1 }}
+   343→            transition={{ duration: 0.6, delay: 0.3 }}
+   344→          >
+   345→            Sessão Encerrada
+   346→          </motion.h1>
+   347→          <motion.p
+   348→            className="text-[#8899CC] text-2xl mb-10"
+   349→            initial={{ opacity: 0 }}
+   350→            animate={{ opacity: 1 }}
+   351→            transition={{ duration: 0.5, delay: 0.5 }}
+   352→          >
+   353→            Ranking Final
+   354→          </motion.p>
+   355→
+   356→          {ranking.length === 0 ? (
+   357→            <motion.div
+   358→              className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8"
+   359→              initial={{ opacity: 0, y: 20 }}
+   360→              animate={{ opacity: 1, y: 0 }}
+   361→              transition={{ duration: 0.5, delay: 0.6 }}
+   362→            >
+   363→              <p className="text-[#8899CC] text-xl">Nenhum voto registrado ainda</p>
+   364→            </motion.div>
+   365→          ) : (
+   366→            <div className="space-y-5">
+   367→              {ranking.slice(0, 3).map((entry, idx) => {
+   368→                const medals = ['🥇', '🥈', '🥉']
+   369→                const medalColors = [
+   370→                  'border-[#FFD700] bg-[#FFD700]/10',
+   371→                  'border-[#C0C0C0] bg-[#C0C0C0]/10',
+   372→                  'border-[#CD7F32] bg-[#CD7F32]/10',
+   373→                ]
+   374→                return (
+   375→                  <motion.div
+   376→                    key={entry.rgm}
+   377→                    className={`flex items-center gap-6 p-6 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
+   378→                    initial={{ scale: 0.5, opacity: 0, x: -80 }}
+   379→                    animate={{ scale: 1, opacity: 1, x: 0 }}
+   380→                    transition={{
+   381→                      duration: 0.6,
+   382→                      delay: 0.5 + idx * 0.3,
+   383→                      type: 'spring',
+   384→                      bounce: 0.3,
+   385→                    }}
+   386→                  >
+   387→                    <motion.span
+   388→                      className="text-6xl"
+   389→                      initial={{ scale: 0, rotate: -360 }}
+   390→                      animate={{ scale: 1, rotate: 0 }}
+   391→                      transition={{ duration: 0.6, delay: 0.7 + idx * 0.3, type: 'spring' }}
+   392→                    >
+   393→                      {medals[idx]}
+   394→                    </motion.span>
+   395→                    <div className="flex-1 min-w-0 text-left">
+   396→                      <p
+   397→                        className="text-[#E8EDFF] font-bold text-3xl truncate"
+   398→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   399→                      >
+   400→                        {entry.name}
+   401→                      </p>
+   402→                      <p className="text-[#8899CC] text-lg">RGM: {entry.rgm}</p>
+   403→                    </div>
+   404→                    <div className="text-right shrink-0">
+   405→                      <motion.p
+   406→                        className="text-[#C8A84B] font-bold text-4xl"
+   407→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   408→                        initial={{ scale: 0 }}
+   409→                        animate={{ scale: 1 }}
+   410→                        transition={{ duration: 0.4, delay: 0.9 + idx * 0.3, type: 'spring', bounce: 0.5 }}
+   411→                      >
+   412→                        {entry.corrects}/{totalQuestions}
+   413→                      </motion.p>
+   414→                      <p className="text-[#8899CC] text-base">
+   415→                        {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   416→                      </p>
+   417→                    </div>
+   418→                  </motion.div>
+   419→                )
+   420→              })}
+   421→            </div>
+   422→          )}
+   423→        </motion.div>
+   424→      </div>
+   425→    )
+   426→  }
+   427→
+   428→  // ─── No questions state ───
+   429→  if (session.questions.length === 0) {
+   430→    return (
+   431→      <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
+   432→        <motion.div
+   433→          className="text-center space-y-4"
+   434→          initial={{ opacity: 0, y: 20 }}
+   435→          animate={{ opacity: 1, y: 0 }}
+   436→          transition={{ duration: 0.5 }}
+   437→        >
+   438→          <h2
+   439→            className="text-3xl font-bold text-[#E8EDFF]"
+   440→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   441→          >
+   442→            Nenhuma questão cadastrada
+   443→          </h2>
+   444→          <p className="text-[#8899CC] text-lg">
+   445→            Adicione questões à sessão antes de iniciar a apresentação.
+   446→          </p>
+   447→        </motion.div>
+   448→      </div>
+   449→    )
+   450→  }
+   451→
+   452→  // ─── Main presenter display (16:9 PowerPoint-style, read-only) ───
+   453→  return (
+   454→    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
+   455→      {/* ── Thin Header Bar ── */}
+   456→      <header className="flex items-center justify-between px-6 py-1.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
+   457→        <div className="flex items-center gap-3">
+   458→          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+   459→          <span
+   460→            className="text-[#E8EDFF] text-lg font-semibold"
+   461→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   462→          >
+   463→            ENADE Quiz
+   464→          </span>
+   465→          <span className="text-[#3A4A7E]">—</span>
+   466→          <span className="text-[#8899CC] text-base">{session.title}</span>
+   467→        </div>
+   468→        <div className="flex items-center gap-4">
+   469→          <motion.div
+   470→            className="flex items-center gap-1.5"
+   471→            key={participantCount}
+   472→            initial={{ scale: 1.3 }}
+   473→            animate={{ scale: 1 }}
+   474→            transition={{ duration: 0.3, type: 'spring', bounce: 0.5 }}
+   475→          >
+   476→            <Users className="w-4 h-4 text-[#C8A84B]" />
+   477→            <AnimatedCounter
+   478→              value={participantCount}
+   479→              className="text-[#E8EDFF] text-base font-medium"
+   480→              style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   481→            />
+   482→          </motion.div>
+   483→          <span
+   484→            className="px-3 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider"
+   485→            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   486→          >
+   487→            {codigo}
+   488→          </span>
+   489→        </div>
+   490→      </header>
+   491→
+   492→      {/* ── Main Content Area ── */}
+   493→      <div className="flex-1 flex min-h-0">
+   494→        <AnimatePresence mode="wait">
+   495→          {!currentQuestion ? (
+   496→            /* ── Waiting State: QR Code Center ── */
+   497→            <motion.div
+   498→              key="waiting"
+   499→              initial={{ opacity: 0, scale: 0.95 }}
+   500→              animate={{ opacity: 1, scale: 1 }}
+   501→              exit={{ opacity: 0, scale: 0.95 }}
+   502→              transition={{ duration: 0.5 }}
+   503→              className="flex-1 flex items-center justify-center gap-16 px-12"
+   504→            >
+   505→              {/* QR Code Section */}
+   506→              <div className="flex flex-col items-center gap-6">
+   507→                <motion.div
+   508→                  className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4 relative"
+   509→                  animate={{
+   510→                    boxShadow: [
+   511→                      '0 0 20px rgba(200, 168, 75, 0)',
+   512→                      '0 0 40px rgba(200, 168, 75, 0.15)',
+   513→                      '0 0 20px rgba(200, 168, 75, 0)',
+   514→                    ],
+   515→                  }}
+   516→                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+   517→                >
+   518→                  {/* Pulsing border glow */}
+   519→                  <motion.div
+   520→                    className="absolute inset-0 rounded-2xl border-2 border-[#C8A84B]/30 pointer-events-none"
+   521→                    animate={{
+   522→                      opacity: [0.3, 0.8, 0.3],
+   523→                      scale: [1, 1.01, 1],
+   524→                    }}
+   525→                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+   526→                  />
+   527→                  <QRCode
+   528→                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+   529→                    size={280}
+   530→                    bgColor="#0D1B3E"
+   531→                    fgColor="#E8EDFF"
+   532→                    qrStyle="dots"
+   533→                    eyeRadius={8}
+   534→                    logoImage="/logo.svg"
+   535→                    logoSize={56}
+   536→                  />
+   537→                  <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+   538→                    <p className="text-[#8899CC] text-base">acesse:</p>
+   539→                    <p
+   540→                      className="text-[#E8EDFF] text-2xl font-bold"
+   541→                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   542→                    >
+   543→                      enade.uems.br
+   544→                    </p>
+   545→                    <p className="text-[#8899CC] text-base">código:</p>
+   546→                    <motion.p
+   547→                      className="text-[#C8A84B] text-4xl font-bold tracking-widest"
+   548→                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   549→                      animate={{
+   550→                        textShadow: [
+   551→                          '0 0 10px rgba(200, 168, 75, 0)',
+   552→                          '0 0 20px rgba(200, 168, 75, 0.4)',
+   553→                          '0 0 10px rgba(200, 168, 75, 0)',
+   554→                        ],
+   555→                      }}
+   556→                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+   557→                    >
+   558→                      {codigo}
+   559→                    </motion.p>
+   560→                  </div>
+   561→                </motion.div>
+   562→              </div>
+   563→
+   564→              {/* Welcome message */}
+   565→              <div className="max-w-lg text-center space-y-4">
+   566→                <motion.h2
+   567→                  className="text-5xl font-bold text-[#E8EDFF]"
+   568→                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   569→                  initial={{ y: 20, opacity: 0 }}
+   570→                  animate={{ y: 0, opacity: 1 }}
+   571→                  transition={{ duration: 0.6, delay: 0.2 }}
+   572→                >
+   573→                  Aguardando Início
+   574→                </motion.h2>
+   575→                <motion.p
+   576→                  className="text-[#8899CC] text-xl"
+   577→                  initial={{ y: 20, opacity: 0 }}
+   578→                  animate={{ y: 0, opacity: 1 }}
+   579→                  transition={{ duration: 0.6, delay: 0.4 }}
+   580→                >
+   581→                  Escaneie o QR Code ou acesse o endereço acima com o código da sessão para participar
+   582→                </motion.p>
+   583→                <motion.div
+   584→                  className="flex items-center justify-center gap-2 pt-2"
+   585→                  initial={{ y: 20, opacity: 0 }}
+   586→                  animate={{ y: 0, opacity: 1 }}
+   587→                  transition={{ duration: 0.6, delay: 0.6 }}
+   588→                >
+   589→                  <motion.div
+   590→                    animate={{ scale: [1, 1.15, 1] }}
+   591→                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+   592→                  >
+   593→                    <Users className="w-6 h-6 text-[#C8A84B]" />
+   594→                  </motion.div>
+   595→                  <span
+   596→                    className="text-[#E8EDFF] text-2xl font-semibold"
+   597→                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   598→                  >
+   599→                    <AnimatedCounter value={participantCount} /> {participantCount === 1 ? 'participante' : 'participantes'}
+   600→                  </span>
+   601→                </motion.div>
+   602→
+   603→                {/* Animated dots indicator */}
+   604→                <motion.div
+   605→                  className="flex items-center justify-center gap-1.5 pt-4"
+   606→                  initial={{ opacity: 0 }}
+   607→                  animate={{ opacity: 1 }}
+   608→                  transition={{ delay: 1 }}
+   609→                >
+   610→                  {[0, 1, 2].map((i) => (
+   611→                    <motion.div
+   612→                      key={i}
+   613→                      className="w-2 h-2 rounded-full bg-[#C8A84B]"
+   614→                      animate={{
+   615→                        scale: [1, 1.5, 1],
+   616→                        opacity: [0.3, 1, 0.3],
+   617→                      }}
+   618→                      transition={{
+   619→                        duration: 1.2,
+   620→                        repeat: Infinity,
+   621→                        delay: i * 0.4,
+   622→                        ease: 'easeInOut',
+   623→                      }}
+   624→                    />
+   625→                  ))}
+   626→                </motion.div>
+   627→              </div>
+   628→            </motion.div>
+   629→          ) : (
+   630→            /* ── Active Question State ── */
+   631→            <motion.div
+   632→              key={currentQuestionId || 'question'}
+   633→              initial={{ opacity: 0, y: 30 }}
+   634→              animate={{ opacity: 1, y: 0 }}
+   635→              exit={{ opacity: 0, y: -30 }}
+   636→              transition={{ duration: 0.4, ease: 'easeOut' }}
+   637→              className="flex-1 flex min-h-0"
+   638→            >
+   639→              {/* Left: Question Text + Image */}
+   640→              <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
+   641→                {/* Question number badge */}
+   642→                <div className="shrink-0 flex items-center gap-3">
+   643→                  <motion.span
+   644→                    className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
+   645→                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   646→                    initial={{ x: -30, opacity: 0 }}
+   647→                    animate={{ x: 0, opacity: 1 }}
+   648→                    transition={{ duration: 0.4, type: 'spring', bounce: 0.3 }}
+   649→                  >
+   650→                    Questão {currentIndex + 1}/{totalQuestions}
+   651→                  </motion.span>
+   652→                  <AnimatePresence>
+   653→                    {revealed && (
+   654→                      <motion.span
+   655→                        initial={{ scale: 0, rotate: -10 }}
+   656→                        animate={{ scale: 1, rotate: 0 }}
+   657→                        exit={{ scale: 0 }}
+   658→                        transition={{ duration: 0.5, type: 'spring', bounce: 0.6 }}
+   659→                        className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
+   660→                        style={{ fontFamily: 'var(--font-space-grotesk)' }}
+   661→                      >
+   662→                        Gabarito: {currentQuestion.correctAnswer}
+   663→                      </motion.span>
+   664→                    )}
+   665→                  </AnimatePresence>
+   666→                </div>
+   667→
+   668→                {/* Question image */}
+   669→                {currentQuestion.imageUrl && (
+   670→                  <motion.div
+   671→                    className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center"
+   672→                    initial={{ opacity: 0, scale: 0.9 }}
+   673→                    animate={{ opacity: 1, scale: 1 }}
+   674→                    transition={{ duration: 0.4, delay: 0.1 }}
+   675→                  >
+   676→                    <img
+   677→                      src={currentQuestion.imageUrl}
+   678→                      alt="Imagem da questão"
+   679→                      className="max-h-full max-w-full object-contain p-2"
+   680→                    />
+   681→                  </motion.div>
+   682→                )}
+   683→
+   684→                {/* Question text */}
+   685→                <motion.div
+   686→                  className="flex-1 min-h-0 overflow-y-auto pr-2"
+   687→                  initial={{ opacity: 0, y: 20 }}
+   688→                  animate={{ opacity: 1, y: 0 }}
+   689→                  transition={{ duration: 0.5, delay: 0.15 }}
+   690→                >
+   691→                  <p
+   692→                    className="text-[#E8EDFF] text-2xl leading-relaxed"
+   693→                    style={{ fontFamily: 'var(--font-inter)' }}
+   694→                  >
+   695→                    {currentQuestion.text}
+   696→                  </p>
+   697→                </motion.div>
+   698→              </div>
+   699→
+   700→              {/* Center: Pie Chart */}
+   701→              <motion.div
+   702→                className="w-[30%] flex flex-col items-center justify-center p-4 min-h-0"
+   703→                initial={{ opacity: 0, scale: 0.8 }}
+   704→                animate={{ opacity: 1, scale: 1 }}
+   705→                transition={{ duration: 0.5, delay: 0.1 }}
+   706→              >
+   707→                <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
+   708→                  {pieData.length > 0 ? (
+   709→                    <svg viewBox="0 0 200 200" className="w-full h-full">
+   710→                      {(() => {
+   711→                        const R = 70
+   712→                        const circumference = 2 * Math.PI * R
+   713→                        const cx = 100
+   714→                        const cy = 100
+   715→                        const strokeWidth = 35
+   716→                        let cumulativeOffset = 0
+   717→
+   718→                        return (
+   719→                          <>
+   720→                            {pieData.map((entry, i) => {
+   721→                              const pct = entry.value / totalVotes
+   722→                              const sliceLength = pct * circumference
+   723→                              const rotation = (cumulativeOffset / circumference) * 360 - 90
+   724→                              cumulativeOffset += entry.value
+   725→
+   726→                              const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
+   727→                              const midAngleDeg = rotation + (pct * 360) / 2
+   728→                              const RADIAN = Math.PI / 180
+   729→                              const labelR = R
+   730→                              const lx = cx + labelR * Math.cos(-midAngleDeg * RADIAN)
+   731→                              const ly = cy + labelR * Math.sin(-midAngleDeg * RADIAN)
+   732→
+   733→                              return (
+   734→                                <g key={`slice-${i}`}>
+   735→                                  <circle
+   736→                                    cx={cx}
+   737→                                    cy={cy}
+   738→                                    r={R}
+   739→                                    fill="none"
+   740→                                    stroke={entry.color}
+   741→                                    strokeWidth={strokeWidth}
+   742→                                    strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+   743→                                    strokeDashoffset={0}
+   744→                                    strokeLinecap="butt"
+   745→                                    transform={`rotate(${rotation} ${cx} ${cy})`}
+   746→                                    opacity={revealed && !isCorrect ? 0.35 : 1}
+   747→                                    style={{ transition: 'opacity 0.6s ease-out, stroke 0.4s ease-out' }}
+   748→                                  />
+   749→                                  {isCorrect && (
+   750→                                    <circle
+   751→                                      cx={cx}
+   752→                                      cy={cy}
+   753→                                      r={R}
+   754→                                      fill="none"
+   755→                                      stroke="#C8A84B"
+   756→                                      strokeWidth={strokeWidth + 4}
+   757→                                      strokeDasharray={`${sliceLength} ${circumference - sliceLength}`}
+   758→                                      strokeDashoffset={0}
+   759→                                      strokeLinecap="butt"
+   760→                                      transform={`rotate(${rotation} ${cx} ${cy})`}
+   761→                                      style={{ transition: 'stroke-dasharray 0.6s ease-out' }}
+   762→                                    />
+   763→                                  )}
+   764→                                  {pct >= 0.05 && (
+   765→                                    <text
+   766→                                      x={lx}
+   767→                                      y={ly}
+   768→                                      fill="#E8EDFF"
+   769→                                      textAnchor="middle"
+   770→                                      dominantBaseline="central"
+   771→                                      fontSize="11"
+   772→                                      fontWeight="bold"
+   773→                                      opacity={revealed && !isCorrect ? 0.35 : 1}
+   774→                                      style={{
+   775→                                        fontFamily: 'var(--font-space-grotesk)',
+   776→                                        transition: 'opacity 0.6s ease-out',
+   777→                                      }}
+   778→                                    >
+   779→                                      <tspan x={lx} dy="-0.5em">{entry.name}</tspan>
+   780→                                      <tspan x={lx} dy="1.2em">{`${(pct * 100).toFixed(0)}%`}</tspan>
+   781→                                    </text>
+   782→                                  )}
+   783→                                </g>
+   784→                              )
+   785→                            })}
+   786→                          </>
+   787→                        )
+   788→                      })()}
+   789→                    </svg>
+   790→                  ) : (
+   791→                    <motion.div
+   792→                      className="h-full flex items-center justify-center"
+   793→                      animate={{ opacity: [0.5, 1, 0.5] }}
+   794→                      transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+   795→                    >
+   796→                      <div className="text-center space-y-3">
+   797→                        <motion.div
+   798→                          className="w-28 h-28 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center"
+   799→                          animate={{ rotate: [0, 360] }}
+   800→                          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+   801→                        >
+   802→                          <span className="text-[#8899CC] text-base" style={{ display: 'inline-block', transform: 'rotate(0deg)' }}>Sem votos</span>
+   803→                        </motion.div>
+   804→                        <p className="text-[#8899CC] text-lg">Aguardando votos...</p>
+   805→                      </div>
+   806→                    </motion.div>
+   807→                  )}
+   808→                </div>
+   809→                {/* Total votes - animated */}
+   810→                <motion.div
+   811→                  className="mt-2 text-center"
+   812→                  key={totalVotes}
+   813→                  initial={{ scale: 1.2 }}
+   814→                  animate={{ scale: 1 }}
+   815→                  transition={{ duration: 0.3, type: 'spring', bounce: 0.4 }}
+   816→                >
+   817→                  <span className="text-[#8899CC] text-lg">
+   818→                    Total: <strong className="text-[#E8EDFF] text-xl"><AnimatedCounter value={totalVotes} /></strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+   819→                  </span>
+   820→                </motion.div>
+   821→              </motion.div>
+   822→
+   823→              {/* Right: Alternatives Legend */}
+   824→              <div className="w-[25%] flex flex-col justify-center p-4 gap-2 min-h-0 overflow-y-auto">
+   825→                <AnimatePresence>
+   826→                  {ALT_LABELS.map((alt, idx) => {
+   827→                    const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+   828→                    const votes = voteResults[alt] ?? 0
+   829→                    const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
+   830→                    const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+   831→                    const altText = currentQuestion?.[altKey] ?? ''
+   832→
+   833→                    return (
+   834→                      <motion.div
+   835→                        key={alt}
+   836→                        className={`rounded-xl px-4 py-3 ${
+   837→                          isCorrect
+   838→                            ? 'bg-[#C8A84B]/15 border-2 border-[#C8A84B]'
+   839→                            : revealed
+   840→                            ? 'opacity-35 border-2 border-transparent bg-[#0D1B3E]'
+   841→                            : 'border-2 border-transparent bg-[#0D1B3E]'
+   842→                        }`}
+   843→                        initial={{ opacity: 0, x: 40 }}
+   844→                        animate={{
+   845→                          opacity: 1,
+   846→                          x: 0,
+   847→                          scale: isCorrect ? [1, 1.05, 1] : 1,
+   848→                        }}
+   849→                        transition={{
+   850→                          duration: 0.3,
+   851→                          delay: idx * 0.08,
+   852→                          type: 'spring',
+   853→                          bounce: 0.2,
+   854→                        }}
+   855→                      >
+   856→                        <div className="flex items-center gap-3">
+   857→                          <motion.span
+   858→                            className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-white shrink-0"
+   859→                            style={{ backgroundColor: COLORS[alt] }}
+   860→                            animate={isCorrect ? {
+   861→                              boxShadow: [
+   862→                                '0 0 0px rgba(200, 168, 75, 0)',
+   863→                                '0 0 15px rgba(200, 168, 75, 0.6)',
+   864→                                '0 0 0px rgba(200, 168, 75, 0)',
+   865→                              ],
+   866→                            } : {}}
+   867→                            transition={{ duration: 1.5, repeat: isCorrect ? Infinity : 0, ease: 'easeInOut' }}
+   868→                          >
+   869→                            {alt}
+   870→                          </motion.span>
+   871→                          <div className="flex-1 min-w-0">
+   872→                            <p className="text-[#8899CC] text-xs line-clamp-1">{altText}</p>
+   873→                          </div>
+   874→                          <div className="shrink-0 text-right">
+   875→                            <motion.span
+   876→                              className={`font-bold text-lg ${isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'}`}
+   877→                              key={`${alt}-${pct}`}
+   878→                              initial={{ scale: 1.3 }}
+   879→                              animate={{ scale: 1 }}
+   880→                              transition={{ duration: 0.2 }}
+   881→                            >
+   882→                              {pct}%
+   883→                            </motion.span>
+   884→                            <span className="text-[#8899CC] text-sm ml-1">
+   885→                              ({votes})
+   886→                            </span>
+   887→                          </div>
+   888→                        </div>
+   889→
+   890→                        {/* Animated vote bar */}
+   891→                        {votes > 0 && (
+   892→                          <motion.div
+   893→                            className="mt-2 h-1.5 bg-[#1A2A5E] rounded-full overflow-hidden"
+   894→                          >
+   895→                            <motion.div
+   896→                              className="h-full rounded-full"
+   897→                              style={{ backgroundColor: COLORS[alt] }}
+   898→                              initial={{ width: 0 }}
+   899→                              animate={{ width: `${pct}%` }}
+   900→                              transition={{ duration: 0.8, ease: 'easeOut', delay: idx * 0.08 + 0.2 }}
+   901→                            />
+   902→                          </motion.div>
+   903→                        )}
+   904→                      </motion.div>
+   905→                    )
+   906→                  })}
+   907→                </AnimatePresence>
+   908→              </div>
+   909→            </motion.div>
+   910→          )}
+   911→        </AnimatePresence>
+   912→      </div>
+   913→
+   914→      {/* ── Bottom Bar ── */}
+   915→      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-1.5 flex items-center justify-between">
+   916→        <div className="flex items-center gap-2">
+   917→          <img src="/logo.svg" alt="UEMS" className="h-5 w-5 object-contain opacity-50" />
+   918→          <span className="text-[#3A4A7E] text-xs">UEMS/DIGES — ENADE Quiz</span>
+   919→        </div>
+   920→        {currentQuestion && (
+   921→          <span className="text-[#3A4A7E] text-xs">
+   922→            {currentQuestion.year} • {currentQuestion.course}
+   923→          </span>
+   924→        )}
+   925→      </div>
+   926→    </div>
+   927→  )
+   928→}
+   929→

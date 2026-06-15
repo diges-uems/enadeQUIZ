@@ -258,3 +258,43 @@ Stage Summary:
 - Dev server (Turbopack) still memory-hungry — use `NODE_OPTIONS="--max-old-space-size=256"`
 - SQLite ReadWriteOnce PVC limits true horizontal scaling — migrate to PostgreSQL for multi-writer
 - Socket.io uses in-memory Maps — needs Redis adapter for multi-pod scaling
+
+---
+Task ID: 11
+Agent: Main Agent (Cron Review)
+Task: QA testing, styling improvements, feature additions across all pages
+
+Work Log:
+- Investigated dev server crashes: confirmed agent-browser kills server (OOM) — NOT a code bug
+- All 4 pages verified via curl: /, /admin, /apresentacao/ENADE25, /votar/ENADE25 → all HTTP 200
+- **Votar page** (`/votar/[codigo]/page.tsx`) — Complete dark theme redesign:
+  - Dark UEMS theme matching landing/apresentacao pages (#050A1A, #0D1B3E, #C8A84B)
+  - Dark header with UEMS logo, session code badge, connection status indicator (Wifi icon)
+  - Identification screen: dark card with gold glow, dark input fields
+  - Waiting screen: 3 pulsing gold dots animation
+  - Voting screen: dark answer buttons with colored letter badges, gold hover border
+  - Voted screen: animated gold checkmark with pulsing timer dot
+  - Revealed screen: gold gabarito badge, correct=gold border, wrong=red border, others dimmed
+  - Finished screen: trophy animation with dark background
+  - New features: question progress bar, score tracker ("X acertos" in header), connection status
+- **Landing page** (`/app/page.tsx`) — Visual enhancements:
+  - 8 floating background particles (gold + blue, CSS animations)
+  - Pulsing border glow on session code card
+  - "How it works" 3-step section with numbered circles and staggered animations
+  - Improved feature badges with pill backgrounds and borders
+  - More visible admin link, keyboard shortcut hint "Pressione Enter"
+- **Admin page** (`/admin/page.tsx`) — Targeted improvements:
+  - Replaced "EQ" text badge with UEMS logo in header
+  - Unified footer styling (dark, with UEMS logo) across all admin views
+  - Added "Duplicate Session" feature (handleDuplicateSession + Copy button)
+  - Fixed cross-origin warning in next.config.ts (allowedDevOrigins)
+- **next.config.ts** — Added `allowedDevOrigins` for sandbox preview access
+- All pages lint clean with 0 errors
+
+Stage Summary:
+- All 4 pages now use consistent dark UEMS theme
+- Student voting page completely redesigned for better mobile UX
+- Admin page has new "Duplicate Session" feature
+- Landing page has animated particles and "How it works" section
+- Dev server cross-origin warning fixed
+- Agent Browser cannot be used in this sandbox (OOM kill) — QA done via curl
