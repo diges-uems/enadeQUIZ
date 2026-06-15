@@ -356,7 +356,7 @@ export default function ApresentacaoPage({
           ) : (
             <div className="space-y-5">
               {ranking.slice(0, 3).map((entry, idx) => {
-                const medals = ['🥇', '🥈', '🥉']
+                const medals = ['1o', '2o', '3o']
                 const medalColors = [
                   'border-[#FFD700] bg-[#FFD700]/10',
                   'border-[#C0C0C0] bg-[#C0C0C0]/10',

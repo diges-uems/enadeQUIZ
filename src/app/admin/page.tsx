@@ -189,7 +189,7 @@ function SortableQuestionItem({
             {question.year} &middot; {question.course}
           </span>
           {question.imageUrl && (
-            <span className="text-xs text-blue-500">📷</span>
+            <ImagePlus className="size-3 text-blue-500" />
           )}
         </div>
         <p className="text-sm line-clamp-2 text-foreground">
@@ -673,7 +673,7 @@ function VencedoresDialog({
   ranking: RankingEntry[]
   totalQuestions: number
 }) {
-  const medals = ['🥇', '🥈', '🥉']
+  const medals = ['1o', '2o', '3o']
   const medalColors = [
     'border-yellow-400 bg-yellow-50 dark:border-yellow-600 dark:bg-yellow-900/20',
     'border-gray-400 bg-gray-50 dark:border-gray-500 dark:bg-gray-800/20',
@@ -1254,11 +1254,10 @@ export default function AdminPage() {
 
     const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
     const sockets: Socket[] = []
-    const BATCH_SIZE = 20
-    const BATCH_DELAY = 80
+    const BATCH_SIZE = 100
 
     try {
-      // Phase 1: Connect students in batches
+      // Phase 1: Connect all students in parallel batches
       for (let i = 0; i < stressTestCount; i += BATCH_SIZE) {
         const batchEnd = Math.min(i + BATCH_SIZE, stressTestCount)
         const batchPromises: Promise<void>[] = []
@@ -1272,7 +1271,7 @@ export default function AdminPage() {
                   transports: ['websocket'],
                   forceNew: true,
                   reconnection: false,
-                  timeout: 5000,
+                  timeout: 8000,
                 })
 
                 sockets.push(s)
@@ -1296,7 +1295,7 @@ export default function AdminPage() {
                   resolve()
                 })
 
-                setTimeout(() => resolve(), 6000)
+                setTimeout(() => resolve(), 10000)
               } catch {
                 result.failed++
                 resolve()
@@ -1306,72 +1305,54 @@ export default function AdminPage() {
         }
 
         await Promise.all(batchPromises)
-        if (batchEnd < stressTestCount) {
-          await new Promise((r) => setTimeout(r, BATCH_DELAY))
-        }
       }
 
-      // Phase 2: Submit votes in batches
-      const VOTE_BATCH_SIZE = 50
-      const VOTE_BATCH_DELAY = 30
+      // Phase 2: Submit all votes at once
+      const votePromises: Promise<void>[] = []
+      for (let j = 0; j < stressTestCount; j++) {
+        const s = sockets[j]
+        if (!s || !s.connected) {
+          result.failed++
+          continue
+        }
 
-      for (let i = 0; i < stressTestCount; i += VOTE_BATCH_SIZE) {
-        const batchEnd = Math.min(i + VOTE_BATCH_SIZE, stressTestCount)
-        const votePromises: Promise<void>[] = []
-
-        for (let j = i; j < batchEnd; j++) {
-          const s = sockets[j]
-          if (!s || !s.connected) {
-            result.failed++
-            continue
-          }
-
-          votePromises.push(
-            new Promise<void>((resolve) => {
-              try {
-                const correctAnswer = currentQuestion?.correctAnswer
-                let choice: string
-                const rand = Math.random()
-                if (correctAnswer && rand < 0.30) {
-                  choice = correctAnswer
-                } else {
-                  const wrong = altLabels.filter((a) => a !== correctAnswer)
-                  choice = wrong[Math.floor(Math.random() * wrong.length)]
-                }
-
-                const delay = Math.random() * 400
-
-                setTimeout(() => {
-                  s.emit('submit-vote', {
-                    sessionCode: selectedSession.code,
-                    questionId: currentQuestionId,
-                    choice,
-                    correctAnswer: correctAnswer || undefined,
-                    studentId: `STRESS-${String(j + 1).padStart(5, '0')}`,
-                  })
-
-                  result.voted++
-                  result.voteDistribution[choice as keyof typeof result.voteDistribution]++
-
-                  setTimeout(() => {
-                    s.disconnect()
-                    resolve()
-                  }, 100)
-                }, delay)
-
-                setTimeout(() => resolve(), 2000)
-              } catch {
-                result.failed++
-                resolve()
+        votePromises.push(
+          new Promise<void>((resolve) => {
+            try {
+              const correctAnswer = currentQuestion?.correctAnswer
+              let choice: string
+              const rand = Math.random()
+              if (correctAnswer && rand < 0.30) {
+                choice = correctAnswer
+              } else {
+                const wrong = altLabels.filter((a) => a !== correctAnswer)
+                choice = wrong[Math.floor(Math.random() * wrong.length)]
               }
-            })
-          )
-        }
 
-        await Promise.all(votePromises)
-        if (batchEnd < stressTestCount) {
-          await new Promise((r) => setTimeout(r, VOTE_BATCH_DELAY))
-        }
+              s.emit('submit-vote', {
+                sessionCode: selectedSession.code,
+                questionId: currentQuestionId,
+                choice,
+                correctAnswer: correctAnswer || undefined,
+                studentId: `STRESS-${String(j + 1).padStart(5, '0')}`,
+              })
+
+              result.voted++
+              result.voteDistribution[choice as keyof typeof result.voteDistribution]++
+              resolve()
+            } catch {
+              result.failed++
+              resolve()
+            }
+          })
+        )
+      }
+
+      await Promise.all(votePromises)
+
+      // Disconnect all
+      for (const s of sockets) {
+        try { s.disconnect() } catch { /* */ }
       }
 
       result.durationMs = Date.now() - startTime
@@ -1689,7 +1670,7 @@ export default function AdminPage() {
                               className="bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-lg shadow-green-600/20"
                             >
                               <PlayCircle className="size-5" />
-                              ▶ Iniciar Apresentação
+                              Iniciar Apresentacao
                             </Button>
                             {selectedSession.questions.length === 0 && (
                               <p className="text-xs text-destructive">Adicione questões antes de iniciar</p>
@@ -1724,7 +1705,7 @@ export default function AdminPage() {
                             onClick={() => setResetConfirmOpen(true)}
                             className="bg-amber-600 hover:bg-amber-700 text-white h-10"
                           >
-                            🔄 Resetar Sessão
+                            Resetar Sessao
                           </Button>
                         )}
                       </div>
@@ -1757,7 +1738,7 @@ export default function AdminPage() {
                         className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white h-10 font-semibold shadow-lg shadow-red-600/20"
                       >
                         <Zap className="size-4" />
-                        ⚡ Stress Test ({stressTestCount} alunos)
+                        Stress Test ({stressTestCount} alunos)
                       </Button>
                       {!currentQuestionId && selectedSession.status === 'active' && (
                         <p className="text-xs text-muted-foreground mt-1">Selecione uma questão primeiro</p>
@@ -2120,7 +2101,7 @@ export default function AdminPage() {
                 onClick={handleResetSession}
                 className="bg-amber-600 text-white hover:bg-amber-700"
               >
-                🔄 Resetar Sessão
+                Resetar Sessao
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
