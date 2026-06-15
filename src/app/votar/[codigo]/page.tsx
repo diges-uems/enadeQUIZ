@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Users, Wifi, WifiOff } from 'lucide-react'
 import type { Session, Question } from '@/types'
+import { QuestionText, getActiveAlternatives } from '@/components/QuestionText'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -709,12 +710,7 @@ export default function StudentVotingPage({
               <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
                 ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
               </div>
-              <h2
-                className="text-lg font-semibold text-[#E8EDFF] leading-snug"
-                style={{ fontFamily: 'var(--font-inter)' }}
-              >
-                {currentQuestion.text}
-              </h2>
+              <QuestionText text={currentQuestion.text} textSize="base" className="text-[#E8EDFF]" />
             </div>
 
             {/* Optional image */}
@@ -730,16 +726,16 @@ export default function StudentVotingPage({
 
             {/* Answer buttons */}
             <div className="flex flex-col gap-3 mt-2">
-              {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+              {getActiveAlternatives(currentQuestion).map((letter, idx) => {
                 const altText = getAltText(letter, currentQuestion)
                 const color = ALT_COLORS[letter]
                 return (
                   <button
                     key={letter}
-                    onClick={() => handleVote(letter)}
+                    onClick={() => handleVote(letter as 'A' | 'B' | 'C' | 'D' | 'E')}
                     disabled={isSubmitting}
                     className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-[#0D1B3E] border-[#1A2A5E] hover:border-[#C8A84B] hover:shadow-[0_0_15px_rgba(200,168,75,0.15)] active:bg-[#1A2A5E] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-left"
-                    style={{ animation: `slideInLeft 0.3s ease-out ${['A','B','C','D','E'].indexOf(letter) * 0.06}s both` }}
+                    style={{ animation: `slideInLeft 0.3s ease-out ${idx * 0.06}s both` }}
                   >
                     <span
                       className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
@@ -826,7 +822,7 @@ export default function StudentVotingPage({
 
             {/* All alternatives with results */}
             <div className="flex flex-col gap-2.5">
-              {(['A', 'B', 'C', 'D', 'E'] as const).map((letter) => {
+              {getActiveAlternatives(currentQuestion).map((letter, idx) => {
                 const altText = getAltText(letter, currentQuestion)
                 const isCorrect = letter === correctAnswer
                 const isStudentChoice = letter === selectedChoice
@@ -861,7 +857,7 @@ export default function StudentVotingPage({
                   <div
                     key={letter}
                     className={containerClass}
-                    style={{ animation: `slideInLeft 0.3s ease-out ${['A','B','C','D','E'].indexOf(letter) * 0.05}s both` }}
+                    style={{ animation: `slideInLeft 0.3s ease-out ${idx * 0.05}s both` }}
                   >
                     <span
                       className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"

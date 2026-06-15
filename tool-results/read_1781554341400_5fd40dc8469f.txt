@@ -1,0 +1,2002 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import React, { useState, useEffect, useCallback, useRef } from 'react'
+     4→     4→import {
+     5→     5→  DndContext,
+     6→     6→  closestCenter,
+     7→     7→  KeyboardSensor,
+     8→     8→  PointerSensor,
+     9→     9→  useSensor,
+    10→    10→  useSensors,
+    11→    11→  type DragEndEvent,
+    12→    12→} from '@dnd-kit/core'
+    13→    13→import {
+    14→    14→  arrayMove,
+    15→    15→  SortableContext,
+    16→    16→  sortableKeyboardCoordinates,
+    17→    17→  useSortable,
+    18→    18→  verticalListSortingStrategy,
+    19→    19→} from '@dnd-kit/sortable'
+    20→    20→import { CSS } from '@dnd-kit/utilities'
+    21→    21→import { io, Socket } from 'socket.io-client'
+    22→    22→import { toast } from 'sonner'
+    23→    23→import {
+    24→    24→  Card,
+    25→    25→  CardContent,
+    26→    26→  CardDescription,
+    27→    27→  CardHeader,
+    28→    28→  CardTitle,
+    29→    29→} from '@/components/ui/card'
+    30→    30→import { Button } from '@/components/ui/button'
+    31→    31→import { Input } from '@/components/ui/input'
+    32→    32→import { Label } from '@/components/ui/label'
+    33→    33→import { Textarea } from '@/components/ui/textarea'
+    34→    34→import { Badge } from '@/components/ui/badge'
+    35→    35→import {
+    36→    36→  Dialog,
+    37→    37→  DialogContent,
+    38→    38→  DialogDescription,
+    39→    39→  DialogFooter,
+    40→    40→  DialogHeader,
+    41→    41→  DialogTitle,
+    42→    42→} from '@/components/ui/dialog'
+    43→    43→import {
+    44→    44→  AlertDialog,
+    45→    45→  AlertDialogAction,
+    46→    46→  AlertDialogCancel,
+    47→    47→  AlertDialogContent,
+    48→    48→  AlertDialogDescription,
+    49→    49→  AlertDialogFooter,
+    50→    50→  AlertDialogHeader,
+    51→    51→  AlertDialogTitle,
+    52→    52→} from '@/components/ui/alert-dialog'
+    53→    53→import {
+    54→    54→  Select,
+    55→    55→  SelectContent,
+    56→    56→  SelectItem,
+    57→    57→  SelectTrigger,
+    58→    58→  SelectValue,
+    59→    59→} from '@/components/ui/select'
+    60→    60→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    61→    61→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    62→    62→import {
+    63→    63→  Lock,
+    64→    64→  Plus,
+    65→    65→  Trash2,
+    66→    66→  ExternalLink,
+    67→    67→  Settings2,
+    68→    68→  GripVertical,
+    69→    69→  Pencil,
+    70→    70→  FileJson,
+    71→    71→  LogOut,
+    72→    72→  Loader2,
+    73→    73→  ChevronLeft,
+    74→    74→  ChevronRight,
+    75→    75→  Copy,
+    76→    76→  Pause,
+    77→    77→  Play,
+    78→    78→  KeyRound,
+    79→    79→  Users,
+    80→    80→  Trophy,
+    81→    81→  ImagePlus,
+    82→    82→  X,
+    83→    83→  Monitor,
+    84→    84→  PlayCircle,
+    85→    85→  StopCircle,
+    86→    86→  Zap,
+    87→    87→  Activity,
+    88→    88→} from 'lucide-react'
+    89→    89→import type { Session, Question, SessionStatus } from '@/types'
+    90→    90→import { UEMS_COURSES, CHART_COLORS } from '@/types'
+    91→    91→
+    92→    92→// ─── Types ────────────────────────────────────────────────────────
+    93→    93→interface VoteResults {
+    94→    94→  A: number
+    95→    95→  B: number
+    96→    96→  C: number
+    97→    97→  D: number
+    98→    98→  E: number
+    99→    99→  total: number
+   100→   100→}
+   101→   101→
+   102→   102→interface RankingEntry {
+   103→   103→  name: string
+   104→   104→  rgm: string
+   105→   105→  score: number
+   106→   106→  answers: number
+   107→   107→  corrects: number
+   108→   108→}
+   109→   109→
+   110→   110→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+   111→   111→
+   112→   112→// ─── Status Badge ───────────────────────────────────────────────────
+   113→   113→function StatusBadge({ status }: { status: SessionStatus }) {
+   114→   114→  const config: Record<SessionStatus, { label: string; className: string }> = {
+   115→   115→    waiting: {
+   116→   116→      label: 'Aguardando',
+   117→   117→      className:
+   118→   118→        'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+   119→   119→    },
+   120→   120→    active: {
+   121→   121→      label: 'Ativa',
+   122→   122→      className:
+   123→   123→        'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+   124→   124→    },
+   125→   125→    finished: {
+   126→   126→      label: 'Finalizada',
+   127→   127→      className:
+   128→   128→        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
+   129→   129→    },
+   130→   130→  }
+   131→   131→  const c = config[status] || config.waiting
+   132→   132→  return (
+   133→   133→    <Badge variant="outline" className={c.className}>
+   134→   134→      {c.label}
+   135→   135→    </Badge>
+   136→   136→  )
+   137→   137→}
+   138→   138→
+   139→   139→// ─── Sortable Question Item ─────────────────────────────────────────
+   140→   140→function SortableQuestionItem({
+   141→   141→  question,
+   142→   142→  index,
+   143→   143→  onEdit,
+   144→   144→  onDelete,
+   145→   145→}: {
+   146→   146→  question: Question
+   147→   147→  index: number
+   148→   148→  onEdit: (q: Question) => void
+   149→   149→  onDelete: (id: string) => void
+   150→   150→}) {
+   151→   151→  const {
+   152→   152→    attributes,
+   153→   153→    listeners,
+   154→   154→    setNodeRef,
+   155→   155→    transform,
+   156→   156→    transition,
+   157→   157→    isDragging,
+   158→   158→  } = useSortable({ id: question.id })
+   159→   159→
+   160→   160→  const style = {
+   161→   161→    transform: CSS.Transform.toString(transform),
+   162→   162→    transition,
+   163→   163→  }
+   164→   164→
+   165→   165→  return (
+   166→   166→    <div
+   167→   167→      ref={setNodeRef}
+   168→   168→      style={style}
+   169→   169→      className={`flex items-start gap-3 rounded-lg border p-3 ${
+   170→   170→        isDragging
+   171→   171→          ? 'z-50 border-[#C8A84B] bg-[#C8A84B]/5 shadow-lg'
+   172→   172→          : 'border-border bg-card hover:bg-accent/50'
+   173→   173→      }`}
+   174→   174→    >
+   175→   175→      <button
+   176→   176→        className="mt-1 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+   177→   177→        {...attributes}
+   178→   178→        {...listeners}
+   179→   179→      >
+   180→   180→        <GripVertical className="size-4" />
+   181→   181→      </button>
+   182→   182→
+   183→   183→      <div className="flex-1 min-w-0">
+   184→   184→        <div className="flex items-center gap-2 mb-1">
+   185→   185→          <span className="text-xs font-bold text-[#00338C] dark:text-[#C8A84B]">
+   186→   186→            #{index + 1}
+   187→   187→          </span>
+   188→   188→          <span className="text-xs text-muted-foreground">
+   189→   189→            {question.year} &middot; {question.course}
+   190→   190→          </span>
+   191→   191→          {question.imageUrl && (
+   192→   192→            <ImagePlus className="size-3 text-blue-500" />
+   193→   193→          )}
+   194→   194→        </div>
+   195→   195→        <p className="text-sm line-clamp-2 text-foreground">
+   196→   196→          {question.text}
+   197→   197→        </p>
+   198→   198→      </div>
+   199→   199→
+   200→   200→      <div className="flex items-center gap-1 shrink-0">
+   201→   201→        <Button
+   202→   202→          variant="ghost"
+   203→   203→          size="icon"
+   204→   204→          className="size-8"
+   205→   205→          onClick={() => onEdit(question)}
+   206→   206→          title="Editar questão"
+   207→   207→        >
+   208→   208→          <Pencil className="size-3.5" />
+   209→   209→        </Button>
+   210→   210→        <Button
+   211→   211→          variant="ghost"
+   212→   212→          size="icon"
+   213→   213→          className="size-8 text-destructive hover:text-destructive"
+   214→   214→          onClick={() => onDelete(question.id)}
+   215→   215→          title="Excluir questão"
+   216→   216→        >
+   217→   217→          <Trash2 className="size-3.5" />
+   218→   218→        </Button>
+   219→   219→      </div>
+   220→   220→    </div>
+   221→   221→  )
+   222→   222→}
+   223→   223→
+   224→   224→// ─── Question Form (Dialog) ─────────────────────────────────────────
+   225→   225→function QuestionFormDialog({
+   226→   226→  open,
+   227→   227→  onOpenChange,
+   228→   228→  question,
+   229→   229→  sessionId,
+   230→   230→  sessionCode,
+   231→   231→  onSave,
+   232→   232→}: {
+   233→   233→  open: boolean
+   234→   234→  onOpenChange: (open: boolean) => void
+   235→   235→  question: Question | null
+   236→   236→  sessionId: string
+   237→   237→  sessionCode: string
+   238→   238→  onSave: () => void
+   239→   239→}) {
+   240→   240→  const [text, setText] = useState('')
+   241→   241→  const [year, setYear] = useState('2025')
+   242→   242→  const [course, setCourse] = useState('')
+   243→   243→  const [altA, setAltA] = useState('')
+   244→   244→  const [altB, setAltB] = useState('')
+   245→   245→  const [altC, setAltC] = useState('')
+   246→   246→  const [altD, setAltD] = useState('')
+   247→   247→  const [altE, setAltE] = useState('')
+   248→   248→  const [correctAnswer, setCorrectAnswer] = useState('A')
+   249→   249→  const [imageUrl, setImageUrl] = useState<string | null>(null)
+   250→   250→  const [saving, setSaving] = useState(false)
+   251→   251→  const [uploading, setUploading] = useState(false)
+   252→   252→  const fileInputRef = useRef<HTMLInputElement>(null)
+   253→   253→
+   254→   254→  const isEditing = question !== null
+   255→   255→
+   256→   256→  useEffect(() => {
+   257→   257→    if (open) {
+   258→   258→      if (question) {
+   259→   259→        setText(question.text)
+   260→   260→        setYear(String(question.year))
+   261→   261→        setCourse(question.course)
+   262→   262→        setAltA(question.altA)
+   263→   263→        setAltB(question.altB)
+   264→   264→        setAltC(question.altC)
+   265→   265→        setAltD(question.altD)
+   266→   266→        setAltE(question.altE)
+   267→   267→        setCorrectAnswer(question.correctAnswer)
+   268→   268→        setImageUrl(question.imageUrl)
+   269→   269→      } else {
+   270→   270→        setText('')
+   271→   271→        setYear('2025')
+   272→   272→        setCourse('')
+   273→   273→        setAltA('')
+   274→   274→        setAltB('')
+   275→   275→        setAltC('')
+   276→   276→        setAltD('')
+   277→   277→        setAltE('')
+   278→   278→        setCorrectAnswer('A')
+   279→   279→        setImageUrl(null)
+   280→   280→      }
+   281→   281→    }
+   282→   282→  }, [open, question])
+   283→   283→
+   284→   284→  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   285→   285→    const file = e.target.files?.[0]
+   286→   286→    if (!file) return
+   287→   287→
+   288→   288→    // Validate type
+   289→   289→    const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+   290→   290→    if (!validTypes.includes(file.type)) {
+   291→   291→      toast.error('Tipo de arquivo inválido. Use PNG, JPG, GIF ou WebP.')
+   292→   292→      return
+   293→   293→    }
+   294→   294→
+   295→   295→    // Validate size (5MB)
+   296→   296→    if (file.size > 5 * 1024 * 1024) {
+   297→   297→      toast.error('Arquivo muito grande. Máximo 5MB.')
+   298→   298→      return
+   299→   299→    }
+   300→   300→
+   301→   301→    setUploading(true)
+   302→   302→    try {
+   303→   303→      // Convert to base64 data URL for reliable upload
+   304→   304→      const dataUrl = await new Promise<string>((resolve, reject) => {
+   305→   305→        const reader = new FileReader()
+   306→   306→        reader.onload = () => resolve(reader.result as string)
+   307→   307→        reader.onerror = reject
+   308→   308→        reader.readAsDataURL(file)
+   309→   309→      })
+   310→   310→
+   311→   311→      const res = await fetch('/api/upload', {
+   312→   312→        method: 'POST',
+   313→   313→        headers: { 'Content-Type': 'application/json' },
+   314→   314→        body: JSON.stringify({ dataUrl, filename: file.name }),
+   315→   315→      })
+   316→   316→
+   317→   317→      if (!res.ok) {
+   318→   318→        const errData = await res.json()
+   319→   319→        throw new Error(errData.error || 'Erro no upload')
+   320→   320→      }
+   321→   321→
+   322→   322→      const data = await res.json()
+   323→   323→      setImageUrl(data.url)
+   324→   324→      toast.success('Imagem enviada com sucesso!')
+   325→   325→    } catch (err) {
+   326→   326→      toast.error(err instanceof Error ? err.message : 'Erro ao enviar imagem.')
+   327→   327→    } finally {
+   328→   328→      setUploading(false)
+   329→   329→      // Reset file input
+   330→   330→      if (fileInputRef.current) {
+   331→   331→        fileInputRef.current.value = ''
+   332→   332→      }
+   333→   333→    }
+   334→   334→  }
+   335→   335→
+   336→   336→  const handleRemoveImage = () => {
+   337→   337→    setImageUrl(null)
+   338→   338→  }
+   339→   339→
+   340→   340→  const handleSubmit = async () => {
+   341→   341→    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim() || !altE.trim()) {
+   342→   342→      toast.error('Preencha todos os campos obrigatórios.')
+   343→   343→      return
+   344→   344→    }
+   345→   345→
+   346→   346→    setSaving(true)
+   347→   347→    try {
+   348→   348→      if (isEditing && question) {
+   349→   349→        const res = await fetch(
+   350→   350→          `/api/session/${sessionCode}/questions/${question.id}`,
+   351→   351→          {
+   352→   352→            method: 'PUT',
+   353→   353→            headers: { 'Content-Type': 'application/json' },
+   354→   354→            body: JSON.stringify({
+   355→   355→              text,
+   356→   356→              year: parseInt(year),
+   357→   357→              course,
+   358→   358→              altA,
+   359→   359→              altB,
+   360→   360→              altC,
+   361→   361→              altD,
+   362→   362→              altE,
+   363→   363→              correctAnswer,
+   364→   364→              imageUrl,
+   365→   365→            }),
+   366→   366→          }
+   367→   367→        )
+   368→   368→        if (!res.ok) throw new Error('Erro ao atualizar questão')
+   369→   369→        toast.success('Questão atualizada com sucesso!')
+   370→   370→      } else {
+   371→   371→        const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   372→   372→          method: 'POST',
+   373→   373→          headers: { 'Content-Type': 'application/json' },
+   374→   374→          body: JSON.stringify({
+   375→   375→            text,
+   376→   376→            year: parseInt(year),
+   377→   377→            course,
+   378→   378→            altA,
+   379→   379→            altB,
+   380→   380→            altC,
+   381→   381→            altD,
+   382→   382→            altE,
+   383→   383→            correctAnswer,
+   384→   384→            imageUrl,
+   385→   385→          }),
+   386→   386→        })
+   387→   387→        if (!res.ok) throw new Error('Erro ao criar questão')
+   388→   388→        toast.success('Questão criada com sucesso!')
+   389→   389→      }
+   390→   390→      onSave()
+   391→   391→      onOpenChange(false)
+   392→   392→    } catch {
+   393→   393→      toast.error('Erro ao salvar questão.')
+   394→   394→    } finally {
+   395→   395→      setSaving(false)
+   396→   396→    }
+   397→   397→  }
+   398→   398→
+   399→   399→  const years = Array.from({ length: 11 }, (_, i) => 2015 + i)
+   400→   400→
+   401→   401→  return (
+   402→   402→    <Dialog open={open} onOpenChange={onOpenChange}>
+   403→   403→      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+   404→   404→        <DialogHeader>
+   405→   405→          <DialogTitle>
+   406→   406→            {isEditing ? 'Editar Questão' : 'Adicionar Questão'}
+   407→   407→          </DialogTitle>
+   408→   408→          <DialogDescription>
+   409→   409→            {isEditing
+   410→   410→              ? 'Altere os campos desejados e salve.'
+   411→   411→              : 'Preencha os dados da questão do ENADE.'}
+   412→   412→          </DialogDescription>
+   413→   413→        </DialogHeader>
+   414→   414→
+   415→   415→        <div className="grid gap-4 py-2">
+   416→   416→          <div className="grid gap-2">
+   417→   417→            <Label htmlFor="q-text">Enunciado *</Label>
+   418→   418→            <Textarea
+   419→   419→              id="q-text"
+   420→   420→              value={text}
+   421→   421→              onChange={(e) => setText(e.target.value)}
+   422→   422→              rows={5}
+   423→   423→              placeholder="Digite o enunciado da questão..."
+   424→   424→            />
+   425→   425→          </div>
+   426→   426→
+   427→   427→          {/* Image Upload */}
+   428→   428→          <div className="grid gap-2">
+   429→   429→            <Label>Imagem (opcional)</Label>
+   430→   430→            <div className="flex items-center gap-3">
+   431→   431→              {imageUrl ? (
+   432→   432→                <div className="relative group rounded-lg border border-border overflow-hidden">
+   433→   433→                  <img
+   434→   434→                    src={imageUrl}
+   435→   435→                    alt="Imagem da questão"
+   436→   436→                    className="max-h-32 max-w-full object-contain"
+   437→   437→                  />
+   438→   438→                  <button
+   439→   439→                    type="button"
+   440→   440→                    onClick={handleRemoveImage}
+   441→   441→                    className="absolute top-1 right-1 size-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+   442→   442→                    title="Remover imagem"
+   443→   443→                  >
+   444→   444→                    <X className="size-3" />
+   445→   445→                  </button>
+   446→   446→                </div>
+   447→   447→              ) : (
+   448→   448→                <div className="flex items-center gap-3">
+   449→   449→                  <Button
+   450→   450→                    type="button"
+   451→   451→                    variant="outline"
+   452→   452→                    size="sm"
+   453→   453→                    onClick={() => fileInputRef.current?.click()}
+   454→   454→                    disabled={uploading}
+   455→   455→                  >
+   456→   456→                    {uploading ? (
+   457→   457→                      <Loader2 className="size-4 animate-spin" />
+   458→   458→                    ) : (
+   459→   459→                      <ImagePlus className="size-4" />
+   460→   460→                    )}
+   461→   461→                    {uploading ? 'Enviando...' : 'Adicionar Imagem'}
+   462→   462→                  </Button>
+   463→   463→                </div>
+   464→   464→              )}
+   465→   465→              <input
+   466→   466→                ref={fileInputRef}
+   467→   467→                type="file"
+   468→   468→                accept="image/png,image/jpeg,image/gif,image/webp"
+   469→   469→                onChange={handleImageUpload}
+   470→   470→                className="hidden"
+   471→   471→              />
+   472→   472→            </div>
+   473→   473→            <p className="text-xs text-muted-foreground">
+   474→   474→              PNG, JPG, GIF ou WebP. Máximo 5MB.
+   475→   475→            </p>
+   476→   476→          </div>
+   477→   477→
+   478→   478→          <div className="grid grid-cols-2 gap-4">
+   479→   479→            <div className="grid gap-2">
+   480→   480→              <Label>Ano ENADE *</Label>
+   481→   481→              <Select value={year} onValueChange={setYear}>
+   482→   482→                <SelectTrigger className="w-full">
+   483→   483→                  <SelectValue placeholder="Selecione o ano" />
+   484→   484→                </SelectTrigger>
+   485→   485→                <SelectContent>
+   486→   486→                  {years.map((y) => (
+   487→   487→                    <SelectItem key={y} value={String(y)}>
+   488→   488→                      {y}
+   489→   489→                    </SelectItem>
+   490→   490→                  ))}
+   491→   491→                </SelectContent>
+   492→   492→              </Select>
+   493→   493→            </div>
+   494→   494→            <div className="grid gap-2">
+   495→   495→              <Label>Curso</Label>
+   496→   496→              <Select value={course} onValueChange={setCourse}>
+   497→   497→                <SelectTrigger className="w-full">
+   498→   498→                  <SelectValue placeholder="Selecione o curso" />
+   499→   499→                </SelectTrigger>
+   500→   500→                <SelectContent>
+   501→   501→                  {UEMS_COURSES.map((c) => (
+   502→   502→                    <SelectItem key={c} value={c}>
+   503→   503→                      {c}
+   504→   504→                    </SelectItem>
+   505→   505→                  ))}
+   506→   506→                </SelectContent>
+   507→   507→              </Select>
+   508→   508→            </div>
+   509→   509→          </div>
+   510→   510→
+   511→   511→          <div className="grid gap-3">
+   512→   512→            <Label>Alternativas *</Label>
+   513→   513→            {[
+   514→   514→              { letter: 'A', value: altA, setter: setAltA },
+   515→   515→              { letter: 'B', value: altB, setter: setAltB },
+   516→   516→              { letter: 'C', value: altC, setter: setAltC },
+   517→   517→              { letter: 'D', value: altD, setter: setAltD },
+   518→   518→              { letter: 'E', value: altE, setter: setAltE },
+   519→   519→            ].map(({ letter, value, setter }) => (
+   520→   520→              <div key={letter} className="flex items-center gap-2">
+   521→   521→                <span className="flex size-7 items-center justify-center rounded bg-[#00338C] text-xs font-bold text-white shrink-0">
+   522→   522→                  {letter}
+   523→   523→                </span>
+   524→   524→                <Input
+   525→   525→                  value={value}
+   526→   526→                  onChange={(e) => setter(e.target.value)}
+   527→   527→                  placeholder={`Alternativa ${letter}`}
+   528→   528→                  className="flex-1"
+   529→   529→                />
+   530→   530→              </div>
+   531→   531→            ))}
+   532→   532→          </div>
+   533→   533→
+   534→   534→          <div className="grid gap-2">
+   535→   535→            <Label>Gabarito *</Label>
+   536→   536→            <RadioGroup
+   537→   537→              value={correctAnswer}
+   538→   538→              onValueChange={setCorrectAnswer}
+   539→   539→              className="flex gap-4"
+   540→   540→            >
+   541→   541→              {['A', 'B', 'C', 'D', 'E'].map((l) => (
+   542→   542→                <div key={l} className="flex items-center gap-1.5">
+   543→   543→                  <RadioGroupItem value={l} id={`gab-${l}`} />
+   544→   544→                  <Label htmlFor={`gab-${l}`} className="cursor-pointer">
+   545→   545→                    {l}
+   546→   546→                  </Label>
+   547→   547→                </div>
+   548→   548→              ))}
+   549→   549→            </RadioGroup>
+   550→   550→          </div>
+   551→   551→        </div>
+   552→   552→
+   553→   553→        <DialogFooter>
+   554→   554→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   555→   555→            Cancelar
+   556→   556→          </Button>
+   557→   557→          <Button
+   558→   558→            onClick={handleSubmit}
+   559→   559→            disabled={saving || uploading}
+   560→   560→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   561→   561→          >
+   562→   562→            {saving && <Loader2 className="size-4 animate-spin" />}
+   563→   563→            {isEditing ? 'Salvar Alterações' : 'Criar Questão'}
+   564→   564→          </Button>
+   565→   565→        </DialogFooter>
+   566→   566→      </DialogContent>
+   567→   567→    </Dialog>
+   568→   568→  )
+   569→   569→}
+   570→   570→
+   571→   571→// ─── Import JSON Dialog ──────────────────────────────────────────────
+   572→   572→function ImportJsonDialog({
+   573→   573→  open,
+   574→   574→  onOpenChange,
+   575→   575→  sessionCode,
+   576→   576→  onImport,
+   577→   577→}: {
+   578→   578→  open: boolean
+   579→   579→  onOpenChange: (open: boolean) => void
+   580→   580→  sessionCode: string
+   581→   581→  onImport: () => void
+   582→   582→}) {
+   583→   583→  const [jsonText, setJsonText] = useState('')
+   584→   584→  const [importing, setImporting] = useState(false)
+   585→   585→
+   586→   586→  useEffect(() => {
+   587→   587→    if (open) setJsonText('')
+   588→   588→  }, [open])
+   589→   589→
+   590→   590→  const handleImport = async () => {
+   591→   591→    if (!jsonText.trim()) {
+   592→   592→      toast.error('Cole o JSON no campo acima.')
+   593→   593→      return
+   594→   594→    }
+   595→   595→    let parsed: unknown
+   596→   596→    try {
+   597→   597→      parsed = JSON.parse(jsonText)
+   598→   598→    } catch {
+   599→   599→      toast.error('JSON inválido. Verifique o formato.')
+   600→   600→      return
+   601→   601→    }
+   602→   602→    if (!Array.isArray(parsed)) {
+   603→   603→      toast.error('O JSON deve ser um array de questões.')
+   604→   604→      return
+   605→   605→    }
+   606→   606→
+   607→   607→    setImporting(true)
+   608→   608→    try {
+   609→   609→      const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   610→   610→        method: 'POST',
+   611→   611→        headers: { 'Content-Type': 'application/json' },
+   612→   612→        body: JSON.stringify(parsed),
+   613→   613→      })
+   614→   614→      if (!res.ok) throw new Error('Erro ao importar')
+   615→   615→      const data = await res.json()
+   616→   616→      toast.success(`${Array.isArray(data) ? data.length : 1} questão(ões) importada(s)!`)
+   617→   617→      onImport()
+   618→   618→      onOpenChange(false)
+   619→   619→    } catch {
+   620→   620→      toast.error('Erro ao importar questões.')
+   621→   621→    } finally {
+   622→   622→      setImporting(false)
+   623→   623→    }
+   624→   624→  }
+   625→   625→
+   626→   626→  return (
+   627→   627→    <Dialog open={open} onOpenChange={onOpenChange}>
+   628→   628→      <DialogContent className="sm:max-w-2xl">
+   629→   629→        <DialogHeader>
+   630→   630→          <DialogTitle>Importar Questões (JSON)</DialogTitle>
+   631→   631→          <DialogDescription>
+   632→   632→            Cole um array JSON com as questões no formato especificado.
+   633→   633→          </DialogDescription>
+   634→   634→        </DialogHeader>
+   635→   635→        <div className="grid gap-2">
+   636→   636→          <Label htmlFor="json-import">JSON</Label>
+   637→   637→          <Textarea
+   638→   638→            id="json-import"
+   639→   639→            value={jsonText}
+   640→   640→            onChange={(e) => setJsonText(e.target.value)}
+   641→   641→            rows={12}
+   642→   642→            className="font-mono text-xs"
+   643→   643→            placeholder={`[\n  {\n    "year": 2023,\n    "course": "Administração",\n    "text": "Enunciado...",\n    "alternatives": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },\n    "correctAnswer": "B"\n  }\n]`}
+   644→   644→          />
+   645→   645→        </div>
+   646→   646→        <DialogFooter>
+   647→   647→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   648→   648→            Cancelar
+   649→   649→          </Button>
+   650→   650→          <Button
+   651→   651→            onClick={handleImport}
+   652→   652→            disabled={importing}
+   653→   653→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   654→   654→          >
+   655→   655→            {importing && <Loader2 className="size-4 animate-spin" />}
+   656→   656→            Importar
+   657→   657→          </Button>
+   658→   658→        </DialogFooter>
+   659→   659→      </DialogContent>
+   660→   660→    </Dialog>
+   661→   661→  )
+   662→   662→}
+   663→   663→
+   664→   664→// ─── Vencedores Dialog ──────────────────────────────────────────────
+   665→   665→function VencedoresDialog({
+   666→   666→  open,
+   667→   667→  onOpenChange,
+   668→   668→  ranking,
+   669→   669→  totalQuestions,
+   670→   670→}: {
+   671→   671→  open: boolean
+   672→   672→  onOpenChange: (open: boolean) => void
+   673→   673→  ranking: RankingEntry[]
+   674→   674→  totalQuestions: number
+   675→   675→}) {
+   676→   676→  const medals = ['1o', '2o', '3o']
+   677→   677→  const medalColors = [
+   678→   678→    'border-yellow-400 bg-yellow-50 dark:border-yellow-600 dark:bg-yellow-900/20',
+   679→   679→    'border-gray-400 bg-gray-50 dark:border-gray-500 dark:bg-gray-800/20',
+   680→   680→    'border-amber-600 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
+   681→   681→  ]
+   682→   682→
+   683→   683→  return (
+   684→   684→    <Dialog open={open} onOpenChange={onOpenChange}>
+   685→   685→      <DialogContent className="sm:max-w-md">
+   686→   686→        <DialogHeader>
+   687→   687→          <DialogTitle className="flex items-center gap-2 text-xl">
+   688→   688→            <Trophy className="size-5 text-[#C8A84B]" />
+   689→   689→            Ranking — Top 3
+   690→   690→          </DialogTitle>
+   691→   691→          <DialogDescription>
+   692→   692→            Maiores pontuadores da sessão
+   693→   693→          </DialogDescription>
+   694→   694→        </DialogHeader>
+   695→   695→
+   696→   696→        {ranking.length === 0 ? (
+   697→   697→          <div className="py-8 text-center text-muted-foreground">
+   698→   698→            <p>Nenhum voto registrado ainda</p>
+   699→   699→          </div>
+   700→   700→        ) : (
+   701→   701→          <div className="grid gap-3 py-2">
+   702→   702→            {ranking.slice(0, 3).map((entry, idx) => (
+   703→   703→              <div
+   704→   704→                key={entry.rgm}
+   705→   705→                className={`flex items-center gap-3 p-3 rounded-xl border ${medalColors[idx] || 'border-border'}`}
+   706→   706→              >
+   707→   707→                <span className="text-2xl">{medals[idx]}</span>
+   708→   708→                <div className="flex-1 min-w-0">
+   709→   709→                  <p className="font-bold truncate">{entry.name}</p>
+   710→   710→                  <p className="text-xs text-muted-foreground">RGM: {entry.rgm}</p>
+   711→   711→                </div>
+   712→   712→                <div className="text-right shrink-0">
+   713→   713→                  <p className="text-[#C8A84B] font-bold text-lg">
+   714→   714→                    {entry.corrects}/{totalQuestions}
+   715→   715→                  </p>
+   716→   716→                  <p className="text-xs text-muted-foreground">
+   717→   717→                    {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   718→   718→                  </p>
+   719→   719→                </div>
+   720→   720→              </div>
+   721→   721→            ))}
+   722→   722→          </div>
+   723→   723→        )}
+   724→   724→
+   725→   725→        <DialogFooter>
+   726→   726→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   727→   727→            Fechar
+   728→   728→          </Button>
+   729→   729→        </DialogFooter>
+   730→   730→      </DialogContent>
+   731→   731→    </Dialog>
+   732→   732→  )
+   733→   733→}
+   734→   734→
+   735→   735→// ─── Main Admin Page ────────────────────────────────────────────────
+   736→   736→export default function AdminPage() {
+   737→   737→  // Auth state
+   738→   738→  const [isAuthenticated, setIsAuthenticated] = useState(false)
+   739→   739→  const [password, setPassword] = useState('')
+   740→   740→  const [authLoading, setAuthLoading] = useState(false)
+   741→   741→  const [authError, setAuthError] = useState('')
+   742→   742→
+   743→   743→  // Dashboard state
+   744→   744→  const [sessions, setSessions] = useState<Session[]>([])
+   745→   745→  const [loading, setLoading] = useState(false)
+   746→   746→
+   747→   747→  // New session dialog
+   748→   748→  const [newSessionOpen, setNewSessionOpen] = useState(false)
+   749→   749→  const [newTitle, setNewTitle] = useState('')
+   750→   750→  const [creatingSession, setCreatingSession] = useState(false)
+   751→   751→
+   752→   752→  // Session management
+   753→   753→  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+   754→   754→  const [managingSession, setManagingSession] = useState(false)
+   755→   755→  const [activeTab, setActiveTab] = useState('questoes')
+   756→   756→
+   757→   757→  // Question form
+   758→   758→  const [questionFormOpen, setQuestionFormOpen] = useState(false)
+   759→   759→  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
+   760→   760→
+   761→   761→  // Import JSON
+   762→   762→  const [importJsonOpen, setImportJsonOpen] = useState(false)
+   763→   763→
+   764→   764→  // Delete confirmation
+   765→   765→  const [deleteSessionCode, setDeleteSessionCode] = useState<string | null>(null)
+   766→   766→  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null)
+   767→   767→  const [deleting, setDeleting] = useState(false)
+   768→   768→
+   769→   769→  // ── Presenter / Socket state ──
+   770→   770→  const [socket, setSocket] = useState<Socket | null>(null)
+   771→   771→  const [participantCount, setParticipantCount] = useState(0)
+   772→   772→  const [totalParticipants, setTotalParticipants] = useState(0)
+   773→   773→  const [votingPaused, setVotingPaused] = useState(false)
+   774→   774→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   775→   775→    A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
+   776→   776→  })
+   777→   777→  const [revealed, setRevealed] = useState(false)
+   778→   778→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   779→   779→  const [isNavigating, setIsNavigating] = useState(false)
+   780→   780→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   781→   781→  const [showRanking, setShowRanking] = useState(false)
+   782→   782→  const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
+   783→   783→  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+   784→   784→
+   785→   785→  // Stress test state
+   786→   786→  const [stressTestOpen, setStressTestOpen] = useState(false)
+   787→   787→  const [stressTestRunning, setStressTestRunning] = useState(false)
+   788→   788→  const [stressTestCount, setStressTestCount] = useState(1000)
+   789→   789→  const [stressTestResult, setStressTestResult] = useState<{
+   790→   790→    totalStudents: number
+   791→   791→    connected: number
+   792→   792→    voted: number
+   793→   793→    failed: number
+   794→   794→    durationMs: number
+   795→   795→    votesPerSecond: number
+   796→   796→    voteDistribution: { A: number; B: number; C: number; D: number; E: number }
+   797→   797→    errors: string[]
+   798→   798→  } | null>(null)
+   799→   799→
+   800→   800→  // DnD sensors
+   801→   801→  const sensors = useSensors(
+   802→   802→    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+   803→   803→    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+   804→   804→  )
+   805→   805→
+   806→   806→  // ── Derived values for presenter ──
+   807→   807→  const currentQuestion = selectedSession?.questions.find(
+   808→   808→    (q) => q.id === currentQuestionId
+   809→   809→  ) ?? null
+   810→   810→  const currentIndex = selectedSession?.questions.findIndex(
+   811→   811→    (q) => q.id === currentQuestionId
+   812→   812→  ) ?? -1
+   813→   813→  const totalQuestions = selectedSession?.questions.length ?? 0
+   814→   814→  const hasPrev = currentIndex > 0
+   815→   815→  const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
+   816→   816→
+   817→   817→  // Check auth on mount
+   818→   818→  useEffect(() => {
+   819→   819→    const token = sessionStorage.getItem('admin_token')
+   820→   820→    if (token) setIsAuthenticated(true)
+   821→   821→  }, [])
+   822→   822→
+   823→   823→  // Fetch sessions when authenticated
+   824→   824→  const fetchSessions = useCallback(async () => {
+   825→   825→    setLoading(true)
+   826→   826→    try {
+   827→   827→      const res = await fetch('/api/session')
+   828→   828→      if (res.ok) {
+   829→   829→        const data = await res.json()
+   830→   830→        setSessions(data)
+   831→   831→      }
+   832→   832→    } catch {
+   833→   833→      toast.error('Erro ao carregar sessões.')
+   834→   834→    } finally {
+   835→   835→      setLoading(false)
+   836→   836→    }
+   837→   837→  }, [])
+   838→   838→
+   839→   839→  useEffect(() => {
+   840→   840→    if (isAuthenticated) fetchSessions()
+   841→   841→  }, [isAuthenticated, fetchSessions])
+   842→   842→
+   843→   843→  // ── Socket connection when managing a session ──
+   844→   844→  useEffect(() => {
+   845→   845→    if (!managingSession || !selectedSession) {
+   846→   846→      // Disconnect when leaving session management
+   847→   847→      if (socket) {
+   848→   848→        socket.disconnect()
+   849→   849→        setSocket(null)
+   850→   850→      }
+   851→   851→      return
+   852→   852→    }
+   853→   853→
+   854→   854→    const sessionCode = selectedSession.code
+   855→   855→
+   856→   856→    const socketInstance = io('/?XTransformPort=3003', {
+   857→   857→      transports: ['websocket', 'polling'],
+   858→   858→      forceNew: true,
+   859→   859→      reconnection: true,
+   860→   860→      reconnectionAttempts: 10,
+   861→   861→      reconnectionDelay: 1000,
+   862→   862→      timeout: 10000,
+   863→   863→    })
+   864→   864→
+   865→   865→    socketInstance.on('connect', () => {
+   866→   866→      socketInstance.emit('join-session', {
+   867→   867→        sessionCode,
+   868→   868→        role: 'presenter',
+   869→   869→      })
+   870→   870→    })
+   871→   871→
+   872→   872→    socketInstance.on('vote-results', (data: VoteResults) => {
+   873→   873→      setVoteResults(data)
+   874→   874→    })
+   875→   875→
+   876→   876→    socketInstance.on('participant-count', (data: { live: number; total: number }) => {
+   877→   877→      setParticipantCount(data.live)
+   878→   878→      setTotalParticipants(data.total)
+   879→   879→    })
+   880→   880→
+   881→   881→    socketInstance.on('session-state', (data: {
+   882→   882→      participantCount: number
+   883→   883→      totalParticipants: number
+   884→   884→      currentQuestionId: string | null
+   885→   885→      votingPaused: boolean
+   886→   886→    }) => {
+   887→   887→      setParticipantCount(data.participantCount)
+   888→   888→      setTotalParticipants(data.totalParticipants)
+   889→   889→      if (data.currentQuestionId) {
+   890→   890→        setCurrentQuestionId(data.currentQuestionId)
+   891→   891→      }
+   892→   892→      setVotingPaused(data.votingPaused)
+   893→   893→    })
+   894→   894→
+   895→   895→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   896→   896→      setRanking(data)
+   897→   897→    })
+   898→   898→
+   899→   899→    setSocket(socketInstance)
+   900→   900→
+   901→   901→    // Reset presenter state
+   902→   902→    setCurrentQuestionId(selectedSession.currentQuestionId)
+   903→   903→    setVotingPaused(false)
+   904→   904→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   905→   905→    setRevealed(false)
+   906→   906→    setParticipantCount(0)
+   907→   907→    setRanking([])
+   908→   908→
+   909→   909→    if (selectedSession.currentQuestionId) {
+   910→   910→      const q = selectedSession.questions.find(
+   911→   911→        (q) => q.id === selectedSession.currentQuestionId
+   912→   912→      )
+   913→   913→      if (q) setRevealed(q.isRevealed)
+   914→   914→    }
+   915→   915→
+   916→   916→    return () => {
+   917→   917→      socketInstance.disconnect()
+   918→   918→      setSocket(null)
+   919→   919→    }
+   920→   920→  }, [managingSession, selectedSession?.code])
+   921→   921→
+   922→   922→  // ── Auth handlers ────────────────────────────────────────────
+   923→   923→  const handleLogin = async (e: React.FormEvent) => {
+   924→   924→    e.preventDefault()
+   925→   925→    setAuthLoading(true)
+   926→   926→    setAuthError('')
+   927→   927→    try {
+   928→   928→      const res = await fetch('/api/admin/auth', {
+   929→   929→        method: 'POST',
+   930→   930→        headers: { 'Content-Type': 'application/json' },
+   931→   931→        body: JSON.stringify({ password }),
+   932→   932→      })
+   933→   933→      if (res.ok) {
+   934→   934→        const data = await res.json()
+   935→   935→        sessionStorage.setItem('admin_token', data.token)
+   936→   936→        setIsAuthenticated(true)
+   937→   937→        toast.success('Autenticado com sucesso!')
+   938→   938→      } else {
+   939→   939→        setAuthError('Senha incorreta.')
+   940→   940→      }
+   941→   941→    } catch {
+   942→   942→      setAuthError('Erro de conexão.')
+   943→   943→    } finally {
+   944→   944→      setAuthLoading(false)
+   945→   945→    }
+   946→   946→  }
+   947→   947→
+   948→   948→  const handleLogout = () => {
+   949→   949→    sessionStorage.removeItem('admin_token')
+   950→   950→    setIsAuthenticated(false)
+   951→   951→    setSelectedSession(null)
+   952→   952→    setManagingSession(false)
+   953→   953→    setPassword('')
+   954→   954→  }
+   955→   955→
+   956→   956→  // ── Session handlers ─────────────────────────────────────────
+   957→   957→  const handleCreateSession = async () => {
+   958→   958→    if (!newTitle.trim()) {
+   959→   959→      toast.error('Informe um título para a sessão.')
+   960→   960→      return
+   961→   961→    }
+   962→   962→    setCreatingSession(true)
+   963→   963→    try {
+   964→   964→      const res = await fetch('/api/session', {
+   965→   965→        method: 'POST',
+   966→   966→        headers: { 'Content-Type': 'application/json' },
+   967→   967→        body: JSON.stringify({ title: newTitle.trim() }),
+   968→   968→      })
+   969→   969→      if (!res.ok) throw new Error()
+   970→   970→      const session = await res.json()
+   971→   971→      toast.success(`Sessão criada! Código: ${session.code}`)
+   972→   972→      setNewTitle('')
+   973→   973→      setNewSessionOpen(false)
+   974→   974→      fetchSessions()
+   975→   975→    } catch {
+   976→   976→      toast.error('Erro ao criar sessão.')
+   977→   977→    } finally {
+   978→   978→      setCreatingSession(false)
+   979→   979→    }
+   980→   980→  }
+   981→   981→
+   982→   982→  const handleDeleteSession = async () => {
+   983→   983→    if (!deleteSessionCode) return
+   984→   984→    setDeleting(true)
+   985→   985→    try {
+   986→   986→      const res = await fetch(`/api/session/${deleteSessionCode}`, {
+   987→   987→        method: 'DELETE',
+   988→   988→      })
+   989→   989→      if (!res.ok) throw new Error()
+   990→   990→      toast.success('Sessão excluída.')
+   991→   991→      if (selectedSession?.code === deleteSessionCode) {
+   992→   992→        setSelectedSession(null)
+   993→   993→        setManagingSession(false)
+   994→   994→      }
+   995→   995→      fetchSessions()
+   996→   996→    } catch {
+   997→   997→      toast.error('Erro ao excluir sessão.')
+   998→   998→    } finally {
+   999→   999→      setDeleting(false)
+  1000→  1000→      setDeleteSessionCode(null)
+  1001→  1001→    }
+  1002→  1002→  }
+  1003→  1003→
+  1004→  1004→  const handleDuplicateSession = async (sourceCode: string) => {
+  1005→  1005→    try {
+  1006→  1006→      // Fetch the source session
+  1007→  1007→      const res = await fetch(`/api/session/${sourceCode}`)
+  1008→  1008→      if (!res.ok) throw new Error()
+  1009→  1009→      const source: Session = await res.json()
+  1010→  1010→
+  1011→  1011→      // Create a new session with "- Cópia" suffix
+  1012→  1012→      const createRes = await fetch('/api/session', {
+  1013→  1013→        method: 'POST',
+  1014→  1014→        headers: { 'Content-Type': 'application/json' },
+  1015→  1015→        body: JSON.stringify({
+  1016→  1016→          title: `${source.title} — Cópia`,
+  1017→  1017→        }),
+  1018→  1018→      })
+  1019→  1019→      if (!createRes.ok) throw new Error()
+  1020→  1020→      const newSession = await createRes.json()
+  1021→  1021→
+  1022→  1022→      // Copy all questions to the new session
+  1023→  1023→      for (const q of source.questions) {
+  1024→  1024→        await fetch(`/api/session/${newSession.code}/questions`, {
+  1025→  1025→          method: 'POST',
+  1026→  1026→          headers: { 'Content-Type': 'application/json' },
+  1027→  1027→          body: JSON.stringify({
+  1028→  1028→            text: q.text,
+  1029→  1029→            year: q.year,
+  1030→  1030→            course: q.course,
+  1031→  1031→            altA: q.altA,
+  1032→  1032→            altB: q.altB,
+  1033→  1033→            altC: q.altC,
+  1034→  1034→            altD: q.altD,
+  1035→  1035→            altE: q.altE,
+  1036→  1036→            correctAnswer: q.correctAnswer,
+  1037→  1037→            imageUrl: q.imageUrl,
+  1038→  1038→          }),
+  1039→  1039→        })
+  1040→  1040→      }
+  1041→  1041→
+  1042→  1042→      toast.success(`Sessão duplicada: ${newSession.code}`)
+  1043→  1043→      fetchSessions()
+  1044→  1044→    } catch {
+  1045→  1045→      toast.error('Erro ao duplicar sessão.')
+  1046→  1046→    }
+  1047→  1047→  }
+  1048→  1048→
+  1049→  1049→  const handleDeleteQuestion = async () => {
+  1050→  1050→    if (!deleteQuestionId || !selectedSession) return
+  1051→  1051→    setDeleting(true)
+  1052→  1052→    try {
+  1053→  1053→      const res = await fetch(
+  1054→  1054→        `/api/session/${selectedSession.code}/questions/${deleteQuestionId}`,
+  1055→  1055→        { method: 'DELETE' }
+  1056→  1056→      )
+  1057→  1057→      if (!res.ok) throw new Error()
+  1058→  1058→      toast.success('Questão excluída.')
+  1059→  1059→      refreshSession()
+  1060→  1060→    } catch {
+  1061→  1061→      toast.error('Erro ao excluir questão.')
+  1062→  1062→    } finally {
+  1063→  1063→      setDeleting(false)
+  1064→  1064→      setDeleteQuestionId(null)
+  1065→  1065→    }
+  1066→  1066→  }
+  1067→  1067→
+  1068→  1068→  // ── Session detail / management ──────────────────────────────
+  1069→  1069→  const openSessionManagement = (session: Session) => {
+  1070→  1070→    setSelectedSession(session)
+  1071→  1071→    setManagingSession(true)
+  1072→  1072→    setActiveTab('questoes')
+  1073→  1073→  }
+  1074→  1074→
+  1075→  1075→  const refreshSession = useCallback(async () => {
+  1076→  1076→    if (!selectedSession) return
+  1077→  1077→    try {
+  1078→  1078→      const res = await fetch(`/api/session/${selectedSession.code}`)
+  1079→  1079→      if (res.ok) {
+  1080→  1080→        const data = await res.json()
+  1081→  1081→        setSelectedSession(data)
+  1082→  1082→      }
+  1083→  1083→    } catch {
+  1084→  1084→      toast.error('Erro ao atualizar sessão.')
+  1085→  1085→    }
+  1086→  1086→  }, [selectedSession])
+  1087→  1087→
+  1088→  1088→  // ── Drag & drop reorder ──────────────────────────────────────
+  1089→  1089→  const handleDragEnd = async (event: DragEndEvent) => {
+  1090→  1090→    if (!selectedSession) return
+  1091→  1091→    const { active, over } = event
+  1092→  1092→    if (!over || active.id === over.id) return
+  1093→  1093→
+  1094→  1094→    const oldIndex = selectedSession.questions.findIndex(
+  1095→  1095→      (q) => q.id === active.id
+  1096→  1096→    )
+  1097→  1097→    const newIndex = selectedSession.questions.findIndex(
+  1098→  1098→      (q) => q.id === over.id
+  1099→  1099→    )
+  1100→  1100→    if (oldIndex === -1 || newIndex === -1) return
+  1101→  1101→
+  1102→  1102→    const reordered = arrayMove(selectedSession.questions, oldIndex, newIndex)
+  1103→  1103→    // Optimistic update
+  1104→  1104→    setSelectedSession({ ...selectedSession, questions: reordered })
+  1105→  1105→
+  1106→  1106→    try {
+  1107→  1107→      await fetch(`/api/session/${selectedSession.code}/questions`, {
+  1108→  1108→        method: 'PUT',
+  1109→  1109→        headers: { 'Content-Type': 'application/json' },
+  1110→  1110→        body: JSON.stringify({ questionIds: reordered.map((q) => q.id) }),
+  1111→  1111→      })
+  1112→  1112→    } catch {
+  1113→  1113→      toast.error('Erro ao reordenar questões.')
+  1114→  1114→      refreshSession()
+  1115→  1115→    }
+  1116→  1116→  }
+  1117→  1117→
+  1118→  1118→  // ── Presenter handlers ──────────────────────────────────────
+  1119→  1119→  const updateSession = async (updates: {
+  1120→  1120→    status?: string
+  1121→  1121→    currentQuestionId?: string | null
+  1122→  1122→  }) => {
+  1123→  1123→    if (!selectedSession) return
+  1124→  1124→    try {
+  1125→  1125→      await fetch(`/api/session/${selectedSession.code}`, {
+  1126→  1126→        method: 'PATCH',
+  1127→  1127→        headers: { 'Content-Type': 'application/json' },
+  1128→  1128→        body: JSON.stringify(updates),
+  1129→  1129→      })
+  1130→  1130→    } catch (err) {
+  1131→  1131→      console.error('Failed to update session:', err)
+  1132→  1132→    }
+  1133→  1133→  }
+  1134→  1134→
+  1135→  1135→  const handleStartSession = async () => {
+  1136→  1136→    if (!selectedSession) return
+  1137→  1137→    await updateSession({ status: 'active' })
+  1138→  1138→    setSelectedSession({ ...selectedSession, status: 'active' })
+  1139→  1139→    socket?.emit('activate-question', {
+  1140→  1140→      sessionCode: selectedSession.code,
+  1141→  1141→      questionId: selectedSession.questions[0]?.id,
+  1142→  1142→    })
+  1143→  1143→    toast.success('Sessão iniciada!')
+  1144→  1144→  }
+  1145→  1145→
+  1146→  1146→  const handleEndSession = async () => {
+  1147→  1147→    if (!selectedSession) return
+  1148→  1148→    await updateSession({ status: 'finished' })
+  1149→  1149→    setSelectedSession({ ...selectedSession, status: 'finished' })
+  1150→  1150→    socket?.emit('end-session', {
+  1151→  1151→      sessionCode: selectedSession.code,
+  1152→  1152→    })
+  1153→  1153→    toast.success('Sessão encerrada!')
+  1154→  1154→  }
+  1155→  1155→
+  1156→  1156→  const handlePrevious = async () => {
+  1157→  1157→    if (!selectedSession || !hasPrev || isNavigating) return
+  1158→  1158→    setIsNavigating(true)
+  1159→  1159→    const prevQuestion = selectedSession.questions[currentIndex - 1]
+  1160→  1160→    setCurrentQuestionId(prevQuestion.id)
+  1161→  1161→    setRevealed(prevQuestion.isRevealed)
+  1162→  1162→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1163→  1163→    await updateSession({ currentQuestionId: prevQuestion.id })
+  1164→  1164→    socket?.emit('activate-question', {
+  1165→  1165→      sessionCode: selectedSession.code,
+  1166→  1166→      questionId: prevQuestion.id,
+  1167→  1167→    })
+  1168→  1168→    setTimeout(() => setIsNavigating(false), 300)
+  1169→  1169→  }
+  1170→  1170→
+  1171→  1171→  const handleNext = async () => {
+  1172→  1172→    if (!selectedSession || !hasNext || isNavigating) return
+  1173→  1173→    setIsNavigating(true)
+  1174→  1174→    const nextQuestion = selectedSession.questions[currentIndex + 1]
+  1175→  1175→    setCurrentQuestionId(nextQuestion.id)
+  1176→  1176→    setRevealed(nextQuestion.isRevealed)
+  1177→  1177→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1178→  1178→    await updateSession({ currentQuestionId: nextQuestion.id })
+  1179→  1179→    socket?.emit('next-question', {
+  1180→  1180→      sessionCode: selectedSession.code,
+  1181→  1181→      questionId: nextQuestion.id,
+  1182→  1182→    })
+  1183→  1183→    setTimeout(() => setIsNavigating(false), 300)
+  1184→  1184→  }
+  1185→  1185→
+  1186→  1186→  const handleToggleVoting = () => {
+  1187→  1187→    const newPaused = !votingPaused
+  1188→  1188→    setVotingPaused(newPaused)
+  1189→  1189→    socket?.emit('toggle-voting', {
+  1190→  1190→      sessionCode: selectedSession?.code,
+  1191→  1191→      paused: newPaused,
+  1192→  1192→    })
+  1193→  1193→  }
+  1194→  1194→
+  1195→  1195→  const handleRevealAnswer = async () => {
+  1196→  1196→    if (!currentQuestion || !selectedSession) return
+  1197→  1197→    setRevealed(true)
+  1198→  1198→    await fetch(
+  1199→  1199→      `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
+  1200→  1200→      {
+  1201→  1201→        method: 'PUT',
+  1202→  1202→        headers: { 'Content-Type': 'application/json' },
+  1203→  1203→        body: JSON.stringify({ isRevealed: true }),
+  1204→  1204→      }
+  1205→  1205→    )
+  1206→  1206→    socket?.emit('reveal-answer', {
+  1207→  1207→      sessionCode: selectedSession.code,
+  1208→  1208→      questionId: currentQuestion.id,
+  1209→  1209→      correctAnswer: currentQuestion.correctAnswer,
+  1210→  1210→    })
+  1211→  1211→  }
+  1212→  1212→
+  1213→  1213→  const handleGetRanking = () => {
+  1214→  1214→    socket?.emit('get-ranking', { sessionCode: selectedSession?.code })
+  1215→  1215→    setShowRanking(true)
+  1216→  1216→  }
+  1217→  1217→
+  1218→  1218→  const handleResetSession = async () => {
+  1219→  1219→    if (!selectedSession) return
+  1220→  1220→    try {
+  1221→  1221→      const res = await fetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
+  1222→  1222→      if (!res.ok) throw new Error()
+  1223→  1223→      const data = await res.json()
+  1224→  1224→      setSelectedSession(data)
+  1225→  1225→      setCurrentQuestionId(null)
+  1226→  1226→      setRevealed(false)
+  1227→  1227→      setVotingPaused(false)
+  1228→  1228→      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1229→  1229→      setRanking([])
+  1230→  1230→      setShowQrOnPresentation(false)
+  1231→  1231→      socket?.emit('session-reset', { sessionCode: selectedSession.code })
+  1232→  1232→      toast.success('Sessão resetada com sucesso!')
+  1233→  1233→    } catch {
+  1234→  1234→      toast.error('Erro ao resetar sessão.')
+  1235→  1235→    }
+  1236→  1236→    setResetConfirmOpen(false)
+  1237→  1237→  }
+  1238→  1238→
+  1239→  1239→  const handleStressTest = async () => {
+  1240→  1240→    if (!selectedSession || !currentQuestionId) {
+  1241→  1241→      toast.error('Selecione uma questão antes de iniciar o stress test.')
+  1242→  1242→      return
+  1243→  1243→    }
+  1244→  1244→    setStressTestRunning(true)
+  1245→  1245→    setStressTestResult(null)
+  1246→  1246→
+  1247→  1247→    const startTime = Date.now()
+  1248→  1248→    const result = {
+  1249→  1249→      totalStudents: stressTestCount,
+  1250→  1250→      connected: 0,
+  1251→  1251→      voted: 0,
+  1252→  1252→      failed: 0,
+  1253→  1253→      durationMs: 0,
+  1254→  1254→      votesPerSecond: 0,
+  1255→  1255→      voteDistribution: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+  1256→  1256→      errors: [] as string[],
+  1257→  1257→    }
+  1258→  1258→
+  1259→  1259→    const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
+  1260→  1260→    // Browser limits ~6 concurrent WebSocket connections to same origin
+  1261→  1261→    // Use waves: connect small batch -> join -> vote -> disconnect -> next batch
+  1262→  1262→    const WAVE_SIZE = 6
+  1263→  1263→
+  1264→  1264→    const simulateStudent = (idx: number): Promise<void> => {
+  1265→  1265→      return new Promise<void>((resolve) => {
+  1266→  1266→        try {
+  1267→  1267→          const s = io('/?XTransformPort=3003', {
+  1268→  1268→            transports: ['websocket'],
+  1269→  1269→            forceNew: true,
+  1270→  1270→            reconnection: false,
+  1271→  1271→            timeout: 5000,
+  1272→  1272→          })
+  1273→  1273→
+  1274→  1274→          const timeout = setTimeout(() => {
+  1275→  1275→            result.failed++
+  1276→  1276→            if (result.errors.length < 10) {
+  1277→  1277→              result.errors.push(`Aluno ${idx + 1}: timeout`)
+  1278→  1278→            }
+  1279→  1279→            try { s.disconnect() } catch { /* */ }
+  1280→  1280→            resolve()
+  1281→  1281→          }, 8000)
+  1282→  1282→
+  1283→  1283→          s.on('connect', () => {
+  1284→  1284→            result.connected++
+  1285→  1285→            s.emit('join-session', {
+  1286→  1286→              sessionCode: selectedSession.code,
+  1287→  1287→              role: 'student',
+  1288→  1288→              name: `Aluno Stress ${idx + 1}`,
+  1289→  1289→              rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+  1290→  1290→            })
+  1291→  1291→
+  1292→  1292→            // Vote immediately after joining
+  1293→  1293→            const correctAnswer = currentQuestion?.correctAnswer
+  1294→  1294→            let choice: string
+  1295→  1295→            const rand = Math.random()
+  1296→  1296→            if (correctAnswer && rand < 0.30) {
+  1297→  1297→              choice = correctAnswer
+  1298→  1298→            } else {
+  1299→  1299→              const wrong = altLabels.filter((a) => a !== correctAnswer)
+  1300→  1300→              choice = wrong[Math.floor(Math.random() * wrong.length)]
+  1301→  1301→            }
+  1302→  1302→
+  1303→  1303→            s.emit('submit-vote', {
+  1304→  1304→              sessionCode: selectedSession.code,
+  1305→  1305→              questionId: currentQuestionId,
+  1306→  1306→              choice,
+  1307→  1307→              correctAnswer: correctAnswer || undefined,
+  1308→  1308→              studentId: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+  1309→  1309→            })
+  1310→  1310→
+  1311→  1311→            result.voted++
+  1312→  1312→            result.voteDistribution[choice as keyof typeof result.voteDistribution]++
+  1313→  1313→
+  1314→  1314→            // Disconnect right away to free the connection slot
+  1315→  1315→            clearTimeout(timeout)
+  1316→  1316→            setTimeout(() => {
+  1317→  1317→              try { s.disconnect() } catch { /* */ }
+  1318→  1318→              resolve()
+  1319→  1319→            }, 50)
+  1320→  1320→          })
+  1321→  1321→
+  1322→  1322→          s.on('connect_error', (err: Error) => {
+  1323→  1323→            clearTimeout(timeout)
+  1324→  1324→            result.failed++
+  1325→  1325→            if (result.errors.length < 10) {
+  1326→  1326→              result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
+  1327→  1327→            }
+  1328→  1328→            try { s.disconnect() } catch { /* */ }
+  1329→  1329→            resolve()
+  1330→  1330→          })
+  1331→  1331→        } catch {
+  1332→  1332→          result.failed++
+  1333→  1333→          resolve()
+  1334→  1334→        }
+  1335→  1335→      })
+  1336→  1336→    }
+  1337→  1337→
+  1338→  1338→    try {
+  1339→  1339→      // Process in waves of WAVE_SIZE concurrent connections
+  1340→  1340→      for (let i = 0; i < stressTestCount; i += WAVE_SIZE) {
+  1341→  1341→        const wavePromises: Promise<void>[] = []
+  1342→  1342→        const waveEnd = Math.min(i + WAVE_SIZE, stressTestCount)
+  1343→  1343→
+  1344→  1344→        for (let j = i; j < waveEnd; j++) {
+  1345→  1345→          wavePromises.push(simulateStudent(j))
+  1346→  1346→        }
+  1347→  1347→
+  1348→  1348→        await Promise.all(wavePromises)
+  1349→  1349→      }
+  1350→  1350→
+  1351→  1351→      result.durationMs = Date.now() - startTime
+  1352→  1352→      result.votesPerSecond = result.durationMs > 0 ? Math.round((result.voted / result.durationMs) * 1000) : 0
+  1353→  1353→
+  1354→  1354→      setStressTestResult(result)
+  1355→  1355→      toast.success(`Stress test concluido! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
+  1356→  1356→    } catch (err) {
+  1357→  1357→      result.durationMs = Date.now() - startTime
+  1358→  1358→      result.errors.push(`Erro fatal: ${err instanceof Error ? err.message : 'Desconhecido'}`)
+  1359→  1359→      setStressTestResult(result)
+  1360→  1360→      toast.error('Erro durante o stress test.')
+  1361→  1361→    } finally {
+  1362→  1362→      setStressTestRunning(false)
+  1363→  1363→    }
+  1364→  1364→  }
+  1365→  1365→
+  1366→  1366→  const handleShowQr = () => {
+  1367→  1367→    const newVisible = !showQrOnPresentation
+  1368→  1368→    setShowQrOnPresentation(newVisible)
+  1369→  1369→    socket?.emit('show-qr', {
+  1370→  1370→      sessionCode: selectedSession?.code,
+  1371→  1371→      visible: newVisible,
+  1372→  1372→    })
+  1373→  1373→  }
+  1374→  1374→
+  1375→  1375→  const handleSelectQuestion = async (questionId: string) => {
+  1376→  1376→    if (isNavigating || !selectedSession) return
+  1377→  1377→    setIsNavigating(true)
+  1378→  1378→    const q = selectedSession.questions.find((q) => q.id === questionId)
+  1379→  1379→    setCurrentQuestionId(questionId)
+  1380→  1380→    setRevealed(q?.isRevealed ?? false)
+  1381→  1381→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1382→  1382→    await updateSession({ currentQuestionId: questionId })
+  1383→  1383→    socket?.emit('activate-question', {
+  1384→  1384→      sessionCode: selectedSession.code,
+  1385→  1385→      questionId,
+  1386→  1386→    })
+  1387→  1387→    setTimeout(() => setIsNavigating(false), 300)
+  1388→  1388→  }
+  1389→  1389→
+  1390→  1390→  const formatDate = (dateStr: string) => {
+  1391→  1391→    try {
+  1392→  1392→      return new Date(dateStr).toLocaleDateString('pt-BR', {
+  1393→  1393→        day: '2-digit',
+  1394→  1394→        month: '2-digit',
+  1395→  1395→        year: 'numeric',
+  1396→  1396→        hour: '2-digit',
+  1397→  1397→        minute: '2-digit',
+  1398→  1398→      })
+  1399→  1399→    } catch {
+  1400→  1400→      return dateStr
+  1401→  1401→    }
+  1402→  1402→  }
+  1403→  1403→
+  1404→  1404→  const totalVotes = voteResults.total || ALT_LABELS.reduce((sum, alt) => sum + (voteResults[alt] ?? 0), 0)
+  1405→  1405→
+  1406→  1406→  // ── LOGIN SCREEN ─────────────────────────────────────────────
+  1407→  1407→  if (!isAuthenticated) {
+  1408→  1408→    return (
+  1409→  1409→      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4">
+  1410→  1410→        <Card className="w-full max-w-md shadow-2xl border-0">
+  1411→  1411→          <CardHeader className="text-center pb-2">
+  1412→  1412→            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
+  1413→  1413→              <Lock className="size-8 text-white" />
+  1414→  1414→            </div>
+  1415→  1415→            <CardTitle className="text-2xl font-bold text-[#00338C]">
+  1416→  1416→              ENADE Quiz — Admin
+  1417→  1417→            </CardTitle>
+  1418→  1418→            <CardDescription>
+  1419→  1419→              Digite a senha para acessar o painel administrativo
+  1420→  1420→            </CardDescription>
+  1421→  1421→          </CardHeader>
+  1422→  1422→          <CardContent>
+  1423→  1423→            <form onSubmit={handleLogin} className="grid gap-4">
+  1424→  1424→              <div className="grid gap-2">
+  1425→  1425→                <Label htmlFor="password">Senha</Label>
+  1426→  1426→                <Input
+  1427→  1427→                  id="password"
+  1428→  1428→                  type="password"
+  1429→  1429→                  placeholder="Digite a senha de acesso"
+  1430→  1430→                  value={password}
+  1431→  1431→                  onChange={(e) => {
+  1432→  1432→                    setPassword(e.target.value)
+  1433→  1433→                    setAuthError('')
+  1434→  1434→                  }}
+  1435→  1435→                  autoFocus
+  1436→  1436→                />
+  1437→  1437→                {authError && (
+  1438→  1438→                  <p className="text-sm text-destructive">{authError}</p>
+  1439→  1439→                )}
+  1440→  1440→              </div>
+  1441→  1441→              <Button
+  1442→  1442→                type="submit"
+  1443→  1443→                disabled={authLoading}
+  1444→  1444→                className="w-full bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1445→  1445→              >
+  1446→  1446→                {authLoading && <Loader2 className="size-4 animate-spin" />}
+  1447→  1447→                Entrar
+  1448→  1448→              </Button>
+  1449→  1449→            </form>
+  1450→  1450→          </CardContent>
+  1451→  1451→        </Card>
+  1452→  1452→        <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
+  1453→  1453→          <div className="flex items-center justify-center gap-2">
+  1454→  1454→            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+  1455→  1455→            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+  1456→  1456→          </div>
+  1457→  1457→        </footer>
+  1458→  1458→      </div>
+  1459→  1459→    )
+  1460→  1460→  }
+  1461→  1461→
+  1462→  1462→  // ── SESSION MANAGEMENT VIEW ──────────────────────────────────
+  1463→  1463→  if (managingSession && selectedSession) {
+  1464→  1464→    return (
+  1465→  1465→      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+  1466→  1466→        {/* Header */}
+  1467→  1467→        <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+  1468→  1468→          <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+  1469→  1469→            <Button
+  1470→  1470→              variant="ghost"
+  1471→  1471→              size="sm"
+  1472→  1472→              onClick={() => {
+  1473→  1473→                setManagingSession(false)
+  1474→  1474→                fetchSessions()
+  1475→  1475→              }}
+  1476→  1476→            >
+  1477→  1477→              <ChevronLeft className="size-4" />
+  1478→  1478→              Voltar
+  1479→  1479→            </Button>
+  1480→  1480→            <div className="flex-1 min-w-0">
+  1481→  1481→              <h1 className="truncate text-sm font-semibold text-foreground">
+  1482→  1482→                {selectedSession.title}
+  1483→  1483→              </h1>
+  1484→  1484→              <p className="text-xs text-muted-foreground">
+  1485→  1485→                Código: {selectedSession.code}
+  1486→  1486→              </p>
+  1487→  1487→            </div>
+  1488→  1488→            <StatusBadge status={selectedSession.status} />
+  1489→  1489→            <Button
+  1490→  1490→              variant="outline"
+  1491→  1491→              size="sm"
+  1492→  1492→              onClick={() =>
+  1493→  1493→                window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1494→  1494→              }
+  1495→  1495→              className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1496→  1496→            >
+  1497→  1497→              <ExternalLink className="size-3.5" />
+  1498→  1498→              Abrir Apresentação
+  1499→  1499→            </Button>
+  1500→  1500→          </div>
+  1501→  1501→        </header>
+  1502→  1502→
+  1503→  1503→        <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+  1504→  1504→          {/* Tabbed Interface */}
+  1505→  1505→          <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1506→  1506→            <TabsList className="mb-4">
+  1507→  1507→              <TabsTrigger value="questoes" className="gap-1.5">
+  1508→  1508→                <Settings2 className="size-3.5" />
+  1509→  1509→                Questões
+  1510→  1510→              </TabsTrigger>
+  1511→  1511→              <TabsTrigger value="apresentar" className="gap-1.5">
+  1512→  1512→                <Monitor className="size-3.5" />
+  1513→  1513→                Apresentar
+  1514→  1514→              </TabsTrigger>
+  1515→  1515→            </TabsList>
+  1516→  1516→
+  1517→  1517→            {/* ═══ TAB 1: QUESTÕES ═══ */}
+  1518→  1518→            <TabsContent value="questoes">
+  1519→  1519→              {/* Session Info Card */}
+  1520→  1520→              <Card className="mb-6">
+  1521→  1521→                <CardHeader className="pb-3">
+  1522→  1522→                  <CardTitle className="text-lg">Informações da Sessão</CardTitle>
+  1523→  1523→                </CardHeader>
+  1524→  1524→                <CardContent>
+  1525→  1525→                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+  1526→  1526→                    <div>
+  1527→  1527→                      <p className="text-muted-foreground">Código</p>
+  1528→  1528→                      <div className="flex items-center gap-1">
+  1529→  1529→                        <p className="font-mono font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1530→  1530→                          {selectedSession.code}
+  1531→  1531→                        </p>
+  1532→  1532→                        <Button
+  1533→  1533→                          variant="ghost"
+  1534→  1534→                          size="icon"
+  1535→  1535→                          className="size-6"
+  1536→  1536→                          onClick={() => {
+  1537→  1537→                            navigator.clipboard.writeText(selectedSession.code)
+  1538→  1538→                            toast.success('Código copiado!')
+  1539→  1539→                          }}
+  1540→  1540→                        >
+  1541→  1541→                          <Copy className="size-3" />
+  1542→  1542→                        </Button>
+  1543→  1543→                      </div>
+  1544→  1544→                    </div>
+  1545→  1545→                    <div>
+  1546→  1546→                      <p className="text-muted-foreground">Título</p>
+  1547→  1547→                      <p className="font-medium truncate">{selectedSession.title}</p>
+  1548→  1548→                    </div>
+  1549→  1549→                    <div>
+  1550→  1550→                      <p className="text-muted-foreground">Questões</p>
+  1551→  1551→                      <p className="font-medium">{selectedSession.questions.length}</p>
+  1552→  1552→                    </div>
+  1553→  1553→                    <div>
+  1554→  1554→                      <p className="text-muted-foreground">Criada em</p>
+  1555→  1555→                      <p className="font-medium">{formatDate(selectedSession.createdAt)}</p>
+  1556→  1556→                    </div>
+  1557→  1557→                  </div>
+  1558→  1558→                </CardContent>
+  1559→  1559→              </Card>
+  1560→  1560→
+  1561→  1561→              {/* Questions Header */}
+  1562→  1562→              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+  1563→  1563→                <h2 className="text-lg font-semibold">
+  1564→  1564→                  Questões ({selectedSession.questions.length})
+  1565→  1565→                </h2>
+  1566→  1566→                <div className="flex gap-2">
+  1567→  1567→                  <Button
+  1568→  1568→                    variant="outline"
+  1569→  1569→                    size="sm"
+  1570→  1570→                    onClick={() => setImportJsonOpen(true)}
+  1571→  1571→                  >
+  1572→  1572→                    <FileJson className="size-3.5" />
+  1573→  1573→                    Importar JSON
+  1574→  1574→                  </Button>
+  1575→  1575→                  <Button
+  1576→  1576→                    size="sm"
+  1577→  1577→                    className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1578→  1578→                    onClick={() => {
+  1579→  1579→                      setEditingQuestion(null)
+  1580→  1580→                      setQuestionFormOpen(true)
+  1581→  1581→                    }}
+  1582→  1582→                  >
+  1583→  1583→                    <Plus className="size-3.5" />
+  1584→  1584→                    Adicionar Questão
+  1585→  1585→                  </Button>
+  1586→  1586→                </div>
+  1587→  1587→              </div>
+  1588→  1588→
+  1589→  1589→              {/* Questions List with DnD */}
+  1590→  1590→              {selectedSession.questions.length === 0 ? (
+  1591→  1591→                <Card className="py-12">
+  1592→  1592→                  <div className="text-center text-muted-foreground">
+  1593→  1593→                    <p className="text-lg font-medium">Nenhuma questão</p>
+  1594→  1594→                    <p className="text-sm mt-1">
+  1595→  1595→                      Adicione questões manualmente ou importe via JSON.
+  1596→  1596→                    </p>
+  1597→  1597→                  </div>
+  1598→  1598→                </Card>
+  1599→  1599→              ) : (
+  1600→  1600→                <DndContext
+  1601→  1601→                  sensors={sensors}
+  1602→  1602→                  collisionDetection={closestCenter}
+  1603→  1603→                  onDragEnd={handleDragEnd}
+  1604→  1604→                >
+  1605→  1605→                  <SortableContext
+  1606→  1606→                    items={selectedSession.questions.map((q) => q.id)}
+  1607→  1607→                    strategy={verticalListSortingStrategy}
+  1608→  1608→                  >
+  1609→  1609→                    <div className="grid gap-2">
+  1610→  1610→                      {selectedSession.questions.map((q, i) => (
+  1611→  1611→                        <SortableQuestionItem
+  1612→  1612→                          key={q.id}
+  1613→  1613→                          question={q}
+  1614→  1614→                          index={i}
+  1615→  1615→                          onEdit={(question) => {
+  1616→  1616→                            setEditingQuestion(question)
+  1617→  1617→                            setQuestionFormOpen(true)
+  1618→  1618→                          }}
+  1619→  1619→                          onDelete={(id) => setDeleteQuestionId(id)}
+  1620→  1620→                        />
+  1621→  1621→                      ))}
+  1622→  1622→                    </div>
+  1623→  1623→                  </SortableContext>
+  1624→  1624→                </DndContext>
+  1625→  1625→              )}
+  1626→  1626→            </TabsContent>
+  1627→  1627→
+  1628→  1628→            {/* ═══ TAB 2: APRESENTAR ═══ */}
+  1629→  1629→            <TabsContent value="apresentar">
+  1630→  1630→              {/* Presentation Preview (at the top for better visibility) */}
+  1631→  1631→              <Card>
+  1632→  1632→                <CardHeader className="pb-2">
+  1633→  1633→                  <div className="flex items-center justify-between">
+  1634→  1634→                    <CardTitle className="text-sm">Preview da Apresentação</CardTitle>
+  1635→  1635→                    <Button
+  1636→  1636→                      variant="outline"
+  1637→  1637→                      size="sm"
+  1638→  1638→                      onClick={() =>
+  1639→  1639→                        window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1640→  1640→                      }
+  1641→  1641→                      className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1642→  1642→                    >
+  1643→  1643→                      <Monitor className="size-4" />
+  1644→  1644→                      Abrir Tela Cheia
+  1645→  1645→                    </Button>
+  1646→  1646→                  </div>
+  1647→  1647→                </CardHeader>
+  1648→  1648→                <CardContent className="pb-3">
+  1649→  1649→                  <div className="w-full rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#050A1A]" style={{ maxHeight: '300px' }}>
+  1650→  1650→                    <iframe
+  1651→  1651→                      src={`/apresentacao/${selectedSession.code}`}
+  1652→  1652→                      className="w-full border-0"
+  1653→  1653→                      title="Preview da Apresentação"
+  1654→  1654→                      style={{ height: '280px' }}
+  1655→  1655→                    />
+  1656→  1656→                  </div>
+  1657→  1657→                </CardContent>
+  1658→  1658→              </Card>
+  1659→  1659→
+  1660→  1660→              {/* Session Status + Participant Counter */}
+  1661→  1661→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1662→  1662→                  {/* Session Status Card */}
+  1663→  1663→                  <Card>
+  1664→  1664→                    <CardHeader className="pb-3">
+  1665→  1665→                      <CardTitle className="text-base flex items-center gap-2">
+  1666→  1666→                        Status da Sessão
+  1667→  1667→                      </CardTitle>
+  1668→  1668→                    </CardHeader>
+  1669→  1669→                    <CardContent>
+  1670→  1670→                      <div className="flex items-center gap-3 mb-4">
+  1671→  1671→                        <StatusBadge status={selectedSession.status} />
+  1672→  1672→                        <span className="text-sm text-muted-foreground">
+  1673→  1673→                          {selectedSession.status === 'waiting' && 'Pronta para iniciar'}
+  1674→  1674→                          {selectedSession.status === 'active' && 'Em andamento'}
+  1675→  1675→                          {selectedSession.status === 'finished' && 'Encerrada'}
+  1676→  1676→                        </span>
+  1677→  1677→                      </div>
+  1678→  1678→                      <div className="flex flex-col gap-2">
+  1679→  1679→                        {selectedSession.status === 'waiting' && (
+  1680→  1680→                          <>
+  1681→  1681→                            <Button
+  1682→  1682→                              onClick={handleStartSession}
+  1683→  1683→                              disabled={selectedSession.questions.length === 0}
+  1684→  1684→                              className="bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-lg shadow-green-600/20"
+  1685→  1685→                            >
+  1686→  1686→                              <PlayCircle className="size-5" />
+  1687→  1687→                              Iniciar Apresentacao
+  1688→  1688→                            </Button>
+  1689→  1689→                            {selectedSession.questions.length === 0 && (
+  1690→  1690→                              <p className="text-xs text-destructive">Adicione questões antes de iniciar</p>
+  1691→  1691→                            )}
+  1692→  1692→                          </>
+  1693→  1693→                        )}
+  1694→  1694→                        {selectedSession.status === 'active' && (
+  1695→  1695→                          <div className="flex gap-2">
+  1696→  1696→                            <Button
+  1697→  1697→                              onClick={handleEndSession}
+  1698→  1698→                              variant="destructive"
+  1699→  1699→                              className="h-10"
+  1700→  1700→                            >
+  1701→  1701→                              <StopCircle className="size-4" />
+  1702→  1702→                              Encerrar Sessão
+  1703→  1703→                            </Button>
+  1704→  1704→                            <Button
+  1705→  1705→                              onClick={handleShowQr}
+  1706→  1706→                              variant={showQrOnPresentation ? 'default' : 'outline'}
+  1707→  1707→                              className={showQrOnPresentation
+  1708→  1708→                                ? 'bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] h-10'
+  1709→  1709→                                : 'border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10 h-10'
+  1710→  1710→                              }
+  1711→  1711→                            >
+  1712→  1712→                              <Monitor className="size-4" />
+  1713→  1713→                              {showQrOnPresentation ? 'Ocultar QR Code' : 'Mostrar QR Code'}
+  1714→  1714→                            </Button>
+  1715→  1715→                          </div>
+  1716→  1716→                        )}
+  1717→  1717→                        {selectedSession.status === 'finished' && (
+  1718→  1718→                          <Button
+  1719→  1719→                            onClick={() => setResetConfirmOpen(true)}
+  1720→  1720→                            className="bg-amber-600 hover:bg-amber-700 text-white h-10"
+  1721→  1721→                          >
+  1722→  1722→                            Resetar Sessao
+  1723→  1723→                          </Button>
+  1724→  1724→                        )}
+  1725→  1725→                      </div>
+  1726→  1726→                    </CardContent>
+  1727→  1727→                  </Card>
+  1728→  1728→
+  1729→  1729→                  {/* Participant Counter Card */}
+  1730→  1730→                  <Card>
+  1731→  1731→                    <CardHeader className="pb-3">
+  1732→  1732→                      <CardTitle className="text-base flex items-center gap-2">
+  1733→  1733→                        <Users className="size-4 text-[#C8A84B]" />
+  1734→  1734→                        Participantes Conectados
+  1735→  1735→                      </CardTitle>
+  1736→  1736→                    </CardHeader>
+  1737→  1737→                    <CardContent>
+  1738→  1738→                      <div className="flex items-center gap-3 mb-3">
+  1739→  1739→                        <span className="text-4xl font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1740→  1740→                          {totalParticipants || participantCount}
+  1741→  1741→                        </span>
+  1742→  1742→                        <div className="text-sm text-muted-foreground">
+  1743→  1743→                          <div>{(totalParticipants || participantCount) === 1 ? 'participante' : 'participantes'}</div>
+  1744→  1744→                          {totalParticipants > participantCount && participantCount > 0 && (
+  1745→  1745→                            <div className="text-xs text-[#C8A84B]/70">{participantCount} conectados agora</div>
+  1746→  1746→                          )}
+  1747→  1747→                        </div>
+  1748→  1748→                      </div>
+  1749→  1749→                      <Button
+  1750→  1750→                        onClick={() => {
+  1751→  1751→                          setStressTestResult(null)
+  1752→  1752→                          setStressTestOpen(true)
+  1753→  1753→                        }}
+  1754→  1754→                        disabled={!currentQuestionId || selectedSession.status !== 'active'}
+  1755→  1755→                        className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white h-10 font-semibold shadow-lg shadow-red-600/20"
+  1756→  1756→                      >
+  1757→  1757→                        <Zap className="size-4" />
+  1758→  1758→                        Stress Test ({stressTestCount} alunos)
+  1759→  1759→                      </Button>
+  1760→  1760→                      {!currentQuestionId && selectedSession.status === 'active' && (
+  1761→  1761→                        <p className="text-xs text-muted-foreground mt-1">Selecione uma questão primeiro</p>
+  1762→  1762→                      )}
+  1763→  1763→                    </CardContent>
+  1764→  1764→                  </Card>
+  1765→  1765→                </div>
+  1766→  1766→
+  1767→  1767→                {/* Row 3: Session Progress */}
+  1768→  1768→                <Card>
+  1769→  1769→                  <CardContent className="py-3">
+  1770→  1770→                    <div className="flex items-center justify-between">
+  1771→  1771→                      <div className="flex items-center gap-4">
+  1772→  1772→                        <div className="flex items-center gap-2">
+  1773→  1773→                          <Activity className="size-4 text-[#C8A84B]" />
+  1774→  1774→                          <span className="text-sm font-medium">Progresso</span>
+  1775→  1775→                        </div>
+  1776→  1776→                        <div className="flex items-center gap-2">
+  1777→  1777→                          <span className="text-xs text-muted-foreground">Questões respondidas:</span>
+  1778→  1778→                          <span className="text-sm font-bold text-[#C8A84B]">
+  1779→  1779→                            {selectedSession.questions.filter(q => q.isRevealed).length}/{totalQuestions}
+  1780→  1780→                          </span>
+  1781→  1781→                        </div>
+  1782→  1782→                        <div className="flex items-center gap-2">
+  1783→  1783→                          <span className="text-xs text-muted-foreground">Votos nesta questão:</span>
+  1784→  1784→                          <span className="text-sm font-bold">{totalVotes}</span>
+  1785→  1785→                        </div>
+  1786→  1786→                      </div>
+  1787→  1787→                      {/* Progress bar */}
+  1788→  1788→                      <div className="w-40 h-2 bg-muted rounded-full overflow-hidden">
+  1789→  1789→                        <div
+  1790→  1790→                          className="h-full bg-[#C8A84B] rounded-full transition-all duration-500"
+  1791→  1791→                          style={{ width: `${totalQuestions > 0 ? (selectedSession.questions.filter(q => q.isRevealed).length / totalQuestions) * 100 : 0}%` }}
+  1792→  1792→                        />
+  1793→  1793→                      </div>
+  1794→  1794→                    </div>
+  1795→  1795→                  </CardContent>
+  1796→  1796→                </Card>
+  1797→  1797→
+  1798→  1798→                {/* Row 4: Current Question Controls */}
+  1799→  1799→                <Card>
+  1800→  1800→                  <CardHeader className="pb-3">
+  1801→  1801→                    <CardTitle className="text-base">Controles da Questão Atual</CardTitle>
+  1802→  1802→                  </CardHeader>
+  1803→  1803→                  <CardContent>
+  1804→  1804→                    <div className="flex flex-wrap items-center gap-2 mb-4">
+  1805→  1805→                      {/* Previous */}
+  1806→  1806→                      <Button
+  1807→  1807→                        variant="outline"
+  1808→  1808→                        size="sm"
+  1809→  1809→                        onClick={handlePrevious}
+  1810→  1810→                        disabled={!hasPrev || isNavigating}
+  1811→  1811→                      >
+  1812→  1812→                        <ChevronLeft className="size-4" />
+  1813→  1813→                        Anterior
+  1814→  1814→                      </Button>
+  1815→  1815→
+  1816→  1816→                      {/* Next */}
+  1817→  1817→                      <Button
+  1818→  1818→                        variant="outline"
+  1819→  1819→                        size="sm"
+  1820→  1820→                        onClick={handleNext}
+  1821→  1821→                        disabled={!hasNext || isNavigating}
+  1822→  1822→                      >
+  1823→  1823→                        Próxima
+  1824→  1824→                        <ChevronRight className="size-4" />
+  1825→  1825→                      </Button>
+  1826→  1826→
+  1827→  1827→                      {/* Pause / Resume */}
+  1828→  1828→                      <Button
+  1829→  1829→                        size="sm"
+  1830→  1830→                        variant={votingPaused ? 'outline' : 'default'}
+  1831→  1831→                        onClick={handleToggleVoting}
+  1832→  1832→                        disabled={!currentQuestion || revealed}
+  1833→  1833→                        className={
+  1834→  1834→                          votingPaused
+  1835→  1835→                            ? 'border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+  1836→  1836→                            : 'bg-amber-500 hover:bg-amber-600 text-white'
+  1837→  1837→                        }
+  1838→  1838→                      >
+  1839→  1839→                        {votingPaused ? (
+  1840→  1840→                          <>
+  1841→  1841→                            <Play className="size-4" />
+  1842→  1842→                            Retomar Votação
+  1843→  1843→                          </>
+  1844→  1844→                        ) : (
+  1845→  1845→                          <>
+  1846→  1846→                            <Pause className="size-4" />
+  1847→  1847→                            Pausar Votação
+  1848→  1848→                          </>
+  1849→  1849→                        )}
+  1850→  1850→                      </Button>
+  1851→  1851→
+  1852→  1852→                      {/* Reveal Answer */}
+  1853→  1853→                      <Button
+  1854→  1854→                        size="sm"
+  1855→  1855→                        onClick={handleRevealAnswer}
+  1856→  1856→                        disabled={!currentQuestion || revealed}
+  1857→  1857→                        className="bg-[#C8A84B] hover:bg-[#C8A84B]/90 text-white"
+  1858→  1858→                      >
+  1859→  1859→                        <KeyRound className="size-4" />
+  1860→  1860→                        Revelar Gabarito
+  1861→  1861→                      </Button>
+  1862→  1862→
+  1863→  1863→                      {/* Winners */}
+  1864→  1864→                      <Button
+  1865→  1865→                        size="sm"
+  1866→  1866→                        variant="outline"
+  1867→  1867→                        onClick={handleGetRanking}
+  1868→  1868→                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1869→  1869→                      >
+  1870→  1870→                        <Trophy className="size-4" />
+  1871→  1871→                        Vencedores
+  1872→  1872→                      </Button>
+  1873→  1873→                    </div>
+  1874→  1874→
+  1875→  1875→                    {/* Question selector pills */}
+  1876→  1876→                    {selectedSession.questions.length > 0 && (
+  1877→  1877→                      <div className="flex flex-wrap gap-1.5">
+  1878→  1878→                        {selectedSession.questions.map((q, idx) => (
+  1879→  1879→                          <button
+  1880→  1880→                            key={q.id}
+  1881→  1881→                            onClick={() => handleSelectQuestion(q.id)}
+  1882→  1882→                            className={`px-3 py-1 rounded-md text-xs font-medium ${
+  1883→  1883→                              q.id === currentQuestionId
+  1884→  1884→                                ? 'bg-[#00338C] text-white'
+  1885→  1885→                                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  1886→  1886→                            } ${q.isRevealed ? 'ring-1 ring-[#C8A84B]' : ''}`}
+  1887→  1887→                          >
+  1888→  1888→                            Q{idx + 1}
+  1889→  1889→                          </button>
+  1890→  1890→                        ))}
+  1891→  1891→                      </div>
+  1892→  1892→                    )}
+  1893→  1893→                  </CardContent>
+  1894→  1894→                </Card>
+  1895→  1895→
+  1896→  1896→                {/* Row 3: Current Question Preview + Live Results */}
+  1897→  1897→                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1898→  1898→                  {/* Current Question Preview */}
+  1899→  1899→                  <Card>
+  1900→  1900→                    <CardHeader className="pb-3">
+  1901→  1901→                      <CardTitle className="text-base">
+  1902→  1902→                        Questão Atual
+  1903→  1903→                        {currentQuestion && (
+  1904→  1904→                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+  1905→  1905→                            ({currentIndex + 1}/{totalQuestions})
+  1906→  1906→                          </span>
+  1907→  1907→                        )}
+  1908→  1908→                      </CardTitle>
+  1909→  1909→                    </CardHeader>
+  1910→  1910→                    <CardContent>
+  1911→  1911→                      {!currentQuestion ? (
+  1912→  1912→                        <div className="py-8 text-center text-muted-foreground">
+  1913→  1913→                          <p>Nenhuma questão selecionada</p>
+  1914→  1914→                          <p className="text-sm mt-1">Clique em uma questão acima ou use a navegação</p>
+  1915→  1915→                        </div>
+  1916→  1916→                      ) : (
+  1917→  1917→                        <div className="space-y-3">
+  1918→  1918→                          {currentQuestion.imageUrl && (
+  1919→  1919→                            <img
+  1920→  1920→                              src={currentQuestion.imageUrl}
+  1921→  1921→                              alt="Imagem da questão"
+  1922→  1922→                              className="max-h-40 rounded-lg border object-contain"
+  1923→  1923→                            />
+  1924→  1924→                          )}
+  1925→  1925→                          <p className="text-sm leading-relaxed">
+  1926→  1926→                            {currentQuestion.text}
+  1927→  1927→                          </p>
+  1928→  1928→                          <div className="grid gap-1.5">
+  1929→  1929→                            {ALT_LABELS.map((alt) => {
+  1930→  1930→                              const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+  1931→  1931→                              const isCorrect = revealed && currentQuestion.correctAnswer === alt
+  1932→  1932→                              return (
+  1933→  1933→                                <div
+  1934→  1934→                                  key={alt}
+  1935→  1935→                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm ${
+  1936→  1936→                                    isCorrect
+  1937→  1937→                                      ? 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
+  1938→  1938→                                      : revealed
+  1939→  1939→                                      ? 'opacity-40'
+  1940→  1940→                                      : 'bg-muted/50'
+  1941→  1941→                                  }`}
+  1942→  1942→                                >
+  1943→  1943→                                  <span className="flex size-5 items-center justify-center rounded bg-[#00338C] text-[10px] font-bold text-white shrink-0">
+  1944→  1944→                                    {alt}
+  1945→  1945→                                  </span>
+  1946→  1946→                                  <span className="truncate">{currentQuestion[altKey]}</span>
+  1947→  1947→                                  {isCorrect && (
+  1948→  1948→                                    <span className="ml-auto text-xs font-bold text-green-600 dark:text-green-400">
+  1949→  1949→                                      ✓ Gabarito
+  1950→  1950→                                    </span>
+  1951→  1951→                                  )}
+  1952→  1952→                                </div>
+  1953→  1953→                              )
+  1954→  1954→                            })}
+  1955→  1955→                          </div>
+  1956→  1956→                          {revealed && (
+  1957→  1957→                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#C8A84B]/10 border border-[#C8A84B]/30">
+  1958→  1958→                              <KeyRound className="size-4 text-[#C8A84B]" />
+  1959→  1959→                              <span className="text-sm font-bold text-[#C8A84B]">
+  1960→  1960→                                Gabarito: {currentQuestion.correctAnswer}
+  1961→  1961→                              </span>
+  1962→  1962→                            </div>
+  1963→  1963→                          )}
+  1964→  1964→                          {votingPaused && !revealed && (
+  1965→  1965→                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
+  1966→  1966→                              <Pause className="size-4 text-amber-600 dark:text-amber-400" />
+  1967→  1967→                              <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+  1968→  1968→                                Votação pausada
+  1969→  1969→                              </span>
+  1970→  1970→                            </div>
+  1971→  1971→                          )}
+  1972→  1972→                        </div>
+  1973→  1973→                      )}
+  1974→  1974→                    </CardContent>
+  1975→  1975→                  </Card>
+  1976→  1976→
+  1977→  1977→                  {/* Live Results (CSS Bar Chart) */}
+  1978→  1978→                  <Card>
+  1979→  1979→                    <CardHeader className="pb-3">
+  1980→  1980→                      <CardTitle className="text-base flex items-center gap-2">
+  1981→  1981→                        Resultados em Tempo Real
+  1982→  1982→                        <Badge variant="secondary" className="text-xs">
+  1983→  1983→                          {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
+  1984→  1984→                        </Badge>
+  1985→  1985→                      </CardTitle>
+  1986→  1986→                    </CardHeader>
+  1987→  1987→                    <CardContent>
+  1988→  1988→                      {!currentQuestion ? (
+  1989→  1989→                        <div className="py-8 text-center text-muted-foreground">
+  1990→  1990→                          <p>Selecione uma questão para ver os resultados</p>
+  1991→  1991→                        </div>
+  1992→  1992→                      ) : totalVotes > 0 ? (
+  1993→  1993→                        <div className="space-y-2">
+  1994→  1994→                          {ALT_LABELS.map((alt) => {
+  1995→  1995→                            const votes = voteResults[alt] ?? 0
+  1996→  1996→                            const pct = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
+  1997→  1997→                            const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+  1998→  1998→                            return (
+  1999→  1999→                              <div
+  2000→  2000→                                key={alt}
+
+[showing lines 1-2000 of 2002; use offset=2001 with limit to continue reading]

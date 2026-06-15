@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { QRCode } from 'react-qrcode-logo'
 import { Users } from 'lucide-react'
+import { QuestionText, getActiveAlternatives } from '@/components/QuestionText'
 
 // ─── Types ────────────────────────────────────────────────────────
 interface Question {
@@ -426,12 +427,13 @@ export default function ApresentacaoPage({
 
   // ─── Bar Chart Component ───
   const renderBarChart = () => {
-    const maxVotes = Math.max(...ALT_LABELS.map((alt) => voteResults[alt] ?? 0), 1)
+    const activeAlts = currentQuestion ? getActiveAlternatives(currentQuestion) : ['A', 'B', 'C', 'D', 'E']
+    const maxVotes = Math.max(...activeAlts.map((alt) => voteResults[alt as keyof VoteResults] ?? 0), 1)
 
     return (
       <div className="flex items-end gap-4 h-full w-full px-4">
-        {ALT_LABELS.map((alt, idx) => {
-          const votes = voteResults[alt] ?? 0
+        {activeAlts.map((alt, idx) => {
+          const votes = voteResults[alt as keyof VoteResults] ?? 0
           const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
           const barHeight = maxVotes > 0 ? (votes / maxVotes) * 100 : 0
           const isCorrect = revealed && currentQuestion?.correctAnswer === alt
@@ -757,12 +759,11 @@ export default function ApresentacaoPage({
                 className="flex-1 min-h-0 overflow-y-auto pr-2"
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
               >
-                <p
-                  className={`text-[#E8EDFF] leading-relaxed ${currentQuestion.imageUrl ? 'text-xl' : 'text-3xl'}`}
-                  style={{ fontFamily: 'var(--font-inter)' }}
-                >
-                  {currentQuestion.text}
-                </p>
+                <QuestionText
+                  text={currentQuestion.text}
+                  textSize={currentQuestion.imageUrl ? 'lg' : '2xl'}
+                  className="text-[#E8EDFF]"
+                />
               </div>
 
               {/* Alternatives list — fills space when no image */}
@@ -770,7 +771,7 @@ export default function ApresentacaoPage({
                 className={`shrink-0 ${currentQuestion.imageUrl ? 'space-y-2' : 'space-y-3'}`}
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.3s both' }}
               >
-                {ALT_LABELS.map((alt, idx) => {
+                {getActiveAlternatives(currentQuestion).map((alt, idx) => {
                   const altKey = `alt${alt}` as keyof typeof currentQuestion
                   const isCorrect = revealed && currentQuestion.correctAnswer === alt
                   const isWrong = revealed && !isCorrect

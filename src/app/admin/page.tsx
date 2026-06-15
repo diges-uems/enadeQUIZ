@@ -88,6 +88,7 @@ import {
 } from 'lucide-react'
 import type { Session, Question, SessionStatus } from '@/types'
 import { UEMS_COURSES, CHART_COLORS } from '@/types'
+import { QuestionText, getActiveAlternatives } from '@/components/QuestionText'
 
 // ─── Types ────────────────────────────────────────────────────────
 interface VoteResults {
