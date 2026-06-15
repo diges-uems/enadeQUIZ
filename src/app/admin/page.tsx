@@ -83,6 +83,8 @@ import {
   Monitor,
   PlayCircle,
   StopCircle,
+  Zap,
+  Activity,
 } from 'lucide-react'
 import type { Session, Question, SessionStatus } from '@/types'
 import { UEMS_COURSES, CHART_COLORS } from '@/types'
@@ -779,6 +781,21 @@ export default function AdminPage() {
   const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
+  // Stress test state
+  const [stressTestOpen, setStressTestOpen] = useState(false)
+  const [stressTestRunning, setStressTestRunning] = useState(false)
+  const [stressTestCount, setStressTestCount] = useState(1000)
+  const [stressTestResult, setStressTestResult] = useState<{
+    totalStudents: number
+    connected: number
+    voted: number
+    failed: number
+    durationMs: number
+    votesPerSecond: number
+    voteDistribution: { A: number; B: number; C: number; D: number; E: number }
+    errors: string[]
+  } | null>(null)
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1215,6 +1232,38 @@ export default function AdminPage() {
     setResetConfirmOpen(false)
   }
 
+  const handleStressTest = async () => {
+    if (!selectedSession || !currentQuestionId) {
+      toast.error('Selecione uma questão antes de iniciar o stress test.')
+      return
+    }
+    setStressTestRunning(true)
+    setStressTestResult(null)
+    try {
+      const res = await fetch('/api/stress-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionCode: selectedSession.code,
+          studentCount: stressTestCount,
+          questionId: currentQuestionId,
+          correctAnswer: currentQuestion?.correctAnswer,
+        }),
+      })
+      const data = await res.json()
+      setStressTestResult(data)
+      if (res.ok) {
+        toast.success(`Stress test concluído! ${data.voted} votos em ${(data.durationMs / 1000).toFixed(1)}s`)
+      } else {
+        toast.error('Erro no stress test.')
+      }
+    } catch {
+      toast.error('Erro de conexão ao executar stress test.')
+    } finally {
+      setStressTestRunning(false)
+    }
+  }
+
   const handleShowQr = () => {
     const newVisible = !showQrOnPresentation
     setShowQrOnPresentation(newVisible)
@@ -1558,7 +1607,7 @@ export default function AdminPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 mb-3">
                         <span className="text-4xl font-bold text-[#00338C] dark:text-[#C8A84B]">
                           {participantCount}
                         </span>
@@ -1566,6 +1615,20 @@ export default function AdminPage() {
                           {participantCount === 1 ? 'participante' : 'participantes'}
                         </span>
                       </div>
+                      <Button
+                        onClick={() => {
+                          setStressTestResult(null)
+                          setStressTestOpen(true)
+                        }}
+                        disabled={!currentQuestionId || selectedSession.status !== 'active'}
+                        className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white h-10 font-semibold shadow-lg shadow-red-600/20"
+                      >
+                        <Zap className="size-4" />
+                        ⚡ Stress Test ({stressTestCount} alunos)
+                      </Button>
+                      {!currentQuestionId && selectedSession.status === 'active' && (
+                        <p className="text-xs text-muted-foreground mt-1">Selecione uma questão primeiro</p>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -1929,6 +1992,167 @@ export default function AdminPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Stress Test Dialog */}
+        <Dialog open={stressTestOpen} onOpenChange={setStressTestOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="size-5 text-red-500" />
+                Stress Test — Simulação de Acesso
+              </DialogTitle>
+              <DialogDescription>
+                Simule o acesso simultâneo de múltiplos alunos respondendo à questão atual.
+                Isso enviará votos reais via Socket.io para testar a capacidade do servidor.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              {/* Config */}
+              <div className="grid gap-3">
+                <div className="grid gap-2">
+                  <Label>Número de Alunos Simulados</Label>
+                  <div className="flex gap-2">
+                    {[100, 500, 1000, 2000].map((count) => (
+                      <Button
+                        key={count}
+                        size="sm"
+                        variant={stressTestCount === count ? 'default' : 'outline'}
+                        onClick={() => setStressTestCount(count)}
+                        className={stressTestCount === count ? 'bg-red-600 hover:bg-red-700 text-white' : ''}
+                      >
+                        {count}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <Activity className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <strong>Questão ativa:</strong> {currentQuestion ? `Q${currentIndex + 1} — ${currentQuestion.text.slice(0, 80)}...` : 'Nenhuma questão selecionada'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Running indicator */}
+              {stressTestRunning && (
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <div className="relative">
+                    <div className="size-16 rounded-full border-4 border-red-200 dark:border-red-900" />
+                    <div className="absolute inset-0 size-16 rounded-full border-4 border-red-500 border-t-transparent animate-spin" />
+                    <Zap className="absolute inset-0 m-auto size-6 text-red-500" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-lg">Simulando {stressTestCount} alunos...</p>
+                    <p className="text-sm text-muted-foreground">Conectando e enviando votos</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Results */}
+              {stressTestResult && !stressTestRunning && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                      <p className="text-xs text-green-600 dark:text-green-400">Conectados</p>
+                      <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stressTestResult.connected}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs text-blue-600 dark:text-blue-400">Votos Enviados</p>
+                      <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stressTestResult.voted}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-xs text-red-600 dark:text-red-400">Falhas</p>
+                      <p className="text-2xl font-bold text-red-700 dark:text-red-300">{stressTestResult.failed}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                      <p className="text-xs text-purple-600 dark:text-purple-400">Votos/segundo</p>
+                      <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stressTestResult.votesPerSecond}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <p className="text-xs text-muted-foreground mb-1">Tempo total</p>
+                    <p className="font-semibold">{(stressTestResult.durationMs / 1000).toFixed(2)}s</p>
+                  </div>
+
+                  {/* Vote distribution */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Distribuição dos Votos</p>
+                    {ALT_LABELS.map((alt) => {
+                      const votes = stressTestResult.voteDistribution[alt] ?? 0
+                      const maxVotes = Math.max(...ALT_LABELS.map((a) => stressTestResult.voteDistribution[a] ?? 0), 1)
+                      const pct = (votes / maxVotes) * 100
+                      const isCorrect = currentQuestion?.correctAnswer === alt
+                      return (
+                        <div key={alt} className={`flex items-center gap-2 ${isCorrect ? '' : 'opacity-60'}`}>
+                          <span
+                            className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                            style={{ backgroundColor: CHART_COLORS[alt] }}
+                          >
+                            {alt}
+                          </span>
+                          <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: CHART_COLORS[alt],
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium w-14 text-right shrink-0">
+                            {votes} votos
+                          </span>
+                          {isCorrect && (
+                            <span className="text-[10px] font-bold text-[#C8A84B] shrink-0">✓</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {stressTestResult.errors.length > 0 && (
+                    <div className="p-2 rounded bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+                      <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Erros:</p>
+                      {stressTestResult.errors.slice(0, 5).map((err, i) => (
+                        <p key={i} className="text-xs text-red-500 dark:text-red-300">{err}</p>
+                      ))}
+                      {stressTestResult.errors.length > 5 && (
+                        <p className="text-xs text-red-400">...e mais {stressTestResult.errors.length - 5} erros</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setStressTestOpen(false)}
+                disabled={stressTestRunning}
+              >
+                Fechar
+              </Button>
+              <Button
+                onClick={handleStressTest}
+                disabled={stressTestRunning || !currentQuestionId}
+                className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white"
+              >
+                {stressTestRunning ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Executando...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="size-4" />
+                    Iniciar Stress Test
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }

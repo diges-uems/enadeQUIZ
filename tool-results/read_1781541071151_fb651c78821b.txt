@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import React, { useState, useEffect, useCallback, useRef } from 'react'
+     4→import {
+     5→  DndContext,
+     6→  closestCenter,
+     7→  KeyboardSensor,
+     8→  PointerSensor,
+     9→  useSensor,
+    10→  useSensors,
+    11→  type DragEndEvent,
+    12→} from '@dnd-kit/core'
+    13→import {
+    14→  arrayMove,
+    15→  SortableContext,
+    16→  sortableKeyboardCoordinates,
+    17→  useSortable,
+    18→  verticalListSortingStrategy,
+    19→} from '@dnd-kit/sortable'
+    20→import { CSS } from '@dnd-kit/utilities'
+    21→import { io, Socket } from 'socket.io-client'
+    22→import { toast } from 'sonner'
+    23→import {
+    24→  Card,
+    25→  CardContent,
+    26→  CardDescription,
+    27→  CardHeader,
+    28→  CardTitle,
+    29→} from '@/components/ui/card'
+    30→import { Button } from '@/components/ui/button'
+    31→import { Input } from '@/components/ui/input'
+    32→import { Label } from '@/components/ui/label'
+    33→import { Textarea } from '@/components/ui/textarea'
+    34→import { Badge } from '@/components/ui/badge'
+    35→import {
+    36→  Dialog,
+    37→  DialogContent,
+    38→  DialogDescription,
+    39→  DialogFooter,
+    40→  DialogHeader,
+    41→  DialogTitle,
+    42→} from '@/components/ui/dialog'
+    43→import {
+    44→  AlertDialog,
+    45→  AlertDialogAction,
+    46→  AlertDialogCancel,
+    47→  AlertDialogContent,
+    48→  AlertDialogDescription,
+    49→  AlertDialogFooter,
+    50→  AlertDialogHeader,
+    51→  AlertDialogTitle,
+    52→} from '@/components/ui/alert-dialog'
+    53→import {
+    54→  Select,
+    55→  SelectContent,
+    56→  SelectItem,
+    57→  SelectTrigger,
+    58→  SelectValue,
+    59→} from '@/components/ui/select'
+    60→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    61→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    62→import {
+    63→  Lock,
+    64→  Plus,
+    65→  Trash2,
+    66→  ExternalLink,
+    67→  Settings2,
+    68→  GripVertical,
+    69→  Pencil,
+    70→  FileJson,
+    71→  LogOut,
+    72→  Loader2,
+    73→  ChevronLeft,
+    74→  ChevronRight,
+    75→  Copy,
+    76→  Pause,
+    77→  Play,
+    78→  KeyRound,
+    79→  Users,
+    80→  Trophy,
+    81→  ImagePlus,
+    82→  X,
+    83→  Monitor,
+    84→  PlayCircle,
+    85→  StopCircle,
+    86→} from 'lucide-react'
+    87→import type { Session, Question, SessionStatus } from '@/types'
+    88→import { UEMS_COURSES, CHART_COLORS } from '@/types'
+    89→
+    90→// ─── Types ────────────────────────────────────────────────────────
+    91→interface VoteResults {
+    92→  A: number
+    93→  B: number
+    94→  C: number
+    95→  D: number
+    96→  E: number
+    97→  total: number
+    98→}
+    99→
+   100→interface RankingEntry {
+   101→  name: string
+   102→  rgm: string
+   103→  score: number
+   104→  answers: number
+   105→  corrects: number
+   106→}
+   107→
+   108→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+   109→
+   110→// ─── Status Badge ───────────────────────────────────────────────────
+   111→function StatusBadge({ status }: { status: SessionStatus }) {
+   112→  const config: Record<SessionStatus, { label: string; className: string }> = {
+   113→    waiting: {
+   114→      label: 'Aguardando',
+   115→      className:
+   116→        'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+   117→    },
+   118→    active: {
+   119→      label: 'Ativa',
+   120→      className:
+   121→        'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+   122→    },
+   123→    finished: {
+   124→      label: 'Finalizada',
+   125→      className:
+   126→        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
+   127→    },
+   128→  }
+   129→  const c = config[status] || config.waiting
+   130→  return (
+   131→    <Badge variant="outline" className={c.className}>
+   132→      {c.label}
+   133→    </Badge>
+   134→  )
+   135→}
+   136→
+   137→// ─── Sortable Question Item ─────────────────────────────────────────
+   138→function SortableQuestionItem({
+   139→  question,
+   140→  index,
+   141→  onEdit,
+   142→  onDelete,
+   143→}: {
+   144→  question: Question
+   145→  index: number
+   146→  onEdit: (q: Question) => void
+   147→  onDelete: (id: string) => void
+   148→}) {
+   149→  const {
+   150→    attributes,
+   151→    listeners,
+   152→    setNodeRef,
+   153→    transform,
+   154→    transition,
+   155→    isDragging,
+   156→  } = useSortable({ id: question.id })
+   157→
+   158→  const style = {
+   159→    transform: CSS.Transform.toString(transform),
+   160→    transition,
+   161→  }
+   162→
+   163→  return (
+   164→    <div
+   165→      ref={setNodeRef}
+   166→      style={style}
+   167→      className={`flex items-start gap-3 rounded-lg border p-3 ${
+   168→        isDragging
+   169→          ? 'z-50 border-[#C8A84B] bg-[#C8A84B]/5 shadow-lg'
+   170→          : 'border-border bg-card hover:bg-accent/50'
+   171→      }`}
+   172→    >
+   173→      <button
+   174→        className="mt-1 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+   175→        {...attributes}
+   176→        {...listeners}
+   177→      >
+   178→        <GripVertical className="size-4" />
+   179→      </button>
+   180→
+   181→      <div className="flex-1 min-w-0">
+   182→        <div className="flex items-center gap-2 mb-1">
+   183→          <span className="text-xs font-bold text-[#00338C] dark:text-[#C8A84B]">
+   184→            #{index + 1}
+   185→          </span>
+   186→          <span className="text-xs text-muted-foreground">
+   187→            {question.year} &middot; {question.course}
+   188→          </span>
+   189→          {question.imageUrl && (
+   190→            <span className="text-xs text-blue-500">📷</span>
+   191→          )}
+   192→        </div>
+   193→        <p className="text-sm line-clamp-2 text-foreground">
+   194→          {question.text}
+   195→        </p>
+   196→      </div>
+   197→
+   198→      <div className="flex items-center gap-1 shrink-0">
+   199→        <Button
+   200→          variant="ghost"
+   201→          size="icon"
+   202→          className="size-8"
+   203→          onClick={() => onEdit(question)}
+   204→          title="Editar questão"
+   205→        >
+   206→          <Pencil className="size-3.5" />
+   207→        </Button>
+   208→        <Button
+   209→          variant="ghost"
+   210→          size="icon"
+   211→          className="size-8 text-destructive hover:text-destructive"
+   212→          onClick={() => onDelete(question.id)}
+   213→          title="Excluir questão"
+   214→        >
+   215→          <Trash2 className="size-3.5" />
+   216→        </Button>
+   217→      </div>
+   218→    </div>
+   219→  )
+   220→}
+   221→
+   222→// ─── Question Form (Dialog) ─────────────────────────────────────────
+   223→function QuestionFormDialog({
+   224→  open,
+   225→  onOpenChange,
+   226→  question,
+   227→  sessionId,
+   228→  sessionCode,
+   229→  onSave,
+   230→}: {
+   231→  open: boolean
+   232→  onOpenChange: (open: boolean) => void
+   233→  question: Question | null
+   234→  sessionId: string
+   235→  sessionCode: string
+   236→  onSave: () => void
+   237→}) {
+   238→  const [text, setText] = useState('')
+   239→  const [year, setYear] = useState('2025')
+   240→  const [course, setCourse] = useState('')
+   241→  const [altA, setAltA] = useState('')
+   242→  const [altB, setAltB] = useState('')
+   243→  const [altC, setAltC] = useState('')
+   244→  const [altD, setAltD] = useState('')
+   245→  const [altE, setAltE] = useState('')
+   246→  const [correctAnswer, setCorrectAnswer] = useState('A')
+   247→  const [imageUrl, setImageUrl] = useState<string | null>(null)
+   248→  const [saving, setSaving] = useState(false)
+   249→  const [uploading, setUploading] = useState(false)
+   250→  const fileInputRef = useRef<HTMLInputElement>(null)
+   251→
+   252→  const isEditing = question !== null
+   253→
+   254→  useEffect(() => {
+   255→    if (open) {
+   256→      if (question) {
+   257→        setText(question.text)
+   258→        setYear(String(question.year))
+   259→        setCourse(question.course)
+   260→        setAltA(question.altA)
+   261→        setAltB(question.altB)
+   262→        setAltC(question.altC)
+   263→        setAltD(question.altD)
+   264→        setAltE(question.altE)
+   265→        setCorrectAnswer(question.correctAnswer)
+   266→        setImageUrl(question.imageUrl)
+   267→      } else {
+   268→        setText('')
+   269→        setYear('2025')
+   270→        setCourse('')
+   271→        setAltA('')
+   272→        setAltB('')
+   273→        setAltC('')
+   274→        setAltD('')
+   275→        setAltE('')
+   276→        setCorrectAnswer('A')
+   277→        setImageUrl(null)
+   278→      }
+   279→    }
+   280→  }, [open, question])
+   281→
+   282→  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   283→    const file = e.target.files?.[0]
+   284→    if (!file) return
+   285→
+   286→    // Validate type
+   287→    const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+   288→    if (!validTypes.includes(file.type)) {
+   289→      toast.error('Tipo de arquivo inválido. Use PNG, JPG, GIF ou WebP.')
+   290→      return
+   291→    }
+   292→
+   293→    // Validate size (5MB)
+   294→    if (file.size > 5 * 1024 * 1024) {
+   295→      toast.error('Arquivo muito grande. Máximo 5MB.')
+   296→      return
+   297→    }
+   298→
+   299→    setUploading(true)
+   300→    try {
+   301→      // Convert to base64 data URL for reliable upload
+   302→      const dataUrl = await new Promise<string>((resolve, reject) => {
+   303→        const reader = new FileReader()
+   304→        reader.onload = () => resolve(reader.result as string)
+   305→        reader.onerror = reject
+   306→        reader.readAsDataURL(file)
+   307→      })
+   308→
+   309→      const res = await fetch('/api/upload', {
+   310→        method: 'POST',
+   311→        headers: { 'Content-Type': 'application/json' },
+   312→        body: JSON.stringify({ dataUrl, filename: file.name }),
+   313→      })
+   314→
+   315→      if (!res.ok) {
+   316→        const errData = await res.json()
+   317→        throw new Error(errData.error || 'Erro no upload')
+   318→      }
+   319→
+   320→      const data = await res.json()
+   321→      setImageUrl(data.url)
+   322→      toast.success('Imagem enviada com sucesso!')
+   323→    } catch (err) {
+   324→      toast.error(err instanceof Error ? err.message : 'Erro ao enviar imagem.')
+   325→    } finally {
+   326→      setUploading(false)
+   327→      // Reset file input
+   328→      if (fileInputRef.current) {
+   329→        fileInputRef.current.value = ''
+   330→      }
+   331→    }
+   332→  }
+   333→
+   334→  const handleRemoveImage = () => {
+   335→    setImageUrl(null)
+   336→  }
+   337→
+   338→  const handleSubmit = async () => {
+   339→    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim() || !altE.trim()) {
+   340→      toast.error('Preencha todos os campos obrigatórios.')
+   341→      return
+   342→    }
+   343→
+   344→    setSaving(true)
+   345→    try {
+   346→      if (isEditing && question) {
+   347→        const res = await fetch(
+   348→          `/api/session/${sessionCode}/questions/${question.id}`,
+   349→          {
+   350→            method: 'PUT',
+   351→            headers: { 'Content-Type': 'application/json' },
+   352→            body: JSON.stringify({
+   353→              text,
+   354→              year: parseInt(year),
+   355→              course,
+   356→              altA,
+   357→              altB,
+   358→              altC,
+   359→              altD,
+   360→              altE,
+   361→              correctAnswer,
+   362→              imageUrl,
+   363→            }),
+   364→          }
+   365→        )
+   366→        if (!res.ok) throw new Error('Erro ao atualizar questão')
+   367→        toast.success('Questão atualizada com sucesso!')
+   368→      } else {
+   369→        const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   370→          method: 'POST',
+   371→          headers: { 'Content-Type': 'application/json' },
+   372→          body: JSON.stringify({
+   373→            text,
+   374→            year: parseInt(year),
+   375→            course,
+   376→            altA,
+   377→            altB,
+   378→            altC,
+   379→            altD,
+   380→            altE,
+   381→            correctAnswer,
+   382→            imageUrl,
+   383→          }),
+   384→        })
+   385→        if (!res.ok) throw new Error('Erro ao criar questão')
+   386→        toast.success('Questão criada com sucesso!')
+   387→      }
+   388→      onSave()
+   389→      onOpenChange(false)
+   390→    } catch {
+   391→      toast.error('Erro ao salvar questão.')
+   392→    } finally {
+   393→      setSaving(false)
+   394→    }
+   395→  }
+   396→
+   397→  const years = Array.from({ length: 11 }, (_, i) => 2015 + i)
+   398→
+   399→  return (
+   400→    <Dialog open={open} onOpenChange={onOpenChange}>
+   401→      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+   402→        <DialogHeader>
+   403→          <DialogTitle>
+   404→            {isEditing ? 'Editar Questão' : 'Adicionar Questão'}
+   405→          </DialogTitle>
+   406→          <DialogDescription>
+   407→            {isEditing
+   408→              ? 'Altere os campos desejados e salve.'
+   409→              : 'Preencha os dados da questão do ENADE.'}
+   410→          </DialogDescription>
+   411→        </DialogHeader>
+   412→
+   413→        <div className="grid gap-4 py-2">
+   414→          <div className="grid gap-2">
+   415→            <Label htmlFor="q-text">Enunciado *</Label>
+   416→            <Textarea
+   417→              id="q-text"
+   418→              value={text}
+   419→              onChange={(e) => setText(e.target.value)}
+   420→              rows={5}
+   421→              placeholder="Digite o enunciado da questão..."
+   422→            />
+   423→          </div>
+   424→
+   425→          {/* Image Upload */}
+   426→          <div className="grid gap-2">
+   427→            <Label>Imagem (opcional)</Label>
+   428→            <div className="flex items-center gap-3">
+   429→              {imageUrl ? (
+   430→                <div className="relative group rounded-lg border border-border overflow-hidden">
+   431→                  <img
+   432→                    src={imageUrl}
+   433→                    alt="Imagem da questão"
+   434→                    className="max-h-32 max-w-full object-contain"
+   435→                  />
+   436→                  <button
+   437→                    type="button"
+   438→                    onClick={handleRemoveImage}
+   439→                    className="absolute top-1 right-1 size-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+   440→                    title="Remover imagem"
+   441→                  >
+   442→                    <X className="size-3" />
+   443→                  </button>
+   444→                </div>
+   445→              ) : (
+   446→                <div className="flex items-center gap-3">
+   447→                  <Button
+   448→                    type="button"
+   449→                    variant="outline"
+   450→                    size="sm"
+   451→                    onClick={() => fileInputRef.current?.click()}
+   452→                    disabled={uploading}
+   453→                  >
+   454→                    {uploading ? (
+   455→                      <Loader2 className="size-4 animate-spin" />
+   456→                    ) : (
+   457→                      <ImagePlus className="size-4" />
+   458→                    )}
+   459→                    {uploading ? 'Enviando...' : 'Adicionar Imagem'}
+   460→                  </Button>
+   461→                </div>
+   462→              )}
+   463→              <input
+   464→                ref={fileInputRef}
+   465→                type="file"
+   466→                accept="image/png,image/jpeg,image/gif,image/webp"
+   467→                onChange={handleImageUpload}
+   468→                className="hidden"
+   469→              />
+   470→            </div>
+   471→            <p className="text-xs text-muted-foreground">
+   472→              PNG, JPG, GIF ou WebP. Máximo 5MB.
+   473→            </p>
+   474→          </div>
+   475→
+   476→          <div className="grid grid-cols-2 gap-4">
+   477→            <div className="grid gap-2">
+   478→              <Label>Ano ENADE *</Label>
+   479→              <Select value={year} onValueChange={setYear}>
+   480→                <SelectTrigger className="w-full">
+   481→                  <SelectValue placeholder="Selecione o ano" />
+   482→                </SelectTrigger>
+   483→                <SelectContent>
+   484→                  {years.map((y) => (
+   485→                    <SelectItem key={y} value={String(y)}>
+   486→                      {y}
+   487→                    </SelectItem>
+   488→                  ))}
+   489→                </SelectContent>
+   490→              </Select>
+   491→            </div>
+   492→            <div className="grid gap-2">
+   493→              <Label>Curso</Label>
+   494→              <Select value={course} onValueChange={setCourse}>
+   495→                <SelectTrigger className="w-full">
+   496→                  <SelectValue placeholder="Selecione o curso" />
+   497→                </SelectTrigger>
+   498→                <SelectContent>
+   499→                  {UEMS_COURSES.map((c) => (
+   500→                    <SelectItem key={c} value={c}>
+   501→                      {c}
+   502→                    </SelectItem>
+   503→                  ))}
+   504→                </SelectContent>
+   505→              </Select>
+   506→            </div>
+   507→          </div>
+   508→
+   509→          <div className="grid gap-3">
+   510→            <Label>Alternativas *</Label>
+   511→            {[
+   512→              { letter: 'A', value: altA, setter: setAltA },
+   513→              { letter: 'B', value: altB, setter: setAltB },
+   514→              { letter: 'C', value: altC, setter: setAltC },
+   515→              { letter: 'D', value: altD, setter: setAltD },
+   516→              { letter: 'E', value: altE, setter: setAltE },
+   517→            ].map(({ letter, value, setter }) => (
+   518→              <div key={letter} className="flex items-center gap-2">
+   519→                <span className="flex size-7 items-center justify-center rounded bg-[#00338C] text-xs font-bold text-white shrink-0">
+   520→                  {letter}
+   521→                </span>
+   522→                <Input
+   523→                  value={value}
+   524→                  onChange={(e) => setter(e.target.value)}
+   525→                  placeholder={`Alternativa ${letter}`}
+   526→                  className="flex-1"
+   527→                />
+   528→              </div>
+   529→            ))}
+   530→          </div>
+   531→
+   532→          <div className="grid gap-2">
+   533→            <Label>Gabarito *</Label>
+   534→            <RadioGroup
+   535→              value={correctAnswer}
+   536→              onValueChange={setCorrectAnswer}
+   537→              className="flex gap-4"
+   538→            >
+   539→              {['A', 'B', 'C', 'D', 'E'].map((l) => (
+   540→                <div key={l} className="flex items-center gap-1.5">
+   541→                  <RadioGroupItem value={l} id={`gab-${l}`} />
+   542→                  <Label htmlFor={`gab-${l}`} className="cursor-pointer">
+   543→                    {l}
+   544→                  </Label>
+   545→                </div>
+   546→              ))}
+   547→            </RadioGroup>
+   548→          </div>
+   549→        </div>
+   550→
+   551→        <DialogFooter>
+   552→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   553→            Cancelar
+   554→          </Button>
+   555→          <Button
+   556→            onClick={handleSubmit}
+   557→            disabled={saving || uploading}
+   558→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   559→          >
+   560→            {saving && <Loader2 className="size-4 animate-spin" />}
+   561→            {isEditing ? 'Salvar Alterações' : 'Criar Questão'}
+   562→          </Button>
+   563→        </DialogFooter>
+   564→      </DialogContent>
+   565→    </Dialog>
+   566→  )
+   567→}
+   568→
+   569→// ─── Import JSON Dialog ──────────────────────────────────────────────
+   570→function ImportJsonDialog({
+   571→  open,
+   572→  onOpenChange,
+   573→  sessionCode,
+   574→  onImport,
+   575→}: {
+   576→  open: boolean
+   577→  onOpenChange: (open: boolean) => void
+   578→  sessionCode: string
+   579→  onImport: () => void
+   580→}) {
+   581→  const [jsonText, setJsonText] = useState('')
+   582→  const [importing, setImporting] = useState(false)
+   583→
+   584→  useEffect(() => {
+   585→    if (open) setJsonText('')
+   586→  }, [open])
+   587→
+   588→  const handleImport = async () => {
+   589→    if (!jsonText.trim()) {
+   590→      toast.error('Cole o JSON no campo acima.')
+   591→      return
+   592→    }
+   593→    let parsed: unknown
+   594→    try {
+   595→      parsed = JSON.parse(jsonText)
+   596→    } catch {
+   597→      toast.error('JSON inválido. Verifique o formato.')
+   598→      return
+   599→    }
+   600→    if (!Array.isArray(parsed)) {
+   601→      toast.error('O JSON deve ser um array de questões.')
+   602→      return
+   603→    }
+   604→
+   605→    setImporting(true)
+   606→    try {
+   607→      const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   608→        method: 'POST',
+   609→        headers: { 'Content-Type': 'application/json' },
+   610→        body: JSON.stringify(parsed),
+   611→      })
+   612→      if (!res.ok) throw new Error('Erro ao importar')
+   613→      const data = await res.json()
+   614→      toast.success(`${Array.isArray(data) ? data.length : 1} questão(ões) importada(s)!`)
+   615→      onImport()
+   616→      onOpenChange(false)
+   617→    } catch {
+   618→      toast.error('Erro ao importar questões.')
+   619→    } finally {
+   620→      setImporting(false)
+   621→    }
+   622→  }
+   623→
+   624→  return (
+   625→    <Dialog open={open} onOpenChange={onOpenChange}>
+   626→      <DialogContent className="sm:max-w-2xl">
+   627→        <DialogHeader>
+   628→          <DialogTitle>Importar Questões (JSON)</DialogTitle>
+   629→          <DialogDescription>
+   630→            Cole um array JSON com as questões no formato especificado.
+   631→          </DialogDescription>
+   632→        </DialogHeader>
+   633→        <div className="grid gap-2">
+   634→          <Label htmlFor="json-import">JSON</Label>
+   635→          <Textarea
+   636→            id="json-import"
+   637→            value={jsonText}
+   638→            onChange={(e) => setJsonText(e.target.value)}
+   639→            rows={12}
+   640→            className="font-mono text-xs"
+   641→            placeholder={`[\n  {\n    "year": 2023,\n    "course": "Administração",\n    "text": "Enunciado...",\n    "alternatives": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },\n    "correctAnswer": "B"\n  }\n]`}
+   642→          />
+   643→        </div>
+   644→        <DialogFooter>
+   645→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   646→            Cancelar
+   647→          </Button>
+   648→          <Button
+   649→            onClick={handleImport}
+   650→            disabled={importing}
+   651→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   652→          >
+   653→            {importing && <Loader2 className="size-4 animate-spin" />}
+   654→            Importar
+   655→          </Button>
+   656→        </DialogFooter>
+   657→      </DialogContent>
+   658→    </Dialog>
+   659→  )
+   660→}
+   661→
+   662→// ─── Vencedores Dialog ──────────────────────────────────────────────
+   663→function VencedoresDialog({
+   664→  open,
+   665→  onOpenChange,
+   666→  ranking,
+   667→  totalQuestions,
+   668→}: {
+   669→  open: boolean
+   670→  onOpenChange: (open: boolean) => void
+   671→  ranking: RankingEntry[]
+   672→  totalQuestions: number
+   673→}) {
+   674→  const medals = ['🥇', '🥈', '🥉']
+   675→  const medalColors = [
+   676→    'border-yellow-400 bg-yellow-50 dark:border-yellow-600 dark:bg-yellow-900/20',
+   677→    'border-gray-400 bg-gray-50 dark:border-gray-500 dark:bg-gray-800/20',
+   678→    'border-amber-600 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
+   679→  ]
+   680→
+   681→  return (
+   682→    <Dialog open={open} onOpenChange={onOpenChange}>
+   683→      <DialogContent className="sm:max-w-md">
+   684→        <DialogHeader>
+   685→          <DialogTitle className="flex items-center gap-2 text-xl">
+   686→            <Trophy className="size-5 text-[#C8A84B]" />
+   687→            Ranking — Top 3
+   688→          </DialogTitle>
+   689→          <DialogDescription>
+   690→            Maiores pontuadores da sessão
+   691→          </DialogDescription>
+   692→        </DialogHeader>
+   693→
+   694→        {ranking.length === 0 ? (
+   695→          <div className="py-8 text-center text-muted-foreground">
+   696→            <p>Nenhum voto registrado ainda</p>
+   697→          </div>
+   698→        ) : (
+   699→          <div className="grid gap-3 py-2">
+   700→            {ranking.slice(0, 3).map((entry, idx) => (
+   701→              <div
+   702→                key={entry.rgm}
+   703→                className={`flex items-center gap-3 p-3 rounded-xl border ${medalColors[idx] || 'border-border'}`}
+   704→              >
+   705→                <span className="text-2xl">{medals[idx]}</span>
+   706→                <div className="flex-1 min-w-0">
+   707→                  <p className="font-bold truncate">{entry.name}</p>
+   708→                  <p className="text-xs text-muted-foreground">RGM: {entry.rgm}</p>
+   709→                </div>
+   710→                <div className="text-right shrink-0">
+   711→                  <p className="text-[#C8A84B] font-bold text-lg">
+   712→                    {entry.corrects}/{totalQuestions}
+   713→                  </p>
+   714→                  <p className="text-xs text-muted-foreground">
+   715→                    {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   716→                  </p>
+   717→                </div>
+   718→              </div>
+   719→            ))}
+   720→          </div>
+   721→        )}
+   722→
+   723→        <DialogFooter>
+   724→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   725→            Fechar
+   726→          </Button>
+   727→        </DialogFooter>
+   728→      </DialogContent>
+   729→    </Dialog>
+   730→  )
+   731→}
+   732→
+   733→// ─── Main Admin Page ────────────────────────────────────────────────
+   734→export default function AdminPage() {
+   735→  // Auth state
+   736→  const [isAuthenticated, setIsAuthenticated] = useState(false)
+   737→  const [password, setPassword] = useState('')
+   738→  const [authLoading, setAuthLoading] = useState(false)
+   739→  const [authError, setAuthError] = useState('')
+   740→
+   741→  // Dashboard state
+   742→  const [sessions, setSessions] = useState<Session[]>([])
+   743→  const [loading, setLoading] = useState(false)
+   744→
+   745→  // New session dialog
+   746→  const [newSessionOpen, setNewSessionOpen] = useState(false)
+   747→  const [newTitle, setNewTitle] = useState('')
+   748→  const [creatingSession, setCreatingSession] = useState(false)
+   749→
+   750→  // Session management
+   751→  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+   752→  const [managingSession, setManagingSession] = useState(false)
+   753→  const [activeTab, setActiveTab] = useState('questoes')
+   754→
+   755→  // Question form
+   756→  const [questionFormOpen, setQuestionFormOpen] = useState(false)
+   757→  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
+   758→
+   759→  // Import JSON
+   760→  const [importJsonOpen, setImportJsonOpen] = useState(false)
+   761→
+   762→  // Delete confirmation
+   763→  const [deleteSessionCode, setDeleteSessionCode] = useState<string | null>(null)
+   764→  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null)
+   765→  const [deleting, setDeleting] = useState(false)
+   766→
+   767→  // ── Presenter / Socket state ──
+   768→  const [socket, setSocket] = useState<Socket | null>(null)
+   769→  const [participantCount, setParticipantCount] = useState(0)
+   770→  const [votingPaused, setVotingPaused] = useState(false)
+   771→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   772→    A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
+   773→  })
+   774→  const [revealed, setRevealed] = useState(false)
+   775→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   776→  const [isNavigating, setIsNavigating] = useState(false)
+   777→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   778→  const [showRanking, setShowRanking] = useState(false)
+   779→  const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
+   780→  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+   781→
+   782→  // DnD sensors
+   783→  const sensors = useSensors(
+   784→    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+   785→    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+   786→  )
+   787→
+   788→  // ── Derived values for presenter ──
+   789→  const currentQuestion = selectedSession?.questions.find(
+   790→    (q) => q.id === currentQuestionId
+   791→  ) ?? null
+   792→  const currentIndex = selectedSession?.questions.findIndex(
+   793→    (q) => q.id === currentQuestionId
+   794→  ) ?? -1
+   795→  const totalQuestions = selectedSession?.questions.length ?? 0
+   796→  const hasPrev = currentIndex > 0
+   797→  const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
+   798→
+   799→  // Check auth on mount
+   800→  useEffect(() => {
+   801→    const token = sessionStorage.getItem('admin_token')
+   802→    if (token) setIsAuthenticated(true)
+   803→  }, [])
+   804→
+   805→  // Fetch sessions when authenticated
+   806→  const fetchSessions = useCallback(async () => {
+   807→    setLoading(true)
+   808→    try {
+   809→      const res = await fetch('/api/session')
+   810→      if (res.ok) {
+   811→        const data = await res.json()
+   812→        setSessions(data)
+   813→      }
+   814→    } catch {
+   815→      toast.error('Erro ao carregar sessões.')
+   816→    } finally {
+   817→      setLoading(false)
+   818→    }
+   819→  }, [])
+   820→
+   821→  useEffect(() => {
+   822→    if (isAuthenticated) fetchSessions()
+   823→  }, [isAuthenticated, fetchSessions])
+   824→
+   825→  // ── Socket connection when managing a session ──
+   826→  useEffect(() => {
+   827→    if (!managingSession || !selectedSession) {
+   828→      // Disconnect when leaving session management
+   829→      if (socket) {
+   830→        socket.disconnect()
+   831→        setSocket(null)
+   832→      }
+   833→      return
+   834→    }
+   835→
+   836→    const sessionCode = selectedSession.code
+   837→
+   838→    const socketInstance = io('/?XTransformPort=3003', {
+   839→      transports: ['websocket', 'polling'],
+   840→      forceNew: true,
+   841→      reconnection: true,
+   842→      reconnectionAttempts: 10,
+   843→      reconnectionDelay: 1000,
+   844→      timeout: 10000,
+   845→    })
+   846→
+   847→    socketInstance.on('connect', () => {
+   848→      socketInstance.emit('join-session', {
+   849→        sessionCode,
+   850→        role: 'presenter',
+   851→      })
+   852→    })
+   853→
+   854→    socketInstance.on('vote-results', (data: VoteResults) => {
+   855→      setVoteResults(data)
+   856→    })
+   857→
+   858→    socketInstance.on('participant-count', (count: number) => {
+   859→      setParticipantCount(count)
+   860→    })
+   861→
+   862→    socketInstance.on('session-state', (data: {
+   863→      participantCount: number
+   864→      currentQuestionId: string | null
+   865→      votingPaused: boolean
+   866→    }) => {
+   867→      setParticipantCount(data.participantCount)
+   868→      if (data.currentQuestionId) {
+   869→        setCurrentQuestionId(data.currentQuestionId)
+   870→      }
+   871→      setVotingPaused(data.votingPaused)
+   872→    })
+   873→
+   874→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   875→      setRanking(data)
+   876→    })
+   877→
+   878→    setSocket(socketInstance)
+   879→
+   880→    // Reset presenter state
+   881→    setCurrentQuestionId(selectedSession.currentQuestionId)
+   882→    setVotingPaused(false)
+   883→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   884→    setRevealed(false)
+   885→    setParticipantCount(0)
+   886→    setRanking([])
+   887→
+   888→    if (selectedSession.currentQuestionId) {
+   889→      const q = selectedSession.questions.find(
+   890→        (q) => q.id === selectedSession.currentQuestionId
+   891→      )
+   892→      if (q) setRevealed(q.isRevealed)
+   893→    }
+   894→
+   895→    return () => {
+   896→      socketInstance.disconnect()
+   897→      setSocket(null)
+   898→    }
+   899→  }, [managingSession, selectedSession?.code])
+   900→
+   901→  // ── Auth handlers ────────────────────────────────────────────
+   902→  const handleLogin = async (e: React.FormEvent) => {
+   903→    e.preventDefault()
+   904→    setAuthLoading(true)
+   905→    setAuthError('')
+   906→    try {
+   907→      const res = await fetch('/api/admin/auth', {
+   908→        method: 'POST',
+   909→        headers: { 'Content-Type': 'application/json' },
+   910→        body: JSON.stringify({ password }),
+   911→      })
+   912→      if (res.ok) {
+   913→        const data = await res.json()
+   914→        sessionStorage.setItem('admin_token', data.token)
+   915→        setIsAuthenticated(true)
+   916→        toast.success('Autenticado com sucesso!')
+   917→      } else {
+   918→        setAuthError('Senha incorreta.')
+   919→      }
+   920→    } catch {
+   921→      setAuthError('Erro de conexão.')
+   922→    } finally {
+   923→      setAuthLoading(false)
+   924→    }
+   925→  }
+   926→
+   927→  const handleLogout = () => {
+   928→    sessionStorage.removeItem('admin_token')
+   929→    setIsAuthenticated(false)
+   930→    setSelectedSession(null)
+   931→    setManagingSession(false)
+   932→    setPassword('')
+   933→  }
+   934→
+   935→  // ── Session handlers ─────────────────────────────────────────
+   936→  const handleCreateSession = async () => {
+   937→    if (!newTitle.trim()) {
+   938→      toast.error('Informe um título para a sessão.')
+   939→      return
+   940→    }
+   941→    setCreatingSession(true)
+   942→    try {
+   943→      const res = await fetch('/api/session', {
+   944→        method: 'POST',
+   945→        headers: { 'Content-Type': 'application/json' },
+   946→        body: JSON.stringify({ title: newTitle.trim() }),
+   947→      })
+   948→      if (!res.ok) throw new Error()
+   949→      const session = await res.json()
+   950→      toast.success(`Sessão criada! Código: ${session.code}`)
+   951→      setNewTitle('')
+   952→      setNewSessionOpen(false)
+   953→      fetchSessions()
+   954→    } catch {
+   955→      toast.error('Erro ao criar sessão.')
+   956→    } finally {
+   957→      setCreatingSession(false)
+   958→    }
+   959→  }
+   960→
+   961→  const handleDeleteSession = async () => {
+   962→    if (!deleteSessionCode) return
+   963→    setDeleting(true)
+   964→    try {
+   965→      const res = await fetch(`/api/session/${deleteSessionCode}`, {
+   966→        method: 'DELETE',
+   967→      })
+   968→      if (!res.ok) throw new Error()
+   969→      toast.success('Sessão excluída.')
+   970→      if (selectedSession?.code === deleteSessionCode) {
+   971→        setSelectedSession(null)
+   972→        setManagingSession(false)
+   973→      }
+   974→      fetchSessions()
+   975→    } catch {
+   976→      toast.error('Erro ao excluir sessão.')
+   977→    } finally {
+   978→      setDeleting(false)
+   979→      setDeleteSessionCode(null)
+   980→    }
+   981→  }
+   982→
+   983→  const handleDuplicateSession = async (sourceCode: string) => {
+   984→    try {
+   985→      // Fetch the source session
+   986→      const res = await fetch(`/api/session/${sourceCode}`)
+   987→      if (!res.ok) throw new Error()
+   988→      const source: Session = await res.json()
+   989→
+   990→      // Create a new session with "- Cópia" suffix
+   991→      const createRes = await fetch('/api/session', {
+   992→        method: 'POST',
+   993→        headers: { 'Content-Type': 'application/json' },
+   994→        body: JSON.stringify({
+   995→          title: `${source.title} — Cópia`,
+   996→        }),
+   997→      })
+   998→      if (!createRes.ok) throw new Error()
+   999→      const newSession = await createRes.json()
+  1000→
+  1001→      // Copy all questions to the new session
+  1002→      for (const q of source.questions) {
+  1003→        await fetch(`/api/session/${newSession.code}/questions`, {
+  1004→          method: 'POST',
+  1005→          headers: { 'Content-Type': 'application/json' },
+  1006→          body: JSON.stringify({
+  1007→            text: q.text,
+  1008→            year: q.year,
+  1009→            course: q.course,
+  1010→            altA: q.altA,
+  1011→            altB: q.altB,
+  1012→            altC: q.altC,
+  1013→            altD: q.altD,
+  1014→            altE: q.altE,
+  1015→            correctAnswer: q.correctAnswer,
+  1016→            imageUrl: q.imageUrl,
+  1017→          }),
+  1018→        })
+  1019→      }
+  1020→
+  1021→      toast.success(`Sessão duplicada: ${newSession.code}`)
+  1022→      fetchSessions()
+  1023→    } catch {
+  1024→      toast.error('Erro ao duplicar sessão.')
+  1025→    }
+  1026→  }
+  1027→
+  1028→  const handleDeleteQuestion = async () => {
+  1029→    if (!deleteQuestionId || !selectedSession) return
+  1030→    setDeleting(true)
+  1031→    try {
+  1032→      const res = await fetch(
+  1033→        `/api/session/${selectedSession.code}/questions/${deleteQuestionId}`,
+  1034→        { method: 'DELETE' }
+  1035→      )
+  1036→      if (!res.ok) throw new Error()
+  1037→      toast.success('Questão excluída.')
+  1038→      refreshSession()
+  1039→    } catch {
+  1040→      toast.error('Erro ao excluir questão.')
+  1041→    } finally {
+  1042→      setDeleting(false)
+  1043→      setDeleteQuestionId(null)
+  1044→    }
+  1045→  }
+  1046→
+  1047→  // ── Session detail / management ──────────────────────────────
+  1048→  const openSessionManagement = (session: Session) => {
+  1049→    setSelectedSession(session)
+  1050→    setManagingSession(true)
+  1051→    setActiveTab('questoes')
+  1052→  }
+  1053→
+  1054→  const refreshSession = useCallback(async () => {
+  1055→    if (!selectedSession) return
+  1056→    try {
+  1057→      const res = await fetch(`/api/session/${selectedSession.code}`)
+  1058→      if (res.ok) {
+  1059→        const data = await res.json()
+  1060→        setSelectedSession(data)
+  1061→      }
+  1062→    } catch {
+  1063→      toast.error('Erro ao atualizar sessão.')
+  1064→    }
+  1065→  }, [selectedSession])
+  1066→
+  1067→  // ── Drag & drop reorder ──────────────────────────────────────
+  1068→  const handleDragEnd = async (event: DragEndEvent) => {
+  1069→    if (!selectedSession) return
+  1070→    const { active, over } = event
+  1071→    if (!over || active.id === over.id) return
+  1072→
+  1073→    const oldIndex = selectedSession.questions.findIndex(
+  1074→      (q) => q.id === active.id
+  1075→    )
+  1076→    const newIndex = selectedSession.questions.findIndex(
+  1077→      (q) => q.id === over.id
+  1078→    )
+  1079→    if (oldIndex === -1 || newIndex === -1) return
+  1080→
+  1081→    const reordered = arrayMove(selectedSession.questions, oldIndex, newIndex)
+  1082→    // Optimistic update
+  1083→    setSelectedSession({ ...selectedSession, questions: reordered })
+  1084→
+  1085→    try {
+  1086→      await fetch(`/api/session/${selectedSession.code}/questions`, {
+  1087→        method: 'PUT',
+  1088→        headers: { 'Content-Type': 'application/json' },
+  1089→        body: JSON.stringify({ questionIds: reordered.map((q) => q.id) }),
+  1090→      })
+  1091→    } catch {
+  1092→      toast.error('Erro ao reordenar questões.')
+  1093→      refreshSession()
+  1094→    }
+  1095→  }
+  1096→
+  1097→  // ── Presenter handlers ──────────────────────────────────────
+  1098→  const updateSession = async (updates: {
+  1099→    status?: string
+  1100→    currentQuestionId?: string | null
+  1101→  }) => {
+  1102→    if (!selectedSession) return
+  1103→    try {
+  1104→      await fetch(`/api/session/${selectedSession.code}`, {
+  1105→        method: 'PATCH',
+  1106→        headers: { 'Content-Type': 'application/json' },
+  1107→        body: JSON.stringify(updates),
+  1108→      })
+  1109→    } catch (err) {
+  1110→      console.error('Failed to update session:', err)
+  1111→    }
+  1112→  }
+  1113→
+  1114→  const handleStartSession = async () => {
+  1115→    if (!selectedSession) return
+  1116→    await updateSession({ status: 'active' })
+  1117→    setSelectedSession({ ...selectedSession, status: 'active' })
+  1118→    socket?.emit('activate-question', {
+  1119→      sessionCode: selectedSession.code,
+  1120→      questionId: selectedSession.questions[0]?.id,
+  1121→    })
+  1122→    toast.success('Sessão iniciada!')
+  1123→  }
+  1124→
+  1125→  const handleEndSession = async () => {
+  1126→    if (!selectedSession) return
+  1127→    await updateSession({ status: 'finished' })
+  1128→    setSelectedSession({ ...selectedSession, status: 'finished' })
+  1129→    socket?.emit('end-session', {
+  1130→      sessionCode: selectedSession.code,
+  1131→    })
+  1132→    toast.success('Sessão encerrada!')
+  1133→  }
+  1134→
+  1135→  const handlePrevious = async () => {
+  1136→    if (!selectedSession || !hasPrev || isNavigating) return
+  1137→    setIsNavigating(true)
+  1138→    const prevQuestion = selectedSession.questions[currentIndex - 1]
+  1139→    setCurrentQuestionId(prevQuestion.id)
+  1140→    setRevealed(prevQuestion.isRevealed)
+  1141→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1142→    await updateSession({ currentQuestionId: prevQuestion.id })
+  1143→    socket?.emit('activate-question', {
+  1144→      sessionCode: selectedSession.code,
+  1145→      questionId: prevQuestion.id,
+  1146→    })
+  1147→    setTimeout(() => setIsNavigating(false), 300)
+  1148→  }
+  1149→
+  1150→  const handleNext = async () => {
+  1151→    if (!selectedSession || !hasNext || isNavigating) return
+  1152→    setIsNavigating(true)
+  1153→    const nextQuestion = selectedSession.questions[currentIndex + 1]
+  1154→    setCurrentQuestionId(nextQuestion.id)
+  1155→    setRevealed(nextQuestion.isRevealed)
+  1156→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1157→    await updateSession({ currentQuestionId: nextQuestion.id })
+  1158→    socket?.emit('next-question', {
+  1159→      sessionCode: selectedSession.code,
+  1160→      questionId: nextQuestion.id,
+  1161→    })
+  1162→    setTimeout(() => setIsNavigating(false), 300)
+  1163→  }
+  1164→
+  1165→  const handleToggleVoting = () => {
+  1166→    const newPaused = !votingPaused
+  1167→    setVotingPaused(newPaused)
+  1168→    socket?.emit('toggle-voting', {
+  1169→      sessionCode: selectedSession?.code,
+  1170→      paused: newPaused,
+  1171→    })
+  1172→  }
+  1173→
+  1174→  const handleRevealAnswer = async () => {
+  1175→    if (!currentQuestion || !selectedSession) return
+  1176→    setRevealed(true)
+  1177→    await fetch(
+  1178→      `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
+  1179→      {
+  1180→        method: 'PUT',
+  1181→        headers: { 'Content-Type': 'application/json' },
+  1182→        body: JSON.stringify({ isRevealed: true }),
+  1183→      }
+  1184→    )
+  1185→    socket?.emit('reveal-answer', {
+  1186→      sessionCode: selectedSession.code,
+  1187→      questionId: currentQuestion.id,
+  1188→      correctAnswer: currentQuestion.correctAnswer,
+  1189→    })
+  1190→  }
+  1191→
+  1192→  const handleGetRanking = () => {
+  1193→    socket?.emit('get-ranking', { sessionCode: selectedSession?.code })
+  1194→    setShowRanking(true)
+  1195→  }
+  1196→
+  1197→  const handleResetSession = async () => {
+  1198→    if (!selectedSession) return
+  1199→    try {
+  1200→      const res = await fetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
+  1201→      if (!res.ok) throw new Error()
+  1202→      const data = await res.json()
+  1203→      setSelectedSession(data)
+  1204→      setCurrentQuestionId(null)
+  1205→      setRevealed(false)
+  1206→      setVotingPaused(false)
+  1207→      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1208→      setRanking([])
+  1209→      setShowQrOnPresentation(false)
+  1210→      socket?.emit('session-reset', { sessionCode: selectedSession.code })
+  1211→      toast.success('Sessão resetada com sucesso!')
+  1212→    } catch {
+  1213→      toast.error('Erro ao resetar sessão.')
+  1214→    }
+  1215→    setResetConfirmOpen(false)
+  1216→  }
+  1217→
+  1218→  const handleShowQr = () => {
+  1219→    const newVisible = !showQrOnPresentation
+  1220→    setShowQrOnPresentation(newVisible)
+  1221→    socket?.emit('show-qr', {
+  1222→      sessionCode: selectedSession?.code,
+  1223→      visible: newVisible,
+  1224→    })
+  1225→  }
+  1226→
+  1227→  const handleSelectQuestion = async (questionId: string) => {
+  1228→    if (isNavigating || !selectedSession) return
+  1229→    setIsNavigating(true)
+  1230→    const q = selectedSession.questions.find((q) => q.id === questionId)
+  1231→    setCurrentQuestionId(questionId)
+  1232→    setRevealed(q?.isRevealed ?? false)
+  1233→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1234→    await updateSession({ currentQuestionId: questionId })
+  1235→    socket?.emit('activate-question', {
+  1236→      sessionCode: selectedSession.code,
+  1237→      questionId,
+  1238→    })
+  1239→    setTimeout(() => setIsNavigating(false), 300)
+  1240→  }
+  1241→
+  1242→  const formatDate = (dateStr: string) => {
+  1243→    try {
+  1244→      return new Date(dateStr).toLocaleDateString('pt-BR', {
+  1245→        day: '2-digit',
+  1246→        month: '2-digit',
+  1247→        year: 'numeric',
+  1248→        hour: '2-digit',
+  1249→        minute: '2-digit',
+  1250→      })
+  1251→    } catch {
+  1252→      return dateStr
+  1253→    }
+  1254→  }
+  1255→
+  1256→  const totalVotes = voteResults.total || ALT_LABELS.reduce((sum, alt) => sum + (voteResults[alt] ?? 0), 0)
+  1257→
+  1258→  // ── LOGIN SCREEN ─────────────────────────────────────────────
+  1259→  if (!isAuthenticated) {
+  1260→    return (
+  1261→      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4">
+  1262→        <Card className="w-full max-w-md shadow-2xl border-0">
+  1263→          <CardHeader className="text-center pb-2">
+  1264→            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
+  1265→              <Lock className="size-8 text-white" />
+  1266→            </div>
+  1267→            <CardTitle className="text-2xl font-bold text-[#00338C]">
+  1268→              ENADE Quiz — Admin
+  1269→            </CardTitle>
+  1270→            <CardDescription>
+  1271→              Digite a senha para acessar o painel administrativo
+  1272→            </CardDescription>
+  1273→          </CardHeader>
+  1274→          <CardContent>
+  1275→            <form onSubmit={handleLogin} className="grid gap-4">
+  1276→              <div className="grid gap-2">
+  1277→                <Label htmlFor="password">Senha</Label>
+  1278→                <Input
+  1279→                  id="password"
+  1280→                  type="password"
+  1281→                  placeholder="Digite a senha de acesso"
+  1282→                  value={password}
+  1283→                  onChange={(e) => {
+  1284→                    setPassword(e.target.value)
+  1285→                    setAuthError('')
+  1286→                  }}
+  1287→                  autoFocus
+  1288→                />
+  1289→                {authError && (
+  1290→                  <p className="text-sm text-destructive">{authError}</p>
+  1291→                )}
+  1292→              </div>
+  1293→              <Button
+  1294→                type="submit"
+  1295→                disabled={authLoading}
+  1296→                className="w-full bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1297→              >
+  1298→                {authLoading && <Loader2 className="size-4 animate-spin" />}
+  1299→                Entrar
+  1300→              </Button>
+  1301→            </form>
+  1302→          </CardContent>
+  1303→        </Card>
+  1304→        <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
+  1305→          <div className="flex items-center justify-center gap-2">
+  1306→            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+  1307→            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+  1308→          </div>
+  1309→        </footer>
+  1310→      </div>
+  1311→    )
+  1312→  }
+  1313→
+  1314→  // ── SESSION MANAGEMENT VIEW ──────────────────────────────────
+  1315→  if (managingSession && selectedSession) {
+  1316→    return (
+  1317→      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+  1318→        {/* Header */}
+  1319→        <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+  1320→          <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+  1321→            <Button
+  1322→              variant="ghost"
+  1323→              size="sm"
+  1324→              onClick={() => {
+  1325→                setManagingSession(false)
+  1326→                fetchSessions()
+  1327→              }}
+  1328→            >
+  1329→              <ChevronLeft className="size-4" />
+  1330→              Voltar
+  1331→            </Button>
+  1332→            <div className="flex-1 min-w-0">
+  1333→              <h1 className="truncate text-sm font-semibold text-foreground">
+  1334→                {selectedSession.title}
+  1335→              </h1>
+  1336→              <p className="text-xs text-muted-foreground">
+  1337→                Código: {selectedSession.code}
+  1338→              </p>
+  1339→            </div>
+  1340→            <StatusBadge status={selectedSession.status} />
+  1341→            <Button
+  1342→              variant="outline"
+  1343→              size="sm"
+  1344→              onClick={() =>
+  1345→                window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1346→              }
+  1347→              className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1348→            >
+  1349→              <ExternalLink className="size-3.5" />
+  1350→              Abrir Apresentação
+  1351→            </Button>
+  1352→          </div>
+  1353→        </header>
+  1354→
+  1355→        <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+  1356→          {/* Tabbed Interface */}
+  1357→          <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1358→            <TabsList className="mb-4">
+  1359→              <TabsTrigger value="questoes" className="gap-1.5">
+  1360→                <Settings2 className="size-3.5" />
+  1361→                Questões
+  1362→              </TabsTrigger>
+  1363→              <TabsTrigger value="apresentar" className="gap-1.5">
+  1364→                <Monitor className="size-3.5" />
+  1365→                Apresentar
+  1366→              </TabsTrigger>
+  1367→            </TabsList>
+  1368→
+  1369→            {/* ═══ TAB 1: QUESTÕES ═══ */}
+  1370→            <TabsContent value="questoes">
+  1371→              {/* Session Info Card */}
+  1372→              <Card className="mb-6">
+  1373→                <CardHeader className="pb-3">
+  1374→                  <CardTitle className="text-lg">Informações da Sessão</CardTitle>
+  1375→                </CardHeader>
+  1376→                <CardContent>
+  1377→                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+  1378→                    <div>
+  1379→                      <p className="text-muted-foreground">Código</p>
+  1380→                      <div className="flex items-center gap-1">
+  1381→                        <p className="font-mono font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1382→                          {selectedSession.code}
+  1383→                        </p>
+  1384→                        <Button
+  1385→                          variant="ghost"
+  1386→                          size="icon"
+  1387→                          className="size-6"
+  1388→                          onClick={() => {
+  1389→                            navigator.clipboard.writeText(selectedSession.code)
+  1390→                            toast.success('Código copiado!')
+  1391→                          }}
+  1392→                        >
+  1393→                          <Copy className="size-3" />
+  1394→                        </Button>
+  1395→                      </div>
+  1396→                    </div>
+  1397→                    <div>
+  1398→                      <p className="text-muted-foreground">Título</p>
+  1399→                      <p className="font-medium truncate">{selectedSession.title}</p>
+  1400→                    </div>
+  1401→                    <div>
+  1402→                      <p className="text-muted-foreground">Questões</p>
+  1403→                      <p className="font-medium">{selectedSession.questions.length}</p>
+  1404→                    </div>
+  1405→                    <div>
+  1406→                      <p className="text-muted-foreground">Criada em</p>
+  1407→                      <p className="font-medium">{formatDate(selectedSession.createdAt)}</p>
+  1408→                    </div>
+  1409→                  </div>
+  1410→                </CardContent>
+  1411→              </Card>
+  1412→
+  1413→              {/* Questions Header */}
+  1414→              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+  1415→                <h2 className="text-lg font-semibold">
+  1416→                  Questões ({selectedSession.questions.length})
+  1417→                </h2>
+  1418→                <div className="flex gap-2">
+  1419→                  <Button
+  1420→                    variant="outline"
+  1421→                    size="sm"
+  1422→                    onClick={() => setImportJsonOpen(true)}
+  1423→                  >
+  1424→                    <FileJson className="size-3.5" />
+  1425→                    Importar JSON
+  1426→                  </Button>
+  1427→                  <Button
+  1428→                    size="sm"
+  1429→                    className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1430→                    onClick={() => {
+  1431→                      setEditingQuestion(null)
+  1432→                      setQuestionFormOpen(true)
+  1433→                    }}
+  1434→                  >
+  1435→                    <Plus className="size-3.5" />
+  1436→                    Adicionar Questão
+  1437→                  </Button>
+  1438→                </div>
+  1439→              </div>
+  1440→
+  1441→              {/* Questions List with DnD */}
+  1442→              {selectedSession.questions.length === 0 ? (
+  1443→                <Card className="py-12">
+  1444→                  <div className="text-center text-muted-foreground">
+  1445→                    <p className="text-lg font-medium">Nenhuma questão</p>
+  1446→                    <p className="text-sm mt-1">
+  1447→                      Adicione questões manualmente ou importe via JSON.
+  1448→                    </p>
+  1449→                  </div>
+  1450→                </Card>
+  1451→              ) : (
+  1452→                <DndContext
+  1453→                  sensors={sensors}
+  1454→                  collisionDetection={closestCenter}
+  1455→                  onDragEnd={handleDragEnd}
+  1456→                >
+  1457→                  <SortableContext
+  1458→                    items={selectedSession.questions.map((q) => q.id)}
+  1459→                    strategy={verticalListSortingStrategy}
+  1460→                  >
+  1461→                    <div className="grid gap-2">
+  1462→                      {selectedSession.questions.map((q, i) => (
+  1463→                        <SortableQuestionItem
+  1464→                          key={q.id}
+  1465→                          question={q}
+  1466→                          index={i}
+  1467→                          onEdit={(question) => {
+  1468→                            setEditingQuestion(question)
+  1469→                            setQuestionFormOpen(true)
+  1470→                          }}
+  1471→                          onDelete={(id) => setDeleteQuestionId(id)}
+  1472→                        />
+  1473→                      ))}
+  1474→                    </div>
+  1475→                  </SortableContext>
+  1476→                </DndContext>
+  1477→              )}
+  1478→            </TabsContent>
+  1479→
+  1480→            {/* ═══ TAB 2: APRESENTAR ═══ */}
+  1481→            <TabsContent value="apresentar">
+  1482→              <div className="grid gap-6">
+  1483→                {/* Row 1: Session Status + Participant Counter */}
+  1484→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1485→                  {/* Session Status Card */}
+  1486→                  <Card>
+  1487→                    <CardHeader className="pb-3">
+  1488→                      <CardTitle className="text-base flex items-center gap-2">
+  1489→                        Status da Sessão
+  1490→                      </CardTitle>
+  1491→                    </CardHeader>
+  1492→                    <CardContent>
+  1493→                      <div className="flex items-center gap-3 mb-4">
+  1494→                        <StatusBadge status={selectedSession.status} />
+  1495→                        <span className="text-sm text-muted-foreground">
+  1496→                          {selectedSession.status === 'waiting' && 'Pronta para iniciar'}
+  1497→                          {selectedSession.status === 'active' && 'Em andamento'}
+  1498→                          {selectedSession.status === 'finished' && 'Encerrada'}
+  1499→                        </span>
+  1500→                      </div>
+  1501→                      <div className="flex flex-col gap-2">
+  1502→                        {selectedSession.status === 'waiting' && (
+  1503→                          <>
+  1504→                            <Button
+  1505→                              onClick={handleStartSession}
+  1506→                              disabled={selectedSession.questions.length === 0}
+  1507→                              className="bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-lg shadow-green-600/20"
+  1508→                            >
+  1509→                              <PlayCircle className="size-5" />
+  1510→                              ▶ Iniciar Apresentação
+  1511→                            </Button>
+  1512→                            {selectedSession.questions.length === 0 && (
+  1513→                              <p className="text-xs text-destructive">Adicione questões antes de iniciar</p>
+  1514→                            )}
+  1515→                          </>
+  1516→                        )}
+  1517→                        {selectedSession.status === 'active' && (
+  1518→                          <div className="flex gap-2">
+  1519→                            <Button
+  1520→                              onClick={handleEndSession}
+  1521→                              variant="destructive"
+  1522→                              className="h-10"
+  1523→                            >
+  1524→                              <StopCircle className="size-4" />
+  1525→                              Encerrar Sessão
+  1526→                            </Button>
+  1527→                            <Button
+  1528→                              onClick={handleShowQr}
+  1529→                              variant={showQrOnPresentation ? 'default' : 'outline'}
+  1530→                              className={showQrOnPresentation
+  1531→                                ? 'bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] h-10'
+  1532→                                : 'border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10 h-10'
+  1533→                              }
+  1534→                            >
+  1535→                              <Monitor className="size-4" />
+  1536→                              {showQrOnPresentation ? 'Ocultar QR Code' : 'Mostrar QR Code'}
+  1537→                            </Button>
+  1538→                          </div>
+  1539→                        )}
+  1540→                        {selectedSession.status === 'finished' && (
+  1541→                          <Button
+  1542→                            onClick={() => setResetConfirmOpen(true)}
+  1543→                            className="bg-amber-600 hover:bg-amber-700 text-white h-10"
+  1544→                          >
+  1545→                            🔄 Resetar Sessão
+  1546→                          </Button>
+  1547→                        )}
+  1548→                      </div>
+  1549→                    </CardContent>
+  1550→                  </Card>
+  1551→
+  1552→                  {/* Participant Counter Card */}
+  1553→                  <Card>
+  1554→                    <CardHeader className="pb-3">
+  1555→                      <CardTitle className="text-base flex items-center gap-2">
+  1556→                        <Users className="size-4 text-[#C8A84B]" />
+  1557→                        Participantes Conectados
+  1558→                      </CardTitle>
+  1559→                    </CardHeader>
+  1560→                    <CardContent>
+  1561→                      <div className="flex items-center gap-3">
+  1562→                        <span className="text-4xl font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1563→                          {participantCount}
+  1564→                        </span>
+  1565→                        <span className="text-sm text-muted-foreground">
+  1566→                          {participantCount === 1 ? 'participante' : 'participantes'}
+  1567→                        </span>
+  1568→                      </div>
+  1569→                    </CardContent>
+  1570→                  </Card>
+  1571→                </div>
+  1572→
+  1573→                {/* Row 2: Current Question Controls */}
+  1574→                <Card>
+  1575→                  <CardHeader className="pb-3">
+  1576→                    <CardTitle className="text-base">Controles da Questão Atual</CardTitle>
+  1577→                  </CardHeader>
+  1578→                  <CardContent>
+  1579→                    <div className="flex flex-wrap items-center gap-2 mb-4">
+  1580→                      {/* Previous */}
+  1581→                      <Button
+  1582→                        variant="outline"
+  1583→                        size="sm"
+  1584→                        onClick={handlePrevious}
+  1585→                        disabled={!hasPrev || isNavigating}
+  1586→                      >
+  1587→                        <ChevronLeft className="size-4" />
+  1588→                        Anterior
+  1589→                      </Button>
+  1590→
+  1591→                      {/* Next */}
+  1592→                      <Button
+  1593→                        variant="outline"
+  1594→                        size="sm"
+  1595→                        onClick={handleNext}
+  1596→                        disabled={!hasNext || isNavigating}
+  1597→                      >
+  1598→                        Próxima
+  1599→                        <ChevronRight className="size-4" />
+  1600→                      </Button>
+  1601→
+  1602→                      {/* Pause / Resume */}
+  1603→                      <Button
+  1604→                        size="sm"
+  1605→                        variant={votingPaused ? 'outline' : 'default'}
+  1606→                        onClick={handleToggleVoting}
+  1607→                        disabled={!currentQuestion || revealed}
+  1608→                        className={
+  1609→                          votingPaused
+  1610→                            ? 'border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'
+  1611→                            : 'bg-amber-500 hover:bg-amber-600 text-white'
+  1612→                        }
+  1613→                      >
+  1614→                        {votingPaused ? (
+  1615→                          <>
+  1616→                            <Play className="size-4" />
+  1617→                            Retomar Votação
+  1618→                          </>
+  1619→                        ) : (
+  1620→                          <>
+  1621→                            <Pause className="size-4" />
+  1622→                            Pausar Votação
+  1623→                          </>
+  1624→                        )}
+  1625→                      </Button>
+  1626→
+  1627→                      {/* Reveal Answer */}
+  1628→                      <Button
+  1629→                        size="sm"
+  1630→                        onClick={handleRevealAnswer}
+  1631→                        disabled={!currentQuestion || revealed}
+  1632→                        className="bg-[#C8A84B] hover:bg-[#C8A84B]/90 text-white"
+  1633→                      >
+  1634→                        <KeyRound className="size-4" />
+  1635→                        Revelar Gabarito
+  1636→                      </Button>
+  1637→
+  1638→                      {/* Winners */}
+  1639→                      <Button
+  1640→                        size="sm"
+  1641→                        variant="outline"
+  1642→                        onClick={handleGetRanking}
+  1643→                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1644→                      >
+  1645→                        <Trophy className="size-4" />
+  1646→                        Vencedores
+  1647→                      </Button>
+  1648→                    </div>
+  1649→
+  1650→                    {/* Question selector pills */}
+  1651→                    {selectedSession.questions.length > 0 && (
+  1652→                      <div className="flex flex-wrap gap-1.5">
+  1653→                        {selectedSession.questions.map((q, idx) => (
+  1654→                          <button
+  1655→                            key={q.id}
+  1656→                            onClick={() => handleSelectQuestion(q.id)}
+  1657→                            className={`px-3 py-1 rounded-md text-xs font-medium ${
+  1658→                              q.id === currentQuestionId
+  1659→                                ? 'bg-[#00338C] text-white'
+  1660→                                : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  1661→                            } ${q.isRevealed ? 'ring-1 ring-[#C8A84B]' : ''}`}
+  1662→                          >
+  1663→                            Q{idx + 1}
+  1664→                          </button>
+  1665→                        ))}
+  1666→                      </div>
+  1667→                    )}
+  1668→                  </CardContent>
+  1669→                </Card>
+  1670→
+  1671→                {/* Row 3: Current Question Preview + Live Results */}
+  1672→                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1673→                  {/* Current Question Preview */}
+  1674→                  <Card>
+  1675→                    <CardHeader className="pb-3">
+  1676→                      <CardTitle className="text-base">
+  1677→                        Questão Atual
+  1678→                        {currentQuestion && (
+  1679→                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+  1680→                            ({currentIndex + 1}/{totalQuestions})
+  1681→                          </span>
+  1682→                        )}
+  1683→                      </CardTitle>
+  1684→                    </CardHeader>
+  1685→                    <CardContent>
+  1686→                      {!currentQuestion ? (
+  1687→                        <div className="py-8 text-center text-muted-foreground">
+  1688→                          <p>Nenhuma questão selecionada</p>
+  1689→                          <p className="text-sm mt-1">Clique em uma questão acima ou use a navegação</p>
+  1690→                        </div>
+  1691→                      ) : (
+  1692→                        <div className="space-y-3">
+  1693→                          {currentQuestion.imageUrl && (
+  1694→                            <img
+  1695→                              src={currentQuestion.imageUrl}
+  1696→                              alt="Imagem da questão"
+  1697→                              className="max-h-40 rounded-lg border object-contain"
+  1698→                            />
+  1699→                          )}
+  1700→                          <p className="text-sm leading-relaxed">
+  1701→                            {currentQuestion.text}
+  1702→                          </p>
+  1703→                          <div className="grid gap-1.5">
+  1704→                            {ALT_LABELS.map((alt) => {
+  1705→                              const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
+  1706→                              const isCorrect = revealed && currentQuestion.correctAnswer === alt
+  1707→                              return (
+  1708→                                <div
+  1709→                                  key={alt}
+  1710→                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm ${
+  1711→                                    isCorrect
+  1712→                                      ? 'bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-700'
+  1713→                                      : revealed
+  1714→                                      ? 'opacity-40'
+  1715→                                      : 'bg-muted/50'
+  1716→                                  }`}
+  1717→                                >
+  1718→                                  <span className="flex size-5 items-center justify-center rounded bg-[#00338C] text-[10px] font-bold text-white shrink-0">
+  1719→                                    {alt}
+  1720→                                  </span>
+  1721→                                  <span className="truncate">{currentQuestion[altKey]}</span>
+  1722→                                  {isCorrect && (
+  1723→                                    <span className="ml-auto text-xs font-bold text-green-600 dark:text-green-400">
+  1724→                                      ✓ Gabarito
+  1725→                                    </span>
+  1726→                                  )}
+  1727→                                </div>
+  1728→                              )
+  1729→                            })}
+  1730→                          </div>
+  1731→                          {revealed && (
+  1732→                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#C8A84B]/10 border border-[#C8A84B]/30">
+  1733→                              <KeyRound className="size-4 text-[#C8A84B]" />
+  1734→                              <span className="text-sm font-bold text-[#C8A84B]">
+  1735→                                Gabarito: {currentQuestion.correctAnswer}
+  1736→                              </span>
+  1737→                            </div>
+  1738→                          )}
+  1739→                          {votingPaused && !revealed && (
+  1740→                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
+  1741→                              <Pause className="size-4 text-amber-600 dark:text-amber-400" />
+  1742→                              <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+  1743→                                Votação pausada
+  1744→                              </span>
+  1745→                            </div>
+  1746→                          )}
+  1747→                        </div>
+  1748→                      )}
+  1749→                    </CardContent>
+  1750→                  </Card>
+  1751→
+  1752→                  {/* Live Results (CSS Bar Chart) */}
+  1753→                  <Card>
+  1754→                    <CardHeader className="pb-3">
+  1755→                      <CardTitle className="text-base flex items-center gap-2">
+  1756→                        Resultados em Tempo Real
+  1757→                        <Badge variant="secondary" className="text-xs">
+  1758→                          {totalVotes} {totalVotes === 1 ? 'voto' : 'votos'}
+  1759→                        </Badge>
+  1760→                      </CardTitle>
+  1761→                    </CardHeader>
+  1762→                    <CardContent>
+  1763→                      {!currentQuestion ? (
+  1764→                        <div className="py-8 text-center text-muted-foreground">
+  1765→                          <p>Selecione uma questão para ver os resultados</p>
+  1766→                        </div>
+  1767→                      ) : totalVotes > 0 ? (
+  1768→                        <div className="space-y-2">
+  1769→                          {ALT_LABELS.map((alt) => {
+  1770→                            const votes = voteResults[alt] ?? 0
+  1771→                            const pct = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
+  1772→                            const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+  1773→                            return (
+  1774→                              <div
+  1775→                                key={alt}
+  1776→                                className={`flex items-center gap-2 ${revealed && !isCorrect ? 'opacity-35' : ''}`}
+  1777→                              >
+  1778→                                <span
+  1779→                                  className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0"
+  1780→                                  style={{ backgroundColor: CHART_COLORS[alt] }}
+  1781→                                >
+  1782→                                  {alt}
+  1783→                                </span>
+  1784→                                <div className="flex-1 h-7 bg-muted/50 rounded-full overflow-hidden relative">
+  1785→                                  <div
+  1786→                                    className="h-full rounded-full"
+  1787→                                    style={{
+  1788→                                      width: `${pct}%`,
+  1789→                                      backgroundColor: CHART_COLORS[alt],
+  1790→                                      minWidth: votes > 0 ? '2rem' : '0',
+  1791→                                    }}
+  1792→                                  />
+  1793→                                  {votes > 0 && (
+  1794→                                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-sm">
+  1795→                                      {pct.toFixed(0)}%
+  1796→                                    </span>
+  1797→                                  )}
+  1798→                                </div>
+  1799→                                <span className="text-sm text-muted-foreground w-12 text-right shrink-0">
+  1800→                                  {votes} {votes === 1 ? 'voto' : 'votos'}
+  1801→                                </span>
+  1802→                                {isCorrect && (
+  1803→                                  <span className="text-xs font-bold text-[#C8A84B] shrink-0">✓</span>
+  1804→                                )}
+  1805→                              </div>
+  1806→                            )
+  1807→                          })}
+  1808→                        </div>
+  1809→                      ) : (
+  1810→                        <div className="py-8 text-center text-muted-foreground">
+  1811→                          <div className="w-20 h-20 mx-auto rounded-full border-4 border-dashed border-muted flex items-center justify-center">
+  1812→                            <span className="text-sm">Sem votos</span>
+  1813→                          </div>
+  1814→                          <p className="text-sm mt-2">Aguardando votos...</p>
+  1815→                        </div>
+  1816→                      )}
+  1817→                    </CardContent>
+  1818→                  </Card>
+  1819→                </div>
+  1820→
+  1821→                {/* Row 4: Open Presentation Screen Button */}
+  1822→                <Card>
+  1823→                  <CardContent className="py-4">
+  1824→                    <div className="flex items-center justify-between">
+  1825→                      <div>
+  1826→                        <p className="font-medium">Tela de Apresentação</p>
+  1827→                        <p className="text-sm text-muted-foreground">
+  1828→                          Abra a tela para o projetor/projetor em uma nova janela
+  1829→                        </p>
+  1830→                      </div>
+  1831→                      <Button
+  1832→                        variant="outline"
+  1833→                        onClick={() =>
+  1834→                          window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1835→                        }
+  1836→                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1837→                      >
+  1838→                        <Monitor className="size-4" />
+  1839→                        Abrir Tela de Apresentação
+  1840→                      </Button>
+  1841→                    </div>
+  1842→                  </CardContent>
+  1843→                </Card>
+  1844→              </div>
+  1845→            </TabsContent>
+  1846→          </Tabs>
+  1847→        </main>
+  1848→
+  1849→        <footer className="mt-auto border-t border-[#1A2A5E] bg-[#0A1128] py-3 text-center text-xs text-[#3A4A7E]">
+  1850→          <div className="flex items-center justify-center gap-2">
+  1851→            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+  1852→            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+  1853→          </div>
+  1854→        </footer>
+  1855→
+  1856→        {/* Question Form Dialog */}
+  1857→        <QuestionFormDialog
+  1858→          open={questionFormOpen}
+  1859→          onOpenChange={setQuestionFormOpen}
+  1860→          question={editingQuestion}
+  1861→          sessionId={selectedSession.id}
+  1862→          sessionCode={selectedSession.code}
+  1863→          onSave={refreshSession}
+  1864→        />
+  1865→
+  1866→        {/* Import JSON Dialog */}
+  1867→        <ImportJsonDialog
+  1868→          open={importJsonOpen}
+  1869→          onOpenChange={setImportJsonOpen}
+  1870→          sessionCode={selectedSession.code}
+  1871→          onImport={refreshSession}
+  1872→        />
+  1873→
+  1874→        {/* Delete Question Confirmation */}
+  1875→        <AlertDialog
+  1876→          open={!!deleteQuestionId}
+  1877→          onOpenChange={(open) => !open && setDeleteQuestionId(null)}
+  1878→        >
+  1879→          <AlertDialogContent>
+  1880→            <AlertDialogHeader>
+  1881→              <AlertDialogTitle>Excluir Questão</AlertDialogTitle>
+  1882→              <AlertDialogDescription>
+  1883→                Tem certeza que deseja excluir esta questão? Esta ação não pode
+  1884→                ser desfeita.
+  1885→              </AlertDialogDescription>
+  1886→            </AlertDialogHeader>
+  1887→            <AlertDialogFooter>
+  1888→              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+  1889→              <AlertDialogAction
+  1890→                onClick={handleDeleteQuestion}
+  1891→                disabled={deleting}
+  1892→                className="bg-destructive text-white hover:bg-destructive/90"
+  1893→              >
+  1894→                {deleting && <Loader2 className="size-4 animate-spin" />}
+  1895→                Excluir
+  1896→              </AlertDialogAction>
+  1897→            </AlertDialogFooter>
+  1898→          </AlertDialogContent>
+  1899→        </AlertDialog>
+  1900→
+  1901→        {/* Vencedores Dialog */}
+  1902→        <VencedoresDialog
+  1903→          open={showRanking}
+  1904→          onOpenChange={setShowRanking}
+  1905→          ranking={ranking}
+  1906→          totalQuestions={totalQuestions}
+  1907→        />
+  1908→
+  1909→        {/* Reset Session Confirmation */}
+  1910→        <AlertDialog
+  1911→          open={resetConfirmOpen}
+  1912→          onOpenChange={setResetConfirmOpen}
+  1913→        >
+  1914→          <AlertDialogContent>
+  1915→            <AlertDialogHeader>
+  1916→              <AlertDialogTitle>Resetar Sessão</AlertDialogTitle>
+  1917→              <AlertDialogDescription>
+  1918→                Tem certeza que deseja resetar a sessão? Todos os votos serão apagados, as questões serão desmarcadas e a sessão voltará ao estado &quot;Aguardando&quot;. Os participantes conectados serão notificados.
+  1919→              </AlertDialogDescription>
+  1920→            </AlertDialogHeader>
+  1921→            <AlertDialogFooter>
+  1922→              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+  1923→              <AlertDialogAction
+  1924→                onClick={handleResetSession}
+  1925→                className="bg-amber-600 text-white hover:bg-amber-700"
+  1926→              >
+  1927→                🔄 Resetar Sessão
+  1928→              </AlertDialogAction>
+  1929→            </AlertDialogFooter>
+  1930→          </AlertDialogContent>
+  1931→        </AlertDialog>
+  1932→      </div>
+  1933→    )
+  1934→  }
+  1935→
+  1936→  // ── ADMIN DASHBOARD ──────────────────────────────────────────
+  1937→  return (
+  1938→    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+  1939→      {/* Header */}
+  1940→      <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+  1941→        <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+  1942→          <div className="flex items-center gap-2">
+  1943→            <img src="/logo.svg" alt="UEMS" className="size-8 object-contain rounded-md bg-[#00338C] p-1" />
+  1944→            <div>
+  1945→              <h1 className="text-sm font-bold text-foreground leading-none">
+  1946→                ENADE Quiz
+  1947→              </h1>
+  1948→              <p className="text-[10px] text-muted-foreground leading-none mt-0.5">
+  1949→                Painel Administrativo
+  1950→              </p>
+  1951→            </div>
+  1952→          </div>
+  1953→          <div className="flex-1" />
+  1954→          <Button size="sm" variant="outline" onClick={handleLogout}>
+  1955→            <LogOut className="size-3.5" />
+  1956→            Sair
+  1957→          </Button>
+  1958→        </div>
+  1959→      </header>
+  1960→
+  1961→      <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+  1962→        {/* Page title row */}
+  1963→        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+  1964→          <div>
+  1965→            <h2 className="text-2xl font-bold text-foreground">Sessões</h2>
+  1966→            <p className="text-sm text-muted-foreground">
+  1967→              Gerencie as sessões de quiz do ENADE
+  1968→            </p>
+  1969→          </div>
+  1970→          <Button
+  1971→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1972→            onClick={() => {
+  1973→              setNewTitle('')
+  1974→              setNewSessionOpen(true)
+  1975→            }}
+  1976→          >
+  1977→            <Plus className="size-4" />
+  1978→            Nova Sessão
+  1979→          </Button>
+  1980→        </div>
+  1981→
+  1982→        {/* Sessions list */}
+  1983→        {loading ? (
+  1984→          <div className="flex items-center justify-center py-20">
+  1985→            <Loader2 className="size-8 animate-spin text-[#00338C]" />
+  1986→          </div>
+  1987→        ) : sessions.length === 0 ? (
+  1988→          <Card className="py-16">
+  1989→            <div className="text-center text-muted-foreground">
+  1990→              <p className="text-lg font-medium">Nenhuma sessão encontrada</p>
+  1991→              <p className="text-sm mt-1">
+  1992→                Crie uma nova sessão para começar.
+  1993→              </p>
+  1994→            </div>
+  1995→          </Card>
+  1996→        ) : (
+  1997→          <div className="grid gap-3">
+  1998→            {sessions.map((session) => (
+  1999→              <Card
+  2000→                key={session.id}
+
+[showing lines 1-2000 of 2155; use offset=2001 with limit to continue reading]
