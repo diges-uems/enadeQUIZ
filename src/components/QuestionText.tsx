@@ -223,7 +223,7 @@ function renderInlineFormatting(text: string): React.ReactNode {
   let keyIndex = 0
 
   // Process: patterns like "Term:" at start → bold the term
-  const termColonMatch = remaining.match(/^([^:]{2,40}):(.*)$/s)
+  const termColonMatch = remaining.match(/^([^:]{2,40}):(.*)$/)
   if (termColonMatch && !remaining.startsWith('http')) {
     parts.push(
       <span key={keyIndex++} className="font-semibold text-[#E8EDFF]">{termColonMatch[1]}:</span>

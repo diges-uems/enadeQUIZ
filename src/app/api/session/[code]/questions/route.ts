@@ -84,8 +84,8 @@ export async function POST(
     // Single question
     const { text, year, course, altA, altB, altC, altD, altE, correctAnswer, imageUrl } = body
 
-    if (!text || !altA || !altB || !altC || !altD || !altE || !correctAnswer) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!text || !altA || !altB || !altC || !altD || !correctAnswer) {
+      return NextResponse.json({ error: 'Missing required fields (text, altA-D, correctAnswer)' }, { status: 400 })
     }
 
     const nextIndex = session.questions.length

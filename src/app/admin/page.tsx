@@ -193,9 +193,16 @@ function SortableQuestionItem({
             <ImagePlus className="size-3 text-blue-500" />
           )}
         </div>
-        <p className="text-sm line-clamp-2 text-foreground">
+        <p className="text-sm line-clamp-2 text-foreground whitespace-pre-line">
           {question.text}
         </p>
+        <div className="flex items-center gap-1 mt-1">
+          {getActiveAlternatives(question).map((alt) => (
+            <span key={alt} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+              {alt}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
@@ -339,8 +346,8 @@ function QuestionFormDialog({
   }
 
   const handleSubmit = async () => {
-    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim() || !altE.trim()) {
-      toast.error('Preencha todos os campos obrigatórios.')
+    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim()) {
+      toast.error('Preencha todos os campos obrigatórios (A-D).')
       return
     }
 
@@ -510,22 +517,22 @@ function QuestionFormDialog({
           </div>
 
           <div className="grid gap-3">
-            <Label>Alternativas *</Label>
+            <Label>Alternativas * <span className="text-xs font-normal text-muted-foreground">(A-D obrigatórias, E opcional)</span></Label>
             {[
-              { letter: 'A', value: altA, setter: setAltA },
-              { letter: 'B', value: altB, setter: setAltB },
-              { letter: 'C', value: altC, setter: setAltC },
-              { letter: 'D', value: altD, setter: setAltD },
-              { letter: 'E', value: altE, setter: setAltE },
-            ].map(({ letter, value, setter }) => (
+              { letter: 'A', value: altA, setter: setAltA, required: true },
+              { letter: 'B', value: altB, setter: setAltB, required: true },
+              { letter: 'C', value: altC, setter: setAltC, required: true },
+              { letter: 'D', value: altD, setter: setAltD, required: true },
+              { letter: 'E', value: altE, setter: setAltE, required: false },
+            ].map(({ letter, value, setter, required }) => (
               <div key={letter} className="flex items-center gap-2">
-                <span className="flex size-7 items-center justify-center rounded bg-[#00338C] text-xs font-bold text-white shrink-0">
+                <span className={`flex size-7 items-center justify-center rounded text-xs font-bold text-white shrink-0 ${required ? 'bg-[#00338C]' : 'bg-[#3A4A7E]'}`}>
                   {letter}
                 </span>
                 <Input
                   value={value}
                   onChange={(e) => setter(e.target.value)}
-                  placeholder={`Alternativa ${letter}`}
+                  placeholder={`Alternativa ${letter}${!required ? ' (opcional)' : ''}`}
                   className="flex-1"
                 />
               </div>
@@ -1923,11 +1930,11 @@ export default function AdminPage() {
                               className="max-h-40 rounded-lg border object-contain"
                             />
                           )}
-                          <p className="text-sm leading-relaxed">
-                            {currentQuestion.text}
-                          </p>
+                          <div className="max-h-60 overflow-y-auto">
+                            <QuestionText text={currentQuestion.text} textSize="sm" />
+                          </div>
                           <div className="grid gap-1.5">
-                            {ALT_LABELS.map((alt) => {
+                            {getActiveAlternatives(currentQuestion).map((alt) => {
                               const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
                               const isCorrect = revealed && currentQuestion.correctAnswer === alt
                               return (
@@ -1992,8 +1999,8 @@ export default function AdminPage() {
                         </div>
                       ) : totalVotes > 0 ? (
                         <div className="space-y-2">
-                          {ALT_LABELS.map((alt) => {
-                            const votes = voteResults[alt] ?? 0
+                          {(currentQuestion ? getActiveAlternatives(currentQuestion) : ['A', 'B', 'C', 'D']).map((alt) => {
+                            const votes = voteResults[alt as keyof VoteResults] ?? 0
                             const pct = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
                             const isCorrect = revealed && currentQuestion?.correctAnswer === alt
                             return (

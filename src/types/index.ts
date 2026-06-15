@@ -74,7 +74,7 @@ export interface QuestionImport {
     B: string
     C: string
     D: string
-    E: string
+    E?: string
   }
   correctAnswer: 'A' | 'B' | 'C' | 'D' | 'E'
   imageUrl?: string | null
