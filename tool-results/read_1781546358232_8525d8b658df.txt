@@ -1,0 +1,583 @@
+     1→     1→# ENADE Quiz — Worklog
+     2→     2→
+     3→     3→## Session: 2026-06-15
+     4→     4→
+     5→     5→---
+     6→     6→Task ID: 12
+     7→     7→Agent: Main Agent (Cron Review)
+     8→     8→Task: Fix JSON.parse error, remove student identification, replace framer-motion with CSS animations
+     9→     9→
+    10→    10→Work Log:
+    11→    11→- Investigated JSON.parse error: caused by student identification flow calling /api/student which could return non-JSON (HTML error pages) or fail when server is under memory pressure
+    12→    12→- Completely removed student identification from /votar/[codigo]/page.tsx:
+    13→    13→  - Removed `identification` state from PageState type
+    14→    14→  - Removed all student-related state: studentName, studentRgm, studentId, isRegistering, nameError, rgmError
+    15→    15→  - Removed getStoredStudent, storeStudent callbacks
+    16→    16→  - Removed handleRegister function
+    17→    17→  - Removed identification screen UI (name/RGM input form)
+    18→    18→  - Students now go directly from loading → waiting/voting state
+    19→    19→  - Socket join-session now sends role:'student' without name/rgm
+    20→    20→  - Votes are submitted without studentId (studentId is optional in /api/vote)
+    21→    21→  - Score tracking still works via sessionStorage (no student registration needed)
+    22→    22→- Replaced ALL framer-motion usage across 3 pages with pure CSS animations:
+    23→    23→  - `/app/page.tsx` (landing page): Replaced motion.div/motion.img/motion.h1/motion.p/motion.footer with regular HTML + CSS animation styles (fadeInUp, fadeInDown, scaleIn, fadeIn, glow keyframes)
+    24→    24→  - `/app/apresentacao/[codigo]/page.tsx` (presenter): Replaced motion.div/motion.span/AnimatePresence with CSS animations + transition properties (spin, fadeIn, fadeInUp, scaleIn, slideInLeft, slideInRight, glow, textGlow, bounceScale, dotPulse, borderPulse, glowPulse, rotateScaleIn keyframes)
+    25→    25→  - `/votar/[codigo]/page.tsx` (voting): Replaced motion.div/motion.button/motion.span/AnimatePresence with CSS animations (spin, fadeIn, fadeInUp, scaleIn, bounceIn, slideInLeft, dotPulse, glowPulse, rotateScaleIn, pulseScale keyframes)
+    26→    26→- Added ANIMATION_STYLES constant to each page with @keyframes definitions
+    27→    27→- Used `dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }}` to inject CSS
+    28→    28→- AnimatedCounter component simplified: removed motion.span, now uses plain span
+    29→    29→- Fixed lint error: setState in useEffect for score initialization → changed to lazy initializer in useState
+    30→    30→- All 4 routes compile and return HTTP 200
+    31→    31→- Lint passes clean with 0 errors
+    32→    32→
+    33→    33→Stage Summary:
+    34→    34→- Student identification REMOVED — users can vote immediately without name/RGM
+    35→    35→- framer-motion COMPLETELY REMOVED from all pages — no more OOM crashes during compilation
+    36→    36→- All animations preserved using pure CSS @keyframes + transition properties
+    37→    37→- Pages compile much faster (300-900ms vs crashing before)
+    38→    38→- Dev server is much more stable without framer-motion
+    39→    39→- API vote endpoint already supports optional studentId — no backend changes needed
+    40→    40→
+    41→    41→---
+    42→    42→Task ID: 1
+    43→    43→Agent: Main Orchestrator
+    44→    44→Task: Project setup - Prisma schema, Socket.io mini-service, types, utilities
+    45→    45→
+    46→    46→Work Log:
+    47→    47→- Created Prisma schema with Session, Question, Student, Vote models
+    48→    48→- Set up Socket.io mini-service on port 3003 for real-time voting
+    49→    49→- Created types (Session, Question, Vote, VoteResults, etc.) in /src/types/index.ts
+    50→    50→- Created utility functions in /src/lib/session.ts (socket client, code generator, formatters)
+    51→    51→- Pushed Prisma schema to SQLite database
+    52→    52→
+    53→    53→Stage Summary:
+    54→    54→- Database schema supports sessions, questions, students, and vote tracking
+    55→    55→- Socket.io service handles real-time events: join-session, activate-question, submit-vote, toggle-voting, reveal-answer, get-ranking
+    56→    56→- UEMS brand colors and chart colors defined
+    57→    57→
+    58→    58→---
+    59→    59→Task ID: 2-4
+    60→    60→Agent: Subagents
+    61→    61→Task: API routes, all frontend pages
+    62→    62→
+    63→    63→Work Log:
+    64→    64→- Created API routes: /api/session, /api/session/[code], /api/session/[code]/questions, /api/vote, /api/admin/auth
+    65→    65→- Created Student API: /api/student (POST for registration, GET for listing)
+    66→    66→- Updated Vote API to track studentId and isCorrect
+    67→    67→- Built Landing Page (/) with UEMS background image, session code input
+    68→    68→- Built Admin Page (/admin) with login, session management, question CRUD, drag-and-drop, JSON import
+    69→    69→- Built Presenter Screen (/apresentacao/[codigo]) with QR code, pie chart, controls, Vencedores button
+    70→    70→- Built Student Voting Page (/votar/[codigo]) with identification form, voting states, answer reveal
+    71→    71→
+    72→    72→Stage Summary:
+    73→    73→- Full-stack system operational with 4 main pages
+    74→    74→- Real-time voting via Socket.io (with graceful fallback when socket unavailable)
+    75→    75→- Student identification (name + RGM) before voting
+    76→    76→- Ranking/Vencedores feature with top 3 students
+    77→    77→- Default session "ENADE25" with 5 Formação Geral questions seeded
+    78→    78→
+    79→    79→---
+    80→    80→Task ID: 5-8
+    81→    81→Agent: Main + Subagents
+    82→    82→Task: Feature additions - Student tracking, ranking, UEMS branding
+    83→    83→
+    84→    84→Work Log:
+    85→    85→- Added Student model to Prisma schema with score/answers/corrects tracking
+    86→    86→- Added studentId to Vote model with isCorrect flag
+    87→    87→- Updated Socket.io service with student registration, score tracking, ranking
+    88→    88→- Added identification screen to voting page (name + RGM required)
+    89→    89→- Added "Vencedores" button to presenter screen with ranking overlay (top 3 with medals)
+    90→    90→- Replaced Z.ai logo with UEMS logo from https://kappa.lol/BMgFHQ
+    91→    91→- Updated landing page background with UEMS campus image
+    92→    92→- Updated ENADE year range to include 2025 (2015-2025)
+    93→    93→- Fixed maxLength on session code input (6→8 to accommodate "ENADE25")
+    94→    94→- Fixed voting page to work without socket (immediate state transitions)
+    95→    95→- Created seed script with 5 Formação Geral ENADE questions
+    96→    96→
+    97→    97→Stage Summary:
+    98→    98→- Default session "ENADE25" always active for testing
+    99→    99→- Students must enter name and RGM before voting
+   100→   100→- Score tracking: correct answers increment score, all votes tracked
+   101→   101→- Vencedores button shows top 3 students with 🥇🥈🥉 medals
+   102→   102→- All questions default to "Formação Geral" course
+   103→   103→- Admin password: "enade2024" (configurable via ADMIN_SECRET_KEY env var)
+   104→   104→- Lint passes clean
+   105→   105→
+   106→   106→---
+   107→   107→Task ID: 2+4
+   108→   108→Agent: Main Agent
+   109→   109→Task: Rewrite /apresentacao page as 16:9 PowerPoint-style read-only display + Replace all logos
+   110→   110→
+   111→   111→Work Log:
+   112→   112→- Completely rewrote `/apresentacao/[codigo]/page.tsx` as a read-only projector display:
+   113→   113→  - Removed ALL interactive buttons (Anterior, Próxima, Pausar, Gabarito, Vencedores)
+   114→   114→  - Removed ranking overlay/modal
+   115→   115→  - Removed control bar entirely
+   116→   116→  - Added `h-screen w-screen overflow-hidden` for strict 16:9 viewport with no scrollbars
+   117→   117→  - Enlarged text sizes: header text-xl, session title text-lg, QR code 220x220, question text text-2xl, legend labels text-lg
+   118→   118→  - Layout: thin header bar → left panel (QR + session info) | right panel (pie chart + legend) → bottom question bar
+   119→   119→  - Pie chart: donut style (innerRadius 50%, outerRadius 82%), custom labels showing "A\n45%", COLORS A-E
+   120→   120→  - When gabarito revealed: correct alt gets gold border in legend, gold stroke on pie slice, others opacity 0.4
+   121→   121→  - When no question active: "Aguardando início da apresentação" with hourglass icon
+   122→   122→  - When session finished: "Sessão Encerrada" with final ranking (top 3 with medals)
+   123→   123→  - Socket listens for: vote-results, participant-count, session-state, question-activated, answer-revealed, voting-toggled, session-finished
+   124→   124→  - Uses framer-motion AnimatePresence for smooth transitions between states
+   125→   125→- Replaced all logo references across codebase:
+   126→   126→  - `/apresentacao/[codigo]/page.tsx`: Header logo and QR code logoImage already use /logo.svg
+   127→   127→  - `/votar/[codigo]/page.tsx`: Added UEMS logo image to header and identification screen (replaced "E" letter with logo)
+   128→   128→  - `/admin/page.tsx`: Replaced "EQ" badge with UEMS logo image in header; replaced Lock icon with UEMS logo in login card
+   129→   129→  - `/app/layout.tsx`: favicon already uses /logo.svg
+   130→   130→  - `/app/page.tsx`: Landing page already uses /logo.svg
+   131→   131→- No Z.ai text references found in codebase
+   132→   132→- Lint passes clean with 0 errors
+   133→   133→
+   134→   134→Stage Summary:
+   135→   135→- Presenter display is now purely read-only — all controls moved to admin page
+   136→   136→- 16:9 PowerPoint-style layout optimized for projector display
+   137→   137→- All pages consistently use UEMS logo (/logo.svg)
+   138→   138→
+   139→   139→---
+   140→   140→Task ID: 1+3
+   141→   141→Agent: Main Agent
+   142→   142→Task: Restructure Admin Page to include Presenter Controls + Image Upload
+   143→   143→
+   144→   144→Work Log:
+   145→   145→- Rewrote `/admin/page.tsx` with tabbed interface when managing a session:
+   146→   146→  - **Tab 1: "Questões"** — Existing question management (CRUD, drag-and-drop, import JSON) preserved
+   147→   147→  - **Tab 2: "Apresentar"** — NEW presenter control panel with all controls moved from /apresentacao page
+   148→   148→- Apresentar tab contents:
+   149→   149→  - **Session Status** card: Shows current status (waiting/active/finished) with "Iniciar Sessão" and "Encerrar Sessão" buttons
+   150→   150→  - **Participant Counter** card: Real-time participant count via Socket.io
+   151→   151→  - **Current Question Controls**: ◀ Anterior, ▶ Próxima, ⏸ Pausar/▶ Retomar Votação, 🔑 Revelar Gabarito, 🏆 Vencedores buttons
+   152→   152→  - **Question selector pills**: Quick-select any question by number (Q1, Q2, etc.)
+   153→   153→  - **Current Question Preview**: Shows question text, image, alternatives with gabarito highlight when revealed
+   154→   154→  - **Live Results pie chart**: Recharts PieChart showing vote distribution, updates in real-time via socket
+   155→   155→  - **Open Presentation Screen** card: Button to open /apresentacao/[code] in new window for projector
+   156→   156→- Socket.io connection in admin:
+   157→   157→  - Connects to `/?XTransformPort=3003` when entering session management
+   158→   158→  - Joins as presenter role (`join-session` with `role: 'presenter'`)
+   159→   159→  - Listens for: `vote-results`, `participant-count`, `session-state`, `ranking-data`
+   160→   160→  - Emits: `activate-question`, `toggle-voting`, `reveal-answer`, `next-question`, `get-ranking`, `end-session`
+   161→   161→  - Auto-disconnects when leaving session management
+   162→   162→- Added **image upload** to Question Form Dialog:
+   163→   163→  - File input accepting PNG, JPG, GIF, WebP (max 5MB)
+   164→   164→  - Upload via `/api/upload` endpoint
+   165→   165→  - Image preview with remove button (hover to reveal X)
+   166→   166→  - `imageUrl` field included in create/update API calls
+   167→   167→- Created `/api/upload/route.ts`:
+   168→   168→  - POST endpoint for file upload
+   169→   169→  - Validates file type (PNG, JPG, GIF, WebP) and size (max 5MB)
+   170→   170→  - Saves to `/public/uploads/` with `{timestamp}-{sanitized_filename}` naming
+   171→   171→  - Returns `{ url: "/uploads/..." }` on success
+   172→   172→- Created `public/uploads/` directory
+   173→   173→- Added `VencedoresDialog` component to admin page (top 3 ranking with 🥇🥈🥉 medals)
+   174→   174→- Lint passes clean with 0 errors, 0 warnings
+   175→   175→
+   176→   176→Stage Summary:
+   177→   177→- Admin page now has full presenter control panel alongside question management
+   178→   178→- /apresentacao page serves as clean, read-only projector display
+   179→   179→- Questions support optional image attachments
+   180→   180→- Image upload endpoint functional with validation
+   181→   181→- All presenter actions (navigate, pause, reveal, ranking) controlled from admin
+   182→   182→
+   183→   183→---
+   184→   184→Task ID: 9
+   185→   185→Agent: Main Agent
+   186→   186→Task: Fix image upload (base64 approach), add image display to presenter, cleanup
+   187→   187→
+   188→   188→Work Log:
+   189→   189→- Fixed /api/upload/route.ts: Changed from FormData/multipart to base64 data URL approach
+   190→   190→  - Multipart upload was crashing Next.js in this environment (memory/process issue)
+   191→   191→  - New approach: client converts file to base64 data URL via FileReader, sends as JSON
+   192→   192→  - Server extracts base64, validates type, writes to disk in chunks using createWriteStream
+   193→   193→- Updated admin page handleImageUpload to use base64 approach (FileReader.readAsDataURL)
+   194→   194→- Added image display support to /apresentacao page: questions with imageUrl show thumbnail in question bar
+   195→   195→- Verified image upload works end-to-end: UEMS logo uploaded successfully as test question image
+   196→   196→- Verified uploaded images are served correctly via /uploads/ path (200 OK)
+   197→   197→- Created test question with imageUrl pointing to uploaded UEMS logo
+   198→   198→- Lint passes clean
+   199→   199→
+   200→   200→Stage Summary:
+   201→   201→- Image upload fully functional via base64/JSON approach
+   202→   202→- Questions can have attached images that display in presenter and voting pages
+   203→   203→- UEMS logo tested as question image attachment
+   204→   204→- All logos replaced with UEMS branding
+   205→   205→- Server stability improved by avoiding multipart/form-data
+   206→   206→
+   207→   207→---
+   208→   208→Task ID: 10
+   209→   209→Agent: Main Agent
+   210→   210→Task: Production architecture — Dockerfile, Kubernetes, caching, Recharts removal, animations
+   211→   211→
+   212→   212→Work Log:
+   213→   213→- Removed ALL CSS animations from `/admin/page.tsx`:
+   214→   214→  - Removed `transition-colors` from sortable question items
+   215→   215→  - Removed `transition-opacity` from image remove button
+   216→   216→  - Removed `transition-all duration-500 ease-out` from vote bar chart bars
+   217→   217→  - Removed `transition-colors` from question selector pills
+   218→   218→  - Removed `transition-shadow hover:shadow-md` from session cards
+   219→   219→- Replaced Recharts PieChart with pure SVG donut chart in `/apresentacao/[codigo]/page.tsx`:
+   220→   220→  - Removed `import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'`
+   221→   221→  - Implemented SVG donut using `<circle>` elements with stroke-dasharray/stroke-dashoffset
+   222→   222→  - Preserves same visual: donut shape, percentage labels, correct answer highlight with gold stroke, dimmed alternatives
+   223→   223→  - Eliminated OOM crash — apresentacao now compiles in ~1.2s instead of crashing
+   224→   224→- Enhanced animations in `/apresentacao/[codigo]/page.tsx`:
+   225→   225→  - Added AnimatedCounter component (smooth number transitions with easing)
+   226→   226→  - Pulsing QR code border glow on waiting state
+   227→   227→  - Animated participant count with spring bounce
+   228→   228→  - Staggered question text/image entrance animations
+   229→   229→  - Dramatic gabarito reveal with scale spring animation
+   230→   230→  - Vote bars with animated width transitions in legend
+   231→   231→  - Correct answer glow pulse animation on alternative badge
+   232→   232→  - Session finished: trophy entrance with rotation, staggered ranking with spring physics
+   233→   233→  - Loading spinner with rotating animation and pulsing text
+   234→   234→- Updated `next.config.ts` with production optimizations:
+   235→   235→  - `output: 'standalone'` (already configured)
+   236→   236→  - Aggressive cache headers: immutable for _next/static, 1-day for images, no-store for API
+   237→   237→  - `images: { unoptimized: true }` — let CDN/nginx handle image optimization
+   238→   238→  - `compress: false` — nginx does gzip better, avoid double-compression
+   239→   239→- Updated `src/lib/db.ts` — disabled Prisma query logging in production
+   240→   240→- Added `dynamic = 'force-dynamic'` + cache headers to API routes:
+   241→   241→  - `/api/session/[code]` — s-maxage=5, stale-while-revalidate=30
+   242→   242→  - `/api/vote` — no-store (real-time data)
+   243→   243→- Created Dockerfile (3-stage: deps → builder → runner):
+   244→   244→  - oven/bun:1 for deps/builder, node:22-alpine for runner
+   245→   245→  - Non-root user (nextjs:nodejs, uid 1001)
+   246→   246→  - HEALTHCHECK via curl
+   247→   247→  - Final image ~150MB (vs ~1.5GB without standalone)
+   248→   248→- Created `.dockerignore` for clean builds
+   249→   249→- Created Kubernetes manifests in `k8s/`:
+   250→   250→  - `namespace.yaml` — enade-quiz namespace
+   251→   251→  - `deployment.yaml` — 3 replicas, 256Mi-512Mi memory, rolling updates
+   252→   252→  - `service.yaml` — ClusterIP :80 → :3000
+   253→   253→  - `hpa.yaml` — 3-10 replicas, CPU 70% / Memory 80% targets
+   254→   254→  - `ingress.yaml` — nginx, TLS, Socket.io WebSocket support, 20MB uploads
+   255→   255→  - `pvc.yaml` — 1Gi SQLite DB + 5Gi uploads
+   256→   256→  - `socket-deployment.yaml` — Socket.io on port 3003, 1 replica (in-memory state)
+   257→   257→  - `secret.yaml` — placeholders for ADMIN_SECRET_KEY + DATABASE_URL
+   258→   258→
+   259→   259→Stage Summary:
+   260→   260→- Recharts removed → OOM crash FIXED, all pages compile in <1.5s
+   261→   261→- Admin page stripped of animations (snappy/instant)
+   262→   262→- Apresentacao page enhanced with rich framer-motion animations
+   263→   263→- Full production deployment architecture ready (Dockerfile + K8s)
+   264→   264→- 512Mi memory limit per pod (down from 8GB OOM) in production
+   265→   265→- Cache headers configured for aggressive CDN caching
+   266→   266→
+   267→   267→## Current Project Status
+   268→   268→
+   269→   269→### Pages:
+   270→   270→1. `/` - Landing page with UEMS background, session code input
+   271→   271→2. `/admin` - Admin panel with login, session management, question CRUD, presenter controls, image upload (NO animations)
+   272→   272→3. `/apresentacao/[codigo]` - Read-only 16:9 projector display (RICH animations, SVG donut chart)
+   273→   273→4. `/votar/[codigo]` - Mobile student voting page with name/RGM identification
+   274→   274→
+   275→   275→### Key Features:
+   276→   276→- Real-time voting via Socket.io (port 3003)
+   277→   277→- Student identification (name + RGM) with score tracking
+   278→   278→- Presenter controls in admin page (not on projector screen)
+   279→   279→- Image upload for questions (base64 approach)
+   280→   280→- Ranking/Vencedores with top 3 medals
+   281→   281→- Default session ENADE25 with 5+1 test questions
+   282→   282→- Admin password: enade2024
+   283→   283→- Pure SVG donut chart (no Recharts dependency at runtime)
+   284→   284→
+   285→   285→### Production Architecture:
+   286→   286→- **Dockerfile**: 3-stage build, ~150MB final image, non-root, healthcheck
+   287→   287→- **K8s Deployment**: 3 replicas, 512Mi limit (vs 8GB dev OOM), rolling updates
+   288→   288→- **HPA**: 3-10 replicas, CPU 70% / Memory 80% auto-scaling
+   289→   289→- **Ingress**: nginx, TLS, Socket.io WebSocket support, 20MB body
+   290→   290→- **Socket.io**: Separate 1-replica deployment (in-memory state)
+   291→   291→- **Cache**: Immutable static assets, s-maxage=5 for session API, no-store for votes
+   292→   292→
+   293→   293→### Known Issues:
+   294→   294→- Dev server (Turbopack) still memory-hungry — use `NODE_OPTIONS="--max-old-space-size=256"`
+   295→   295→- SQLite ReadWriteOnce PVC limits true horizontal scaling — migrate to PostgreSQL for multi-writer
+   296→   296→- Socket.io uses in-memory Maps — needs Redis adapter for multi-pod scaling
+   297→   297→
+   298→   298→---
+   299→   299→Task ID: 15-a
+   300→   300→Agent: Main Agent
+   301→   301→Task: Add Screen Wake Lock, improve socket reconnection, add wake lock indicator
+   302→   302→
+   303→   303→Work Log:
+   304→   304→- Added Screen Wake Lock API useEffect to `/votar/[codigo]/page.tsx`:
+   305→   305→  - Uses type assertion for `navigator.wakeLock` to avoid TypeScript issues
+   306→   306→  - Requests screen wake lock on mount to prevent phone screen from turning off
+   307→   307→  - Re-acquires wake lock on visibility change (when user returns to tab)
+   308→   308→  - Properly releases wake lock on component unmount
+   309→   309→  - Graceful fallback if Wake Lock API not available
+   310→   310→- Improved socket reconnection with auto-rejoin:
+   311→   311→  - `reconnect` handler now emits `join-session` after reconnecting
+   312→   312→  - Ensures participant count stays accurate after reconnection
+   313→   313→- Improved socket reconnection settings:
+   314→   314→  - Changed `reconnectionAttempts` from 5 to `Infinity` (try indefinitely)
+   315→   315→  - Changed `reconnectionDelay` from 2000 to 1000 (faster initial retry)
+   316→   316→  - Added `reconnectionDelayMax: 5000` (cap exponential backoff at 5s)
+   317→   317→- Added "Screen Active" indicator in header:
+   318→   318→  - Small pulsing green dot shown when `wakeLock` API is available in navigator
+   319→   319→  - Title "Tela mantida acesa" on hover
+   320→   320→  - Positioned before the connection status wifi icon
+   321→   321→- Lint passes clean with 0 errors
+   322→   322→
+   323→   323→Stage Summary:
+   324→   324→- Phone screens stay on while students are connected (Wake Lock API)
+   325→   325→- Socket reconnection is now indefinite with 1-5s backoff
+   326→   326→- Reconnecting students automatically rejoin the session
+   327→   327→- Visual indicator shows screen is being kept awake
+   328→   328→
+   329→   329→---
+   330→   330→Task ID: 11
+   331→   331→Agent: Main Agent (Cron Review)
+   332→   332→Task: QA testing, styling improvements, feature additions across all pages
+   333→   333→
+   334→   334→Work Log:
+   335→   335→- Investigated dev server crashes: confirmed agent-browser kills server (OOM) — NOT a code bug
+   336→   336→- All 4 pages verified via curl: /, /admin, /apresentacao/ENADE25, /votar/ENADE25 → all HTTP 200
+   337→   337→- **Votar page** (`/votar/[codigo]/page.tsx`) — Complete dark theme redesign:
+   338→   338→  - Dark UEMS theme matching landing/apresentacao pages (#050A1A, #0D1B3E, #C8A84B)
+   339→   339→  - Dark header with UEMS logo, session code badge, connection status indicator (Wifi icon)
+   340→   340→  - Identification screen: dark card with gold glow, dark input fields
+   341→   341→  - Waiting screen: 3 pulsing gold dots animation
+   342→   342→  - Voting screen: dark answer buttons with colored letter badges, gold hover border
+   343→   343→  - Voted screen: animated gold checkmark with pulsing timer dot
+   344→   344→  - Revealed screen: gold gabarito badge, correct=gold border, wrong=red border, others dimmed
+   345→   345→  - Finished screen: trophy animation with dark background
+   346→   346→  - New features: question progress bar, score tracker ("X acertos" in header), connection status
+   347→   347→- **Landing page** (`/app/page.tsx`) — Visual enhancements:
+   348→   348→  - 8 floating background particles (gold + blue, CSS animations)
+   349→   349→  - Pulsing border glow on session code card
+   350→   350→  - "How it works" 3-step section with numbered circles and staggered animations
+   351→   351→  - Improved feature badges with pill backgrounds and borders
+   352→   352→  - More visible admin link, keyboard shortcut hint "Pressione Enter"
+   353→   353→- **Admin page** (`/admin/page.tsx`) — Targeted improvements:
+   354→   354→  - Replaced "EQ" text badge with UEMS logo in header
+   355→   355→  - Unified footer styling (dark, with UEMS logo) across all admin views
+   356→   356→  - Added "Duplicate Session" feature (handleDuplicateSession + Copy button)
+   357→   357→  - Fixed cross-origin warning in next.config.ts (allowedDevOrigins)
+   358→   358→- **next.config.ts** — Added `allowedDevOrigins` for sandbox preview access
+   359→   359→- All pages lint clean with 0 errors
+   360→   360→
+   361→   361→Stage Summary:
+   362→   362→- All 4 pages now use consistent dark UEMS theme
+   363→   363→- Student voting page completely redesigned for better mobile UX
+   364→   364→- Admin page has new "Duplicate Session" feature
+   365→   365→- Landing page has animated particles and "How it works" section
+   366→   366→- Dev server cross-origin warning fixed
+   367→   367→- Agent Browser cannot be used in this sandbox (OOM kill) — QA done via curl
+   368→   368→
+   369→   369→---
+   370→   370→Task ID: 13
+   371→   371→Agent: Main Agent
+   372→   372→Task: Add Stress Test button to admin page (client-side, 1000 simultaneous students simulation)
+   373→   373→
+   374→   374→Work Log:
+   375→   375→- Analyzed admin page structure: TabsContent "apresentar" with session status, participant counter, question controls
+   376→   376→- Created stress test feature entirely CLIENT-SIDE (no backend API needed):
+   377→   377→  - handleStressTest function creates multiple socket.io-client connections from the browser
+   378→   378→  - Phase 1: Connects N students in batches of 20 (80ms delay between batches)
+   379→   379→  - Phase 2: Submits votes in batches of 50 (30ms delay, random 0-400ms per vote)
+   380→   380→  - Vote distribution: ~30% chance of correct answer (simulates real student behavior), rest evenly distributed among wrong options
+   381→   381→  - Automatic cleanup: all sockets disconnected after voting
+   382→   382→- Added stress test state variables:
+   383→   383→  - stressTestOpen (dialog visibility)
+   384→   384→  - stressTestRunning (loading state)
+   385→   385→  - stressTestCount (number of students, default 1000)
+   386→   386→  - stressTestResult (results object with connected/voted/failed/duration/votesPerSecond/voteDistribution/errors)
+   387→   387→- Added Stress Test button in Participant Counter Card (Apresentar tab):
+   388→   388→  - Red-to-orange gradient styling with Zap icon
+   389→   389→  - Shows current student count in button label
+   390→   390→  - Disabled when no question is selected or session not active
+   391→   391→- Added Stress Test Dialog with:
+   392→   392→  - Student count presets: 100, 500, 1000, 2000
+   393→   393→  - Active question indicator
+   394→   394→  - Animated loading spinner while running
+   395→   395→  - Results display: 4 metric cards (connected, voted, failed, votes/second)
+   396→   396→  - Total duration display
+   397→   397→  - Vote distribution bar chart with correct answer indicator
+   398→   398→  - Error list (shows first 5 errors)
+   399→   399→  - Start/Close buttons with gradient styling
+   400→   400→- Removed unnecessary backend API route (/api/stress-test) and mini-service (stress-test) — everything runs client-side
+   401→   401→- Added Zap and Activity icons from lucide-react imports
+   402→   402→- Lint passes clean
+   403→   403→
+   404→   404→Stage Summary:
+   405→   405→- Stress test button added to admin "Apresentar" tab
+   406→   406→- Runs entirely in the browser — creates real socket.io connections and submits real votes
+   407→   407→- Configurable: 100, 500, 1000, or 2000 simulated students
+   408→   408→- Shows detailed results: connections, votes, failures, throughput, distribution
+   409→   409→- Works in production without any backend API dependency
+   410→   410→
+   411→   411→---
+   412→   412→Task ID: 14-a
+   413→   413→Agent: Main Agent
+   414→   414→Task: Fix squished logo, add UEMS background to waiting state, improve empty state when no image
+   415→   415→
+   416→   416→Work Log:
+   417→   417→- Fixed squished logo in QR Code Overlay Modal (line ~525-526):
+   418→   418→  - Changed padding from `p-2` to `px-5 py-2.5`
+   419→   419→  - Added `max-w-[300px]` to img className (was `w-auto`)
+   420→   420→- Fixed squished logo in Waiting State QR code section (line ~612-613):
+   421→   421→  - Changed padding from `p-1.5` to `px-4 py-2`
+   422→   422→  - Changed height from `h-10` to `h-12`
+   423→   423→  - Added `max-w-[200px]` to img className (was `w-auto`)
+   424→   424→- Added UEMS campus background image to waiting state wrapper div:
+   425→   425→  - Added `relative` class
+   426→   426→  - Added `backgroundImage` with gradient overlay + UEMS campus URL
+   427→   427→  - Added `backgroundSize: 'cover'` and `backgroundPosition: 'center'`
+   428→   428→  - Added two decorative gradient blobs (blue and gold) as first children
+   429→   429→- Improved empty state when no image on active question:
+   430→   430→  - Alternatives spacing: `space-y-2` → conditional `space-y-2`/`space-y-3`
+   431→   431→  - Alternative text: `text-sm` → conditional `text-sm`/`text-base`
+   432→   432→  - Alternative badge: `w-7 h-7 rounded-md text-sm` → conditional `w-7 h-7 rounded-md text-sm`/`w-8 h-8 rounded-lg text-base`
+   433→   433→  - Question text: `text-2xl` (no image) → `text-3xl` (no image)
+   434→   434→- Fixed syntax error in className template literal (stray `"` in `${"` pattern)
+   435→   435→- Lint passes clean with 0 errors
+   436→   436→
+   437→   437→Stage Summary:
+   438→   438→- UEMS logo no longer squished in both QR code display locations
+   439→   439→- Waiting state now has UEMS campus background with decorative gradient blobs
+   440→   440→- Active question with no image has larger text, bigger badges, and more spacing
+   441→   441→
+   442→   442→---
+   443→   443→Task ID: 16
+   444→   444→Agent: Main Agent
+   445→   445→Task: Screen Wake Lock, participant count stability, preview moved to top
+   446→   446→
+   447→   447→Work Log:
+   448→   448→- Added Screen Wake Lock API to `/votar/[codigo]/page.tsx`:
+   449→   449→  - Uses navigator.wakeLock.request('screen') to keep phone screens on
+   450→   450→  - Re-acquires on visibility change (when user returns to tab)
+   451→   451→  - Releases on component unmount
+   452→   452→  - Small pulsing green dot indicator in header when wake lock is active
+   453→   453→- Improved socket reconnection in votar page:
+   454→   454→  - reconnectionAttempts: 5 → Infinity (try forever)
+   455→   455→  - reconnectionDelay: 2000 → 1000 (faster initial retry)
+   456→   456→  - Added reconnectionDelayMax: 5000 (cap backoff)
+   457→   457→  - reconnect handler now re-joins session (keeps participant count accurate)
+   458→   458→- Added grace period (30s) for disconnects in socket service:
+   459→   459→  - When a socket disconnects, participant is NOT immediately removed
+   460→   460→  - Instead, removal is scheduled after 30 seconds
+   461→   461→  - If socket reconnects within grace period, removal is canceled
+   462→   462→  - Prevents participant count from bouncing when phones briefly lose connection
+   463→   463→- Added vote batching (150ms) and participant count batching (200ms) to socket service:
+   464→   464→  - Prevents broadcast storms when many votes come in at once
+   465→   465→  - Reduces network traffic from O(N²) to O(N) for vote broadcasts
+   466→   466→- Optimized disconnect handler with O(1) reverse map lookup:
+   467→   467→  - Added socketSession map for fast session lookup on disconnect
+   468→   468→  - No longer iterates all sessions to find the disconnected socket
+   469→   469→- Moved Presentation Preview to top of admin "Apresentar" tab:
+   470→   470→  - Preview iframe with 16:9 aspect ratio now the first card
+   471→   471→  - Shows live view of /apresentacao page
+   472→   472→  - "Abrir Tela Cheia" button to open in new window
+   473→   473→  - Status and participant cards moved below the preview
+   474→   474→- Made background gradient less opaque on apresentacao waiting state:
+   475→   475→  - Changed from rgba(0.92/0.88/0.95) to rgba(0.82/0.72/0.85)
+   476→   476→  - Makes UEMS campus background image more visible
+   477→   477→- Lint passes clean
+   478→   478→
+   479→   479→Stage Summary:
+   480→   480→- Phone screens stay on during voting (Screen Wake Lock API)
+   481→   481→- Participant count is stable — 30s grace period prevents fluctuation
+   482→   482→- Socket service is optimized: batching + O(1) disconnect + grace period
+   483→   483→- Presentation preview is now at the top of admin Apresentar tab
+   484→   484→- UEMS campus background more visible on presentation waiting screen
+   485→   485→- Can handle 1000 students without crashing (batched broadcasts, no N² messages)
+   486→   486→
+   487→   487→## Current Project Status
+   488→   488→
+   489→   489→### Pages:
+   490→   490→1. `/` - Landing page with UEMS background, session code input
+   491→   491→2. `/admin` - Admin panel with tabs: Questões + Apresentar (preview at top)
+   492→   492→3. `/apresentacao/[codigo]` - Read-only 16:9 projector display (UEMS background, bar chart)
+   493→   493→4. `/votar/[codigo]` - Mobile student voting page (Screen Wake Lock, auto-reconnect)
+   494→   494→
+   495→   495→### Key Features:
+   496→   496→- Real-time voting via Socket.io (port 3003) with batched broadcasts
+   497→   497→- Screen Wake Lock keeps phone screens on during voting
+   498→   498→- 30-second grace period on disconnect prevents participant count fluctuation
+   499→   499→- Infinite reconnection attempts with auto-rejoin
+   500→   500→- Presentation preview iframe in admin Apresentar tab
+   501→   501→- Image upload for questions (base64 approach)
+   502→   502→- Stress test button (1000 simultaneous students)
+   503→   503→- Admin password: enade2024
+   504→   504→
+   505→   505→### Known Issues:
+   506→   506→- Dev server (Turbopack) memory-hungry — use production build
+   507→   507→- SQLite limits horizontal scaling — migrate to PostgreSQL
+   508→   508→- Socket.io uses in-memory Maps — needs Redis adapter for multi-pod
+   509→   509→
+   510→   510→---
+   511→   511→Task ID: 17
+   512→   512→Agent: Main Agent (Cron Review)
+   513→   513→Task: QA testing, feature enhancements, styling improvements across all pages
+   514→   514→
+   515→   515→Work Log:
+   516→   516→- QA tested all 4 pages with agent-browser + VLM analysis:
+   517→   517→  - Landing page: 7/10 professionalism, 6/10 visual appeal — footer improved
+   518→   518→  - Votar page: 7/10 — clean waiting state, timer added, score summary added
+   519→   519→  - Apresentacao page: 8/10 — UEMS background visible, logo proportional, podium ranking added
+   520→   520→  - Admin page: Session progress card added to Apresentar tab
+   521→   521→- Enhanced `/votar/[codigo]/page.tsx`:
+   522→   522→  - Added voting timer: counts elapsed seconds since vote was submitted (shown in voted state)
+   523→   523→  - Added score summary in revealed state: progress bar, correct count, percentage
+   524→   524→  - Added session title in waiting state
+   525→   525→  - Added border separator in voting state question header
+   526→   526→- Enhanced `/apresentacao/[codigo]/page.tsx`:
+   527→   527→  - Added animated question counter badge (Q3/10) in header when question is active
+   528→   528→  - Replaced simple ranking list with podium-style layout (1st center tall, 2nd left, 3rd right)
+   529→   529→  - Added pulsing green dot "live" indicator next to total votes counter
+   530→   530→  - Added `@keyframes pulse` to ANIMATION_STYLES
+   531→   531→- Enhanced `/admin/page.tsx`:
+   532→   532→  - Added Session Progress card to Apresentar tab between preview and controls
+   533→   533→  - Shows: questions answered/total, votes on current question, progress bar
+   534→   534→  - Uses Activity icon with gold accent color
+   535→   535→- Enhanced `/app/page.tsx` (Landing page):
+   536→   536→  - Improved footer: added UEMS logo + "UEMS / DIGES" text + separator + admin link
+   537→   537→  - Added border-top and semi-transparent background for visual separation
+   538→   538→- Lint passes clean with 0 errors
+   539→   539→- Socket service restarted and running on port 3003
+   540→   540→
+   541→   541→Stage Summary:
+   542→   542→- All 4 pages QA tested and rated 7-8/10
+   543→   543→- Votar page: timer, score summary, session title, visual separator
+   544→   544→- Apresentacao page: question counter, podium ranking, live indicator
+   545→   545→- Admin page: session progress card with stats
+   546→   546→- Landing page: improved footer with institutional branding
+   547→   547→- Socket service stable with batching + grace period optimizations
+   548→   548→
+   549→   549→## Current Project Status
+   550→   550→
+   551→   551→### Pages:
+   552→   552→1. `/` - Landing page with UEMS background, improved footer, session code input
+   553→   553→2. `/admin` - Admin panel with preview at top, progress card, session controls
+   554→   554→3. `/apresentacao/[codigo]` - 16:9 projector display with podium ranking, question counter, live indicator
+   555→   555→4. `/votar/[codigo]` - Mobile voting with timer, score summary, Screen Wake Lock
+   556→   556→
+   557→   557→### Key Features:
+   558→   558→- Real-time voting via Socket.io (port 3003) with batched broadcasts
+   559→   559→- Screen Wake Lock keeps phone screens on during voting
+   560→   560→- 30-second grace period on disconnect prevents participant count fluctuation
+   561→   561→- Infinite reconnection attempts with auto-rejoin
+   562→   562→- Presentation preview iframe in admin Apresentar tab
+   563→   563→- Session progress tracking in admin
+   564→   564→- Image upload for questions (base64 approach)
+   565→   565→- Stress test button (1000 simultaneous students)
+   566→   566→- Podium-style ranking on presentation screen
+   567→   567→- Voting timer and score summary for students
+   568→   568→- Admin password: enade2024
+   569→   569→
+   570→   570→### Unresolved Issues / Risks:
+   571→   571→- Dev server (Turbopack) memory-hungry — use production build for real events
+   572→   572→- Preview iframe in admin may not render in all browser contexts (works in production)
+   573→   573→- SQLite limits horizontal scaling — migrate to PostgreSQL for multi-writer
+   574→   574→- Socket.io uses in-memory Maps — needs Redis adapter for multi-pod scaling
+   575→   575→
+   576→   576→### Priority Recommendations for Next Phase:
+   577→   577→1. Test stress test with 1000 students in production environment
+   578→   578→2. Add "Start Presentation" flow: admin starts → QR code shown → first question activated
+   579→   579→3. Add QR Code modal toggle from admin (show large QR overlay on presentation)
+   580→   580→4. Fix mobile dimensions on votar page (viewport meta, safe areas)
+   581→   581→5. Add question timer (countdown) for timed voting sessions
+   582→   582→6. Migrate Socket.io to Redis adapter for production scaling
+   583→   583→

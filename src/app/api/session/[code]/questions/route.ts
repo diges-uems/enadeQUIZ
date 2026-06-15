@@ -71,6 +71,7 @@ export async function POST(
             altD: q.alternatives.D || '',
             altE: q.alternatives.E || '',
             correctAnswer: q.correctAnswer,
+            imageUrl: q.imageUrl || null,
             orderIndex: nextIndex + i,
           }
         })

@@ -144,6 +144,7 @@ export default function ApresentacaoPage({
   const [notFound, setNotFound] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
   const [participantCount, setParticipantCount] = useState(0)
+  const [totalParticipants, setTotalParticipants] = useState(0)
   const [voteResults, setVoteResults] = useState<VoteResults>({
     A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
   })
@@ -216,16 +217,19 @@ export default function ApresentacaoPage({
       setVoteResults(data)
     })
 
-    socketInstance.on('participant-count', (count: number) => {
-      setParticipantCount(count)
+    socketInstance.on('participant-count', (data: { live: number; total: number }) => {
+      setParticipantCount(data.live)
+      setTotalParticipants(data.total)
     })
 
     socketInstance.on('session-state', (data: {
       participantCount: number
+      totalParticipants: number
       currentQuestionId: string | null
       votingPaused: boolean
     }) => {
       setParticipantCount(data.participantCount)
+      setTotalParticipants(data.totalParticipants)
       if (data.currentQuestionId !== currentQuestionId) {
         setCurrentQuestionId(data.currentQuestionId)
         if (data.currentQuestionId && session) {
@@ -682,7 +686,10 @@ export default function ApresentacaoPage({
                   className="text-[#E8EDFF] text-2xl font-semibold"
                   style={{ fontFamily: 'var(--font-space-grotesk)' }}
                 >
-                  <AnimatedCounter value={participantCount} /> {participantCount === 1 ? 'participante' : 'participantes'}
+                  <AnimatedCounter value={totalParticipants || participantCount} /> {totalParticipants === 1 ? 'participante' : 'participantes'}
+                  {totalParticipants > participantCount && participantCount > 0 && (
+                    <span className="text-[#C8A84B]/60 text-sm ml-2">({participantCount} conectados)</span>
+                  )}
                 </span>
               </div>
 

@@ -1,0 +1,566 @@
+     1→2025
+     2→*R020320252*
+     3→QUESTÃO01
+     4→TEXTO1
+     5→AEducaçãodeJovenseAdultos(EJA)éumamodalidadedeensinodestinadaapessoasquenãoestãoinseridasnaeducação
+     6→regularpormotivosdiversos.Nessecontextoeducacional,esseestudantepossuiumahistóriadevida,sobretudoporser,
+     7→efetivamente,umsujeitoativonasesferassociais.
+     8→PEREIRA,P.F.;REINALDO,M.A.G.Ensino-aprendizagemdechargenaEJA:
+     9→umaexperiêncianocontextodeestágiosupervisionado.IIICINTED(adaptado).
+    10→TEXTO2
+    11→AsconcepçõesrestritasveemaEJAapenasemseucarátermarginalesecundário,camuflandoosaspectospolíticos,culturais
+    12→epedagógicos.Sobumaabordagemsistêmica,aEJAétratadacomopartedahistóriadaeducaçãodopaíse,comotal,
+    13→umamodalidadeimportantenoprocessodedemocratizaçãododireitoàeducação.
+    14→ALMEIDA,A.EJA:umaeducaçãoparaotrabalhoouparaaclassetrabalhadora?
+    15→RevistaBrasileiradeEducaçãodeJovenseAdultos,2016(adaptado).
+    16→Considerandoostextos1e2,aalternativaqueapresentaumaaçãopedagógicacondizentecomaabordagemsistêmicadaEJAé
+    17→A garantirainclusãodetemasrelacionadosàprofissionalizaçãodosestudantesedeatividadesrelativasaomundodotrabalho.
+    18→B proporumaorganizaçãocurricularqueoportunizeaobtençãodeumdiplomaàquelaspessoasquenãopuderamfrequentaraescola.
+    19→C desenvolverprojetosdeletramentoqueintegremexperiênciasdevidadosestudantesatemascomotrabalho,identidades
+    20→culturaisevivênciasintergeracionais.
+    21→D elaborarumapropostadeorganizaçãocurricularqueassegureocumprimentodasdiretrizesnacionaisaosestudantesea
+    22→garantiadosmesmosconteúdosedosmesmosmétodosaplicadosaoensinoregular.
+    23→QUESTÃO02
+    24→Oletramentocientíficorepresentaumacompetênciaessencialnocontextoeducacionaletemcomofinalidadeproporcionar
+    25→queosindivíduoscompreendam,apliquemesejamcríticosaoconhecimentocientíficoaserutilizadoemsuasvidascotidianas.
+    26→SOUSA,L.Q.;ABREU,K.F.AnálisedeEstudosePesquisassobreLetramentoCientífico.
+    27→CadernosCajuína,n.4,2024.
+    28→Considerandooquerepresentaoletramentocientífico,aequipegestoradeumaescolaplanejaorganizarumapalestracomo
+    29→objetivodeconscientizaracomunidadeescolardequeaciência
+    30→A fundamenta-senorigormetodológicocomorespaldoparaosargumentosproduzidoseapresentadospublicamente.
+    31→B respeitaaliberdadeindividualealivretomadadedecisãocomodireitossobrepostosàsescolhascoletivas.
+    32→C permitearefutaçãoderesultadosamplamenteaceitosemfunçãodeposicionamentosindividuais.
+    33→D buscaaimpessoalidade,aobjetividadeeaneutralidade,àpartedeinfluênciaspolíticas.
+    34→Árealivre
+    35→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+    36→2 FORMAÇÃOGERALDOCENTE
+    37→R02032025 - CIENCIAS_BIOLOGICAS.indb 2 21/08/2025 17:49:44
+    38→
+    39→2025
+    40→*R020320253*
+    41→QUESTÃO03
+    42→Emumareuniãodeplanejamento,foipropostaumadiscussãosobreosdiferentestiposdeavaliaçãoesuasaplicaçõesno
+    43→processodeensinoedeaprendizagem.Foramapresentadasascaracterísticaseasfunçõesdasavaliaçõesdiagnóstica,formativa
+    44→esomativanocontextoescolar.Osprofessoresforamconvidadosadescreversuaspráticaspedagógicasearelacioná-lasaos
+    45→diferentesobjetivosdasavaliações.
+    46→Entreasatividadesavaliativasdescritas,éassociadaàfunçãoformativaaquelaque
+    47→A iniciaoensinodefraçõescomumaatividadederecortesdemodelosdepizzasdepapeldivididasempartesiguais,para
+    48→queosestudantesresolvamumalistadeexercícios.
+    49→B propõeumasériedeperguntasparaseremrespondidaspelosestudantessobreotemadedesmatamentoilegal,como
+    50→intuitodeidentificarosconhecimentospréviosdosestudantessobreoassunto.
+    51→C oferecedevolutivasparaaproduçãocoletivadeumalinhadotempocommarcosdaRevoluçãoIndustrial,afimdeorientar
+    52→oquepodeseraperfeiçoadonotrabalho.
+    53→D aplicaumaprovaescritacomquestõesobjetivasedissertativassobreosciclosbiogeoquímicos,comafinalidadedeclassificar
+    54→osestudantes.
+    55→QUESTÃO04
+    56→Asavaliaçõesexternasemlargaescala,comooSistemaNacionaldeAvaliaçãodaEducaçãoBásica(Saeb),sãoutilizadas
+    57→comoinstrumentosdeaferiçãodaqualidadedaEducaçãoBásicanoBrasil.SeuresultadoéutilizadonocálculodoÍndicede
+    58→DesenvolvimentodaEducaçãoBásica(Ideb)dasescolas.UmadeterminadaescolarecebeusuanotadoIdeb,eoresultadoficou
+    59→abaixodamédiaprevista.Diantedisso,adireçãofezumareuniãocomocorpodocenteparatraçarmetasparaamelhoriado
+    60→desempenhodaescola.
+    61→AanálisedosresultadosdoIdebdeveorientarasaçõespedagógicaspara
+    62→A direcionaroplanejamentodeformaestratégica.
+    63→B reduziroespaçodedeterminadasáreasdocurrículo.
+    64→C dedicarmaioratençãoaconteúdosextracurriculares.
+    65→D focalizarodesenvolvimentodehabilidadessocioemocionais.
+    66→Árealivre
+    67→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+    68→FORMAÇÃOGERALDOCENTE 3
+    69→R02032025 - CIENCIAS_BIOLOGICAS.indb 3 21/08/2025 17:49:44
+    70→
+    71→2025
+    72→*R020320254*
+    73→QUESTÃO05 QUESTÃO06
+    74→MotivadopelarevisãodaLei n.12 711/2012,ocorridano Oespaçoescolaréumlugardeconvívio.Neleencontramos
+    75→ano de 2023, um professor do Ensino Médio propôs uma nãoapenasasrelaçõesdaspessoascomoconhecimento,
+    76→rodadeconversa,utilizandoachargedejornalcomorecurso mastambémoaprendizadodecomoaspessoasserelacionam
+    77→mobilizadorparaadiscussãosobreosimpactosdasações entresiecomorestantedomundo.Exatamenteporissoos
+    78→afirmativas no sistema educacional brasileiro. A atividade conflitosaparecem,eagestãodaescoladevesabercomo
+    79→promoveuareflexãoeacríticasobreosprincípiosdoPlano lidarcomeles.Porreproduziraslógicassociais,encontramos,
+    80→NacionaldeEducaçãoemDireitosHumanos(PNEDH),como também na escola, relações que desvalorizam o que é
+    81→orespeito àdignidadehumanaeoexercíciodacidadania entendido como contra-hegemônico nas culturas. E isso
+    82→democráticanoEstadodeDireito. impactanegativamentenaspessoasnegrasenaspraticantes
+    83→dasReligiõesdeMatrizesAfricanas.TalvezossignosdeExue
+    84→deOgumsejamboaspistassobrecomolidarcomaescolana
+    85→buscadeespaçosmenosopressivos.Essasduasdivindadesdo
+    86→panteãoiorubanosãovinculadasaoscaminhos,àcomunicação,
+    87→àpolítica,aosconflitose,dealgummodo,àprópriaeducação.
+    88→ExueOgumnosensinamqueaconvivêncianãoprecisade
+    89→umasuposiçãodequetodasetodospensemdomesmomodo,
+    90→desejemdomesmomodo,caminhempelosmesmoscaminhos.
+    91→Masensinamqueomundoécriadocoletivamenteeque,entre
+    92→conflitoseandanças,devemospreservarasdiferenças.
+    93→NASCIMENTO,W.F.Asreligiõesdematrizesafricanas,resistência
+    94→econtextoescolar:entreencruzilhadas.In:Memóriasdo
+    95→BaobáII.Fortaleza:EditoraUFC,2017(adaptado).
+    96→Combasenotextoenasaçõesdeenfrentamentoaoracismo
+    97→religiosonoespaçoescolar,écorretoafirmarquea
+    98→A abordagemdareligiãoedaculturaiorubanasemsalade
+    99→aulapermitequeprofessoreseestudantesreflitamsobreos
+   100→efeitosdasviolênciasmateriaisesimbólicasnasociedade.
+   101→B apresentação de conteúdos vinculados às religiões de
+   102→matrizesafricanaseavalorizaçãododiálogonaresolução
+   103→LAERTE.Disponívelem:www1.folha.uol.com.br.Acessoem:12maio2025.
+   104→deconflitosnasescolasbuscamumaidentidadecomuma
+   105→Aatividadepropostapeloprofessorpossibilitaaoestudante todososestudantes.
+   106→C concepçãodoambienteescolarcomoespaçodeconvívio
+   107→A reconhecerasaçõesafirmativasprevistasemleidesvinculadas
+   108→religioso distancia-se da função social da educação,
+   109→doprocessohistóricodeformaçãodopovobrasileiro.
+   110→que deve focalizar conhecimentos gerais, formação
+   111→B compreenderasaçõesafirmativasprevistasemleicomouma
+   112→disciplinarecidadania.
+   113→conquistademocráticadecorrentedamobilizaçãosocial.
+   114→D utilizaçãodetrechosdamitologiaafricananasaulasde
+   115→C constataraneutralidadedosmeiosdecomunicaçãoem
+   116→ensinoreligiosocumpreoprescritonaleiquetratado
+   117→relaçãoaoracismoestruturaleàsaçõesafirmativas.
+   118→ensinodahistóriaiorubanaeindígena.
+   119→D entenderodebatesobreasaçõesafirmativascomogarantia
+   120→Árealivre
+   121→dasuperaçãodadiscriminaçãoracial.
+   122→Árealivre
+   123→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   124→4 FORMAÇÃOGERALDOCENTE
+   125→R02032025 - CIENCIAS_BIOLOGICAS.indb 4 21/08/2025 17:49:45
+   126→
+   127→2025
+   128→*R020320255*
+   129→QUESTÃO07
+   130→EmOalienista,oprotagonistadatramaéSimãoBacamarte,médicoquefundaaclínicaCasaVerdeparapessoascomdistúrbios
+   131→mentais,napequenacidadedeItaguaí.Simãocomeçaatrataraspessoasdacidadequeapresentamsinaisdeloucuraepassaa
+   132→buscar,pormeiodeseusestudos,formasdeestabelecerquaiscomportamentosdapopulaçãopodemserconsideradosnormais
+   133→ouanormais,oquesetornaumaobsessão.Ahistóriaérelatadaporumnarrador-observadorque,ironicamente,fundamenta
+   134→suanarrativanoregistrohistóricodascrônicasdaviladeItaguaí.Comtemáticasdistintas,porémuniversais,oestudantedo
+   135→EnsinoMédioéconvidadoaacompanhardepertoasexperiênciasdeSimãoBacamarteesedeparacomdilemasenvolvendo
+   136→ciência,ética,exclusãosocial,loucura,imortalidade,entreoutrostemastambémambientadosnocontextodaépocaretratada
+   137→porMachadodeAssis.
+   138→GuiaDigitaldoPNLDLiterário2021.Disponívelem:www.pnld.nees.ufal.br.Acessoem:15maio2025.
+   139→UmgrupodeprofessoresdoEnsinoMédioutilizaaobraOalienistaparadesenvolverumProjetodeVidaquepromovadiscussões
+   140→sobresaúdementalebem-estarcoletivonacomunidadeescolar.Essaobrafoiselecionadaporpermitirodesenvolvimentode
+   141→propostaspedagógicasque
+   142→A estimulemaemissãodelaudospelaequipepsicopedagógicaparasubsidiarintervençõesfeitaspelosprofessores.
+   143→B desenvolvamaçõesdeescutaentreosestudantesparaqueelesrelacionemostemasabordadoscomsuasvivências.
+   144→C favoreçam críticas à excessiva medicamentalização dos comportamentos incomuns para promover reflexões sobre
+   145→éticaprofissional.
+   146→D abordemaciênciamédicaporumviésobjetivoparadefinirquaispadrõesdecomportamentosãosocialmenteaceitos.
+   147→QUESTÃO08
+   148→Aorealizaramatrículaemumaescola,umaestudantede15anoseseuspaissolicitaramàsecretariaacadêmicaousodenome
+   149→social,jáquenacertidãodenascimentoconstaumaidentificaçãomasculina.Elesqueriamqueonomesocialfosseusadoem
+   150→saladeaulaeemdocumentosinternosdainstituição,comochamada,boletinsecarteirinhaestudantil.Noentanto,adireção,
+   151→aotomarciênciadocaso,recusouopedido,alegandoque,semaalteraçãonoregistrocivil,seriaimpossívelatenderàsolicitação.
+   152→Diantedocaso,combasenaResoluçãoMECn.1/2018,quetratadousodonomesocial,agestãodeve
+   153→A permitirousodonomesocialdemaneirainformal,mantendoosregistrosescolaresinternos.
+   154→B convocaroconselhoestudantilparadeliberarsobreocaso,porsetratardeumaquestãointernadaescola.
+   155→C acataropedidoquandoonomesocialforoficialmenteretificadonoregistrocivildaestudante.
+   156→D atenderaopedidomedianteformalizaçãodasolicitaçãopelosresponsáveislegaisdaestudante.
+   157→Árealivre
+   158→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   159→FORMAÇÃOGERALDOCENTE 5
+   160→R02032025 - CIENCIAS_BIOLOGICAS.indb 5 21/08/2025 17:49:45
+   161→
+   162→2025
+   163→*R020320256*
+   164→Textoparaquestões09e10
+   165→TEXTO1
+   166→OProgramaNacionaldoLivroedoMaterialDidático(PNLD),regulamentadopeloDecreton.12021/2024,quealterao
+   167→Decreton.9099/2017,temcomoobjetivosavaliação,aquisiçãoedistribuiçãodemateriaisdidáticosedemaismateriaisde
+   168→apoioàpráticaeducativaparatodaaredepúblicadeensinobásicodopaís.Osmateriaisinscritos,avaliados,selecionadose
+   169→disponíveisparaaescolhachegamàsescolasparticipantesdoPNLDdeformasistemática,regularegratuita.Asetapasque
+   170→compõemoprocessodeavaliaçãoestãoapresentadasaseguir:
+   171→Disponívelem:www.gov.br.Acessoem:1ago.2025(adaptado).
+   172→Árealivre
+   173→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   174→6 FORMAÇÃOGERALDOCENTE
+   175→R02032025 - CIENCIAS_BIOLOGICAS.indb 6 21/08/2025 17:49:46
+   176→
+   177→2025
+   178→*R020320257*
+   179→TEXTO2
+   180→Oslivrosescolaresassumem,conjuntamenteounão,múltiplasfunções:
+   181→• Funçãoreferencial:expressaanoçãodequeoslivrosdidáticossãosuportesprivilegiadosdeconteúdos,deconhecimentos
+   182→edetécnicas,estandorelacionadosàquiloqueéconsideradoimportanteparadeterminadogruposocial.
+   183→• Funçãoinstrumental:olivrodidáticocolocaempráticamétodosdeaprendizagem,propõeexercíciosouatividades
+   184→quefacilitamamemorizaçãodeconhecimentos,favoreceaaquisiçãodecompetênciasdisciplinareseaapropriação
+   185→dehabilidades.
+   186→• Funçãoideológicaecultural:olivrodidáticoafirma-secomoumdosvetoresessenciaisdalíngua,daculturaedosvalores
+   187→dasclassesdirigentes.Instrumentoprivilegiadodeconstruçãosimbólicadeidentidade,assumeumimportantepapelpolítico.
+   188→• Funçãodocumental:olivrodidáticoforneceumconjuntodedocumentos,textuaisouicônicos,cujaobservaçãoou
+   189→confrontaçãopodemdesenvolveroespíritocríticodoaluno.
+   190→CHOPPIN,A.Históriadoslivrosedasediçõesdidáticas:sobreoestadodaarte.
+   191→EducaçãoePesquisa.set.-dez.2004(adaptado).
+   192→QUESTÃO09
+   193→ConsiderandooTexto1,oProgramaNacionaldoLivroedoMaterialDidático(PNLD)vemcontribuindopara
+   194→A difundirconhecimentossocioculturaisatuaiscombasenaneutralidadequeoprocessodeensinoedeaprendizagemrequer.
+   195→B apresentarabordagensdetemassocioculturaisatuaisesensíveisquepossamalteraroprocessodeensinoedeaprendizagem.
+   196→C divulgarossaberessocioculturaisatuaiseahistoricidadehumanaparaatenderaosestudantesderegiõesdedifícilacesso.
+   197→D abordaroscontextossocioculturaisatuaisconsideradosrelevanteseahistoricidadequeconsolidouaexistênciahumana.
+   198→QUESTÃO10
+   199→Relacionandoostextos1e2,marqueaalternativaqueapresentaapercepçãodocenteorientadapelafunçãoreferencial
+   200→propostaporChoppin(2004).
+   201→A “Escolhoumlivroqueapresentetemáticassociaisessenciaiscomreflexõessobreoconteúdodadisciplina”.
+   202→B “Prefirooslivroscomsistematizaçãocoerentedosobjetosdeconhecimentodadisciplinaetransposiçãodidáticaadequada”.
+   203→C “Consideroadequadososlivrosqueexpressamconceitospormeiodeelementosvariados,comoimagens,palavras,mapas
+   204→egráficos”.
+   205→D “Levoemconsideraçãolivrosqueapresentemanormacultadalínguaevaloressociaispredominantesnosconteúdos
+   206→apresentados”.
+   207→Árealivre
+   208→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   209→FORMAÇÃOGERALDOCENTE 7
+   210→R02032025 - CIENCIAS_BIOLOGICAS.indb 7 21/08/2025 17:49:46
+   211→
+   212→2025
+   213→*R020320258*
+   214→Textoparaquestões11e12
+   215→TEXTO1
+   216→Asquestõesambientaissãoumtemadepreocupaçãosocial,econômicaepolíticaqueperpassamaescola.Elasaparecemna
+   217→esferapolíticaquandoogovernofederalreconheceaimportânciadesediaremBelém,noPará,a30ªConferênciadasNações
+   218→UnidassobreMudançasClimáticas(COP30).Oeventotraráumolharglobalsobreassoluçõesparaosdesafiosdoclima.Éurgente
+   219→queabordemos,deformaabrangenteesinérgica,ascrisesglobaisinterligadasàmudançadoclimaeàperdadebiodiversidade
+   220→nocontextomaisamplodarealizaçãodosObjetivosdeDesenvolvimentoSustentável(ODS).Aofazerisso,devemoscontinuar
+   221→reconhecendoeexpandindoopapeleascontribuiçõesdospovosindígenasedascomunidadeslocaisnaadministraçãodanatureza
+   222→enaliderançaclimática,aomesmotempoquereconhecemososefeitosdesproporcionaisqueelessofremcomamudançadoclima.
+   223→Disponívelem:www.cop30.br.Acessoem:1ago.2025(adaptado).
+   224→TEXTO2
+   225→Chuvaácida
+   226→Enquantoserhumanoeuvoudestruindooqueposso
+   227→Oelevadoraquisódesce,odemônioémeusócio
+   228→Abriram,uh,acaixadePandora
+   229→Simondiz:saiamagora
+   230→Achuvaespalhando,todososmales
+   231→Aiai,uiui,aicomoissoarde
+   232→Ébateriadecelulares,césio,similares
+   233→Apesteinvisívelmaculandoosares
+   234→Mercúrionosrios,dieselnosmares
+   235→soloestéril,jáfizeramsuaparte(uh)
+   236→CRIOLO.Disponívelem:www.letras.mus.br.Acessoem:1ago.2025(adaptado).
+   237→QUESTÃO11
+   238→Umaprofessoraorganizaumconjuntodeaçõesparadiscussãocríticadeaspectosrelacionadosàsquestõesambientaisabordadas
+   239→nostextos1e2.Paraisso,elaplanejaatividadescomo
+   240→A palestrascomrappersnaescola;elistagemdosobjetivosdaCOP30noquadro.
+   241→B leituracoletivadostextos;efichamentodasideiascentraisesecundáriasdaletradacanção.
+   242→C interpretaçãodaletradacanção;epesquisasobreaçõesquecontribuemcomapreservaçãodanatureza.
+   243→D registrodosObjetivosdeDesenvolvimentoSustentável(ODS)nocaderno;econsultadetermostécnicosemdicionários.
+   244→QUESTÃO12
+   245→Considerequeessaprofessoraatuaemumaescolalocalizadaemumcentrourbanoequertrabalharcomsuasturmassobuma
+   246→perspectivafreireana.Quaisatividadeseladeveproporaosestudantesparacontemplarastemáticasapresentadasnostextos1e2?
+   247→A 1.realizarumlevantamentodoentornoescolar,problematizandoquestõesambientaisdacomunidade;2.utilizarconceitos
+   248→escolaresqueajudamacompreenderotema;3.aplicarosconhecimentosaprendidospreviamente,considerandoumaanálise
+   249→críticadasideiasdebatidasnaCOP30enorapChuvaÁcida.
+   250→B 1.apresentarumvídeoquemostreosgruposdetrabalhoeosobjetivosdaCOP30;2.utilizarummodelodeestufadeplantasa
+   251→fimdeestudarociclohidrológico;3.aplicaratividadesqueajudemosestudantesafixaroconhecimentodatemáticaabordada
+   252→naletradecanção.
+   253→C 1.realizarumlevantamentopréviodasideiasdosestudantessobreosproblemasambientaistrazidosnorapChuvaÁcida;
+   254→2.organizarossubsunçoresquecontribuemparaestudarotema;3.promoverumaexposiçãodecartazesparaacomunidade
+   255→considerandoassoluçõesmitigadasnaCOP30.
+   256→D 1.apresentarovídeodorapChuvaÁcidaabordandoosassuntossobremudançasclimáticas;2.organizaraZonade
+   257→DesenvolvimentoProximal,problematizandoainteraçãoentreosestudantesquesabemmaissobreotema;3.preparar
+   258→umaexposiçãoapresentandoassoluçõesmitigadasnaCOP30.
+   259→Árealivre
+   260→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   261→8 FORMAÇÃOGERALDOCENTE
+   262→R02032025 - CIENCIAS_BIOLOGICAS.indb 8 21/08/2025 17:49:46
+   263→
+   264→2025
+   265→*R020320259*
+   266→Textoparaquestões13e14
+   267→EmumaturmadeEducaçãodeJovenseAdultos(EJA),umprofessordeHistóriaelicenciandosdoEstágioSupervisionado
+   268→sentiramdificuldadesemdesenvolverasatividadesplanejadasnaaula,poisosestudantesestavamdispersos,desanimados
+   269→e afirmavam estar cansados da jornada de trabalho. Buscando motivar a turma, o professor-supervisor e os estagiários
+   270→solicitaramaosestudantesquerelatassemseuscotidianosprofissionais.Identificou-sequeasprofissõesdemotoristade
+   271→aplicativoedeentregadorautônomoeramasmaisexercidas.Alémdisso,oprofessorrealizoureflexõescomaturmasobre
+   272→asmudançasnomundodotrabalhoaolongodotempoesuasrelaçõessociaiseeconômicas.Duranteointervalo,oprofessor
+   273→compartilhouaexperiênciacomascolegasdocentesdeLínguaPortuguesaedeMatemáticaquedecidiramreadequarseus
+   274→planejamentosparaexploraromundodotrabalhoemsuasaulas.AprofessoradeLínguaPortuguesaelaborou,coletivamente
+   275→comaturma,umpequenotextosobreasdificuldadesenfrentadasnocontextodetrabalhoeasexpectativasemrelaçãoao
+   276→futuroprofissional.Porsuavez,aprofessoradeMatemáticatratoudasunidadesdemedidaedoconceitodeproporção,
+   277→abordandoproblemascomcálculosqueenvolviamquantidades,distânciaseporcentagemrelativosaoconsumodecombustível
+   278→eaoutrositensutilizadosnocampoprofissionaldosestudantes.Nasemanaseguinte,comoatividadeavaliativadoEstágio
+   279→Supervisionado,oprofessor-supervisorsolicitouaosestagiáriosaelaboraçãodeumapropostadeintervençãobaseadana
+   280→situaçãovivenciadaemsaladeaula.
+   281→QUESTÃO13
+   282→Considerandoocontextoapresentado,asaçõespedagógicasdesenvolvidaspelosprofessores
+   283→A priorizamosconteúdosdisciplinaresespecíficoscomoestratégiamotivadoraeducacional.
+   284→B favorecemaexperiênciadeestudantes,enfatizandosaberesdeumaáreadeconhecimento.
+   285→C incentivamavalorizaçãodomundodotrabalhocombaseemmetodologiasdeensinoinovadoras.
+   286→D integramasvivênciasdosestudantesaocurrículo,promovendoreflexõessobreomundodotrabalho.
+   287→QUESTÃO14
+   288→Nocontextorelatado,oEstágioSupervisionadoéconcebidocomoespaçode
+   289→A formaçãopedagógicaqueconsideraopapeldoprofessor-supervisorcomocoformador.
+   290→B interaçãoentreprofessor-supervisoreestagiáriosparaaaquisiçãodosconteúdoscurriculares.
+   291→C aquisiçãodenovastecnologiaspeloprofessor-supervisorparaaaplicaçãoemsaladeaula.
+   292→D aplicaçãodeconhecimentosteórico-metodológicosdoprofessor-supervisornocotidianoescolar.
+   293→Árealivre
+   294→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   295→FORMAÇÃOGERALDOCENTE 9
+   296→R02032025 - CIENCIAS_BIOLOGICAS.indb 9 21/08/2025 17:49:46
+   297→
+   298→2025
+   299→*R0203202510*
+   300→QUESTÃO15
+   301→Oacessoàinterneteaosrecursostecnológicos,comodispositivosmóveiseoutros,vemcrescendonaatualidade,impactando
+   302→ossistemaseducacionaisnoBrasilenomundo.Comisso,ousodeMetodologiasAtivasfoiintensificado,visandoatenderàs
+   303→diferentesdemandasdacomunidadeescolar.Muitasdessasmetodologiassãoimplementadasviaplataformasdigitais,excluindo
+   304→umaparcelaconsideráveldeestudantesquenãotêmacessoataisplataformasdevidoadesigualdadessociais,conforme
+   305→apontamdadosdoInstitutoBrasileirodeGeografiaeEstatística(IBGE).Osdadosindicamquecercade60%daspessoasnão
+   306→possuemacessoàinternetdevidoaosaltoscustosdosserviçosedosequipamentos.
+   307→IBGE.PesquisaNacionalporAmostradeDomicíliosContínua.RiodeJaneiro:IBGE,2023(adaptado).
+   308→Nessecontexto,umaatividadedeensinoqueutilizeMetodologiasAtivasnaEducaçãoBásicaparaminimizaraexclusãonasala
+   309→deaulaé
+   310→A umaaulaexpositivarealizadapeloprofessorqueabordeotemadetecnologias,seguidadeexercíciosdemúltiplaescolha.
+   311→B jogosdesplugadosproduzidospelosestudantes,seguidosdasocializaçãodasaprendizagensemumaplenária.
+   312→C leituradeumtextodereferênciasobretecnologiaspropostapeloprofessor,seguidadeumaavaliação.
+   313→D umaaulagamificadacomseusdispositivosmóveisplanejadapelosestudantes,seguidadasocializaçãodosresultados.
+   314→QUESTÃO16
+   315→AEducaçãodoCampoemergedadiscussãodediálogoscommovimentossociaiseemdiferenteseventos,comoasConferências
+   316→NacionaisporumaEducaçãoBásicadoCampo.Normativasforampromulgadas,taiscomoaResoluçãoCEB/CNEn.1/2002,
+   317→queinstituiDiretrizesOperacionaisparaaEducaçãoBásicanasEscolasdoCampo,emproldeumprojetoquecontinuea“lutapara
+   318→queossistemasdeensinodiscutamumcurrículoparaaárearuralequeaformaçãodeprofessores,inicial,continuadaouem
+   319→serviço,nãoreproduzaocurrículodaáreaurbananarural”.
+   320→ALENCAR,M.F.S.EducaçãodoCampoeaformaçãodeprofessores:construçãodeumapolítica
+   321→educacionalparaocampobrasileiro.Ci.&Tróp.,n.2,2010(adaptado).
+   322→Nessecontexto,aformaçãodoprofessorparaaEducaçãodoCampotemcomoprincípio
+   323→A subordinaracultura,asmemóriasealutadopovodocampoàhistóriaurbana.
+   324→B identificarosconhecimentosdascomunidadesdocampo,quecontrariamocurrículoinstituído.
+   325→C vincularoensinoaotrabalhoedesconsiderarossaberesproduzidosnocontextoescolarurbano.
+   326→D reconhecerocampocomolugardevidaedeproduçãoquesofreucomumprojetodedesenvolvimentoexploratório.
+   327→QUESTÃO17
+   328→AHistóriadaEducaçãonoBrasilpodeserorganizadaemperíodoscomcaracterísticasespecíficasdeparadigmaseducacionais
+   329→decadaépoca,aexemplodaEscolaNova(décadasde1920-1930),cujaspráticaspedagógicas
+   330→A tinhamumavisãofilosóficaessencialistadesujeitoeumaperspectivadidáticacentradanoprofessor.
+   331→B partiamdopressupostodaneutralidadecientífica,inspiradasnosprincípiosdaracionalidadeedaeficiência.
+   332→C promoviamoaprendizadodoportuguêsparaosindígenaseseguiamancoradasnadoutrinacristã.
+   333→D centralizavamaeducaçãonasvivências,nasestratégiasdeensinoenointeressedoestudante.
+   334→Árealivre
+   335→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   336→10 FORMAÇÃOGERALDOCENTE
+   337→R02032025 - CIENCIAS_BIOLOGICAS.indb 10 21/08/2025 17:49:47
+   338→
+   339→2025
+   340→*R0203202511*
+   341→QUESTÃO18
+   342→ComaintençãodevalorizarapresençadeestudantesindígenasemumaturmadoEnsinoMédio,umaprofessoradeFilosofia
+   343→apresentouopensamentodoescritorindígenaDanielMunduruku:“umcaçadoraprendecomumcaçadormaisexperiente;
+   344→umjovemaprendesuaartenamedidaemqueécapazdereproduziraartedosmaisvelhos”.Essaideiaabordadiferentes
+   345→formasdetransmissãodeconhecimentopormeiodaoralidadeedaexperiênciacotidiana.
+   346→Pensandonisso,aprofessoraorganizouumapropostapedagógicaenvolvendoahistóriadevidadosestudantesesuas
+   347→experiênciascomfoconousodamandioca(aipimoumacaxeira),daqualsefaz,porexemplo,atapioca–umalimentoancestral
+   348→bastanteconsumidoatualmente.Paraisso,buscou-seamemóriasocialdasfamíliaspormeiodeentrevistasinformaissobre
+   349→osconhecimentosdeplantio,decolheitaedepreparodamandiocaatéoseuconsumonacomunidade,afimdeintegrar
+   350→conhecimentosancestraisaocurrículoescolar.
+   351→Assinaleaalternativaqueapresentaumapropostapedagógicaquefomenteacooperaçãoentreescola,famíliaecomunidade
+   352→emrelaçãoàspopulaçõesindígenas.
+   353→A Elaborarumestudodecasoqueexemplifiqueousoatualdatapiocanacomunidadeurbanacomoformadevalidaras
+   354→práticasagrícolascontemporâneas.
+   355→B Apresentarvídeosgravadoscomaparticipaçãodacomunidadeescolar,registrandotécnicasancestraisecontemporâneas
+   356→desefazertapioca.
+   357→C Construirummuralescolarcomdepoimentosdenutricionistasquesugeremoconsumodatapiocanasdietas.
+   358→D Transcreverasfalasdosentrevistadossobreaspráticasancestraisagrícolasparaanálisenasaulas.
+   359→QUESTÃO19
+   360→Umaprofessora,diantedaexistênciadeumaterronoentornodaescola,decidiuabordarotemadasustentabilidadeedodescarte
+   361→conscientecomseusestudantes.Paraisso,solicitouqueeleselaborassemumprojeto,eaturmasugeriuasseguintesações:
+   362→• convidartrabalhadoresdecoletaseletivaeparticipantesdemovimentossociaisdepreservaçãodomeioambientepara
+   363→umarodadeconversa;
+   364→• realizarumaaçãocomosfamiliaresparaaprenderemtécnicasdelimpezaeseparaçãodematerialreciclável;
+   365→• conduzirumadinâmicacoletivaemqueosestudantestroquemmateriaisdescartadosporbrindesvariados.
+   366→EmumaperspectivacríticadaEducaçãoAmbiental,asaçõespropostaspelosestudantes
+   367→A normalizamoconsumoeoacúmulodebenscomoorigemdaproduçãodosresíduos.
+   368→B proporcionamumamudançacomportamentalemrelaçãoaodescartedosresíduos.
+   369→C prejudicamotrabalhodoscatadoresquetêmacoletadosresíduoscomofontederenda.
+   370→D preservamoambienteaodeslocarosresíduosdoentornoescolarparaoutraárea.
+   371→Árealivre
+   372→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   373→FORMAÇÃOGERALDOCENTE 11
+   374→R02032025 - CIENCIAS_BIOLOGICAS.indb 11 21/08/2025 17:49:47
+   375→
+   376→2025
+   377→*R0203202512*
+   378→Textoparaquestões20e21
+   379→CombasenosprincípiosdaPedagogiadeProjetoseemarticulaçãocomosObjetivosdeDesenvolvimentoSustentável(ODS),
+   380→especialmenteoODS12,quetratadaproduçãoedoconsumoresponsáveis,osprofessoresdeumaescolapúblicadeEnsino
+   381→Fundamentaldesenvolveramumprojetointerdisciplinarcomointuitodepromoveraçõeseducativassobreoreaproveitamento
+   382→deresíduosorgânicosnaescola.Ainiciativaincluiuodesenvolvimentodeatividadesdeseparaçãoedeaproveitamentode
+   383→resíduosdaalimentaçãoescolar,bemcomoamontagemdecomposteirasartesanaisparaaproduçãoeousodeaduboem
+   384→jardinsehortasdaescola.
+   385→QUESTÃO20
+   386→Combasenasituaçãodescrita,aaçãoeducativaqueintervémconcretamentenocontextoescolaré
+   387→A realizarumlevantamentosobreodesperdícionaalimentaçãoescolaredivulgá-loemumeventocientífico.
+   388→B mapearoslocaisdedescartedealimentoseelaborarumaredaçãosobreousodosresíduosgerados.
+   389→C pesquisarousodeadubosorgânicoseanalisardadosestatísticossobreosbenefíciosdacompostagem.
+   390→D organizarumaoficinaparaoreaproveitamentodealimentoseacompanharasmudançascomportamentaisnaescola.
+   391→QUESTÃO21
+   392→Combasenoprojetodesenvolvido,aalternativaque,sobumaperspectivacrítica,apresentaarelaçãocoerenteentreo
+   393→procedimentometodológicoeaavaliaçãodaaprendizagemsobreoconsumoresponsáveldealimentoséum(a)
+   394→A rodadeconversaqueabordeaçõesrelacionadasaovalornutricionaldosalimentos,seguidapelaaplicaçãodeumaprova
+   395→objetivasobreosconceitosnecessáriosparaarealizaçãodessasações.
+   396→B exposiçãodebannersinformativosqueapresentemostiposdealimentosutilizadosnascomposteiras,seguidaporummapa
+   397→mentalsobreoreaproveitamentodaalimentaçãoescolar.
+   398→C debatequeabordeainsegurançaalimentarcombasenasreflexõesprovocadasaolongodoprojeto,seguidopelaprodução
+   399→deumartigodeopiniãoaserpublicadonojornaldaescola.
+   400→D questionárioacercadostiposdealimentosconsumidospelacomunidadeescolar,seguidopelamontagemdeumacomposteira
+   401→conformeorientaçõesdeummanualtécnico.
+   402→Árealivre
+   403→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   404→12 FORMAÇÃOGERALDOCENTE
+   405→R02032025 - CIENCIAS_BIOLOGICAS.indb 12 21/08/2025 17:49:47
+   406→
+   407→2025
+   408→*R0203202513*
+   409→QUESTÃO22
+   410→Duranteumaaulaenvolvendooensinodehistóriaeculturaafro-brasileiraeafricananaEducaçãoBásica,ematendimentoao
+   411→dispostonaLein.10639/2003,umaprofessoraexplorouomovimentodocinemadepaísesafricanos,quetomoucorpoapartir
+   412→de1960,comoformadecomunicaçãoeinstrumentodeexpressãocultural.Elaexplicouque,nessecontexto,asproduções
+   413→audiovisuaiscontrapõem-seàsnarrativascoloniaisepropõemnovasformasderepresentarsuashistórias,suasculturase
+   414→suaslutas.Entusiasmadoscomotema,osestudantes,juntamentecomaprofessora,decidiramrealizarumamostradefilmes
+   415→produzidosempaísesafricanosparaserapresentadaàcomunidadeescolar.Aprofessoraorientouqueosestudantesdeveriam
+   416→selecionartrêsfilmes,combaseemcritériosrelevantesnacompreensãodovalordasculturasafricanas.
+   417→Considerandoosobjetivosprevistosnapropostadaprofessora,osestudantesdevemselecionarfilmesque
+   418→A retratemosespaçosfísicoseavidaanimalselvagemcomoelementoscaracterísticosdocontinenteafricano.
+   419→B produzamasensaçãodefamiliaridadenoespectadorcombasenasnarrativasaudiovisuaiseuropeiaseamericanas.
+   420→C reconhecemasvariadasformasdeexpressãodospovosafricanos,suassubjetividadesequestõessociaisassociadasaessespovos.
+   421→D apresentemestereótiposrelacionadosatemáticasdacolonizaçãoeseusimpactosnomododevidaurbanizadoempaísesafricanos.
+   422→QUESTÃO23
+   423→Justiçadeterminamelhoriasimediatasnasviasdeacessoe
+   424→naestruturadeescolasemassentamentos
+   425→EntreasprecariedadesidentificadaspeloMinistérioPúblicoFederal(MPF)estáodesgastedainfraestruturadosprédiosdas
+   426→escolascompisosdeareiaebarro.Osprofessoreseosestudantessãoorientadosafazeremasnecessidadesfisiológicasna
+   427→mataporquenãohábanheiro,nemrededeáguaoudeesgotamentosanitário.
+   428→Disponívelem:www.g1.globo.com.Acessoem:11maio2025(adaptado).
+   429→Diantedasituaçãoretratadanamatériajornalística,queaçãocompeteàescolaecontribuiparaoenfrentamentodessarealidade?
+   430→A Aelaboraçãodeumprojetocombaseemumdiagnósticosobreasituaçãodarededeáguaparasolucionaroproblema.
+   431→B Ainstalaçãomínimaderedesdeáguaedeesgotamentosanitárionasescolasparasuperarascondiçõesprecáriasdeinfraestrutura.
+   432→C Aarticulaçãodagestãoescolarcomasautoridadescompetentesembuscadeaçõesparamelhorarainfraestrutura.
+   433→D Aconvocaçãodacomunidadeescolarparaprocederàdespoluiçãodeumriodoentorno.
+   434→Árealivre
+   435→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   436→FORMAÇÃOGERALDOCENTE 13
+   437→R02032025 - CIENCIAS_BIOLOGICAS.indb 13 21/08/2025 17:49:47
+   438→
+   439→2025
+   440→*R0203202514*
+   441→QUESTÃO24
+   442→Emumaescolalocalizadaemterritórioquilombola,asturmasdoEnsinoMédioestavamenvolvidascomafestividadedeSanto
+   443→Antônio,padroeirodacomunidade.UmprofessordeHistória,aproveitandoasituação,convidouprofessoresdeoutrasáreaspara
+   444→realizarematividadespedagógicassobrearepresentatividadedafestaparaoInventárioCulturalQuilombola.Comamobilização
+   445→dasáreas,foipropostaumareflexãosobreaautonomiaeaidentidadeescolarpresentesnoProjetoPolíticoPedagógicodaescola.
+   446→Combasenocenárioapresentado,umaintervençãodidáticaqueconsideraacolaboraçãoentreescolaecomunidadequilombola
+   447→éaquelaque
+   448→A realizaleiturasdetextossobreafestividadeparanormatizarsaberesnaescola.
+   449→B inserefestividadescontemporâneaspararenovarosprincípioseducativosdaescola.
+   450→C promoveatividadesparareconhecerritossignificativosparaacomunidadeduranteaorganizaçãodafesta.
+   451→D organizafeirascomprodutosindustrializadosparapossibilitaraintegraçãodacomunidadecomosespaçosurbanos.
+   452→QUESTÃO25
+   453→Emumaescoladaredepúblicamunicipal,aequipedeeducadoresestárevisandooProjetoPolíticoPedagógico(PPP)àluz
+   454→donovoreferencialcurriculardomunicípio,elaboradodeacordocomaBaseNacionalComumCurricular(BNCC).Duranteas
+   455→reuniões,surgemdiferentespercepçõesentreosprofessores:algunscompreendemqueessedocumentoapresentaumalistade
+   456→conteúdosobrigatóriosaseremcumpridos;eoutrosentendemqueeleorientaasdecisõesdidáticasquedeverãoseradaptadas,
+   457→considerandoocontextodaescolaeasnecessidadesdosestudantes.Diantedessaproblemática,acoordenadorapedagógica
+   458→apresentaaperspectivadocurrículomoldado,segundoareflexãodeGimenoSacristán(2000):“Ocurrículomoldadovaialém
+   459→docurrículoprescrito(normativo)edoapresentado(materiaisdidáticos),devendoserarticuladoeressignificadodeacordo
+   460→comosdiferentescomponentescurriculares,demodoaconvergirparaocontextolocaleregional”.
+   461→Diantedoexposto,aconcepçãocurricularapresentadapelacoordenadoraimplicaassumirocurrículocomo
+   462→A construçãosocialeoprofessorcomoagentemediadornodesenvolvimentocurricular.
+   463→B elementoneutroeoprofessorcomoagentecondutordosreferenciaiscurriculares.
+   464→C diretriznacionaleoprofessorcomoagenteexecutordocurrículoapresentado.
+   465→D produtoeoprofessorcomoagenteeducacionalnaapropriaçãocurricular.
+   466→Árealivre
+   467→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   468→14 FORMAÇÃOGERALDOCENTE
+   469→R02032025 - CIENCIAS_BIOLOGICAS.indb 14 21/08/2025 17:49:47
+   470→
+   471→2025
+   472→*R0203202515*
+   473→QUESTÃO26
+   474→NaobraDocumentosdeidentidade:umaintroduçãoàsteoriasdecurrículo,TomazTadeudaSilvaargumentaqueasvertentes
+   475→teóricascríticaepós-críticadocurrículoemergemcomoreaçõesàslimitaçõesdateoriatradicional,queconcebeocurrículo
+   476→comoumconjuntoneutrodeconteúdosorganizadosparatransmissãodeconhecimentoemensuraçãododesempenho.
+   477→Ateoriacríticarecusaapretensaneutralidadedocurrículoeentendequeeleéatravessadoporrelaçõesdepoder.Exploraa
+   478→ideiadequeaescolapodereproduzirdesigualdades,mastambémpodecombatê-las.Valorizaaconscientizaçãodosestudantes
+   479→sobreosmecanismossociaisehistóricosqueestruturamessasdesigualdades.
+   480→A teoria pós-crítica, embora também rejeite o modelo tradicional, desloca a análise para a esfera discursiva e cultural,
+   481→questionando as verdades universais e focalizando a construção das identidades, das subjetividades e das diferenças.
+   482→Nessesentido,ocurrículoéumtextoculturalqueproduzsignificadossobreomundoeossujeitos.
+   483→Combasenoexposto,qualestratégiapedagógicadesenvolvidacomosestudantesestáalinhadaàteoriacríticadecurrículo?
+   484→A Pesquisadecampoediscussãosobreenfrentamentodosdiversostiposdeviolêncianoentornoescolar.
+   485→B ElaboraçãoderesumoeapresentaçãodesemináriossobredesigualdadeseconômicasnoBrasil.
+   486→C Leituradetextosinformativoseresoluçãodelistadeexercícioscombasenomaterialdidático.
+   487→D Exibiçãodedocumentárioserealizaçãodepalestrassobrebullyingnaescola.
+   488→QUESTÃO27
+   489→LiumahistóriadeumpesquisadoreuropeunocomeçodoséculoXXqueestavanosEUAechegouaumterritóriodoshopi.
+   490→Eletinhapedidoquealguémdaquelaaldeiafacilitasseoencontrodelecomumaanciãqueelequeriaentrevistar.Quandofoi
+   491→encontrá-la,elaestavaparadapertodeumarocha.Estavaconversandocomairmãdela:umapedra.Assimcomoaquelasenhora
+   492→hopiqueconversavacomapedra,suairmã,temummontedegentequefalacommontanhas.
+   493→Porqueessasnarrativasnãonosentusiasmam?Porqueelasvãosendoesquecidaseapagadasemfavordeumanarrativa
+   494→globalizante,superficial,quequercontaramesmahistóriaparaagente?
+   495→KRENAK,A.Ideiasparaadiarofimdomundo.SãoPaulo:CompanhiadasLetras,2020(adaptado).
+   496→ParacontemplarareflexãodeAiltonKrenak,osprofessoresdaEducaçãoBásicadevemconsiderarnaelaboraçãodeumplano
+   497→deensinoosconhecimentos
+   498→A científicos,fundamentadosemumavisãoeurocêntricadosconhecimentostradicionaislocais.
+   499→B tradicionaislocais,pautadosporumavisãohegemônicadosconhecimentoscientíficos.
+   500→C científicos,integradoscomosconhecimentostradicionaislocais.
+   501→D tradicionaislocais,subordinadosaosconhecimentoscientíficos.
+   502→Árealivre
+   503→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   504→FORMAÇÃOGERALDOCENTE 15
+   505→R02032025 - CIENCIAS_BIOLOGICAS.indb 15 21/08/2025 17:49:47
+   506→
+   507→2025
+   508→*R0203202516*
+   509→QUESTÃO28
+   510→TEXTO1
+   511→Disponívelem:www.educadorinclusivo.org.br.Acessoem:15ago.2025(adaptado).
+   512→TEXTO2
+   513→EmumasaladeauladoEnsinoFundamental,umaturmarecebeuumestudantesurdoequesecomunicavapormeiodaLíngua
+   514→BrasileiradeSinais(Libras).ConsiderandoqueoprofessorregentenãoerafluenteemLibras,paragarantiraparticipaçãodo
+   515→estudantenasatividades,aescolacontratouumintérpretequeadaptavaeconduziaasatividadespedagógicascomoestudante
+   516→semaparticipaçãodoprofessor.
+   517→AorelacionarasituaçãodescritanoTexto2comafiguraapresentadanoTexto1,conclui-sequeestáocorrendoumprocessode
+   518→A exclusão,poisoprofessornãodialogadiretamentecomoestudantesurdo.
+   519→B segregação,porqueaturmanãoconseguesecomunicarcomoestudantesurdo.
+   520→C inclusão,porqueoestudantesurdoparticiparegularmentedasaulascomaturma.
+   521→D integração,porqueointérpreteestabeleceumarelaçãoindividualcomoestudantesurdo.
+   522→QUESTÃO29
+   523→Umprofessor,diantedequestionamentosacercadaeficáciadasvacinasnacomunidade,propõeaosestudantesarealizaçãode
+   524→práticaspedagógicassobrearelaçãoentreoaumentodaocorrênciadedoençasquehaviamsidoerradicadaseobaixoíndice
+   525→devacinaçãoreferenteaosimunizantesdoProgramaNacionaldeImunizações(PNI).Considerandoopapeldaescolacomo
+   526→espaçodepromoçãodoletramentocientífico,oprofessoriniciaumprojetodeconscientizaçãodacomunidadeescolarquanto
+   527→àimportânciadaatualizaçãodascarteirasvacinaisedocombateàdesinformação.Afimdeatenderaosobjetivosdoprojeto,
+   528→foielaboradaumapropostadepráticapedagógica.
+   529→Paraqueessapropostapromovaoletramentocientífico,oprofessordeve
+   530→A solicitarumapesquisaemqueosestudantesfaçamumlevantamentojuntoaosfamiliaresrelativoapendênciasnacarteira
+   531→devacinação.
+   532→B desenvolverumprojetointerdisciplinaremqueosestudantesinvestiguemdadoscientíficossobrevacinaçãoeapresentem
+   533→osresultadosemumafeiradeciênciascomaparticipaçãodacomunidadeescolar.
+   534→C promoverrodasdeconversaemqueosestudantesconstruamumespaçodeescutaereflexãocoletivasobreaimportância
+   535→doconhecimentoparaatomadadedecisãoemrelaçãoàescolhadasmelhoresvacinas.
+   536→D proporumapráticapedagógicaemqueosestudantestenhamacessoaosmateriaisinformativosdacampanhadevacinação
+   537→organizadapelaSecretariadeSaúdenaprópriaunidadeescolar.
+   538→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   539→16 FORMAÇÃOGERALDOCENTE
+   540→R02032025 - CIENCIAS_BIOLOGICAS.indb 16 21/08/2025 17:49:48
+   541→
+   542→2025
+   543→*R0203202517*
+   544→QUESTÃO30
+   545→AfimdecumpriraLein.14986/2024,queincluinaLeideDiretrizeseBasesdaEducação(LDB)a“obrigatoriedadedeabordagens
+   546→fundamentadasnasexperiênciasenasperspectivasfemininasnosconteúdoscurricularesdoensinofundamentalemédio”,
+   547→umprofessordoEnsinoMédioapresentouaosestudantesdadosdoRelatório“EmdireçãoàequidadedegêneronoBrasil”
+   548→sobreaparticipaçãodemulheresempublicaçõescientíficasnoBrasilentre2018e2022:
+   549→Participaçãofemininaporáreadoconhecimento
+   550→ParticipaçãofemininaemcadaáreadoconhecimentoparapublicaçõescomautoresnoBrasilnoperíodo2018a2022.
+   551→Disponívelem:www.static.poder360.com.br.Acessoem:29jul.2025(adaptado).
+   552→Os dados do gráfico seguem a classificação de áreas de pesquisa das revistas científicas em que as publicações foram
+   553→editadaserevelammarcantepresençafemininaemáreascomoEnfermagem(80%)ePsicologia(61%),masbaixosíndicesem
+   554→Matemática(19%),CiênciadaComputação(21%)eEngenharia(24%).
+   555→Apartirdessematerial,apropostapedagógicaquerepresentaumaaçãodoprofessorparaestimularaequidadedegênero
+   556→nasáreasdoconhecimentoé
+   557→A pautarasavaliaçõesescolaresempráticasmeritocráticasparaneutralizartentativasdefavorecimentoporquestõesdegênero.
+   558→B analisarosdadoscomointuitodepromoverinvestigaçõessobreafaltaderepresentatividadefemininaemáreasdeexatas.
+   559→C utilizarosdadosparareforçarqueasescolhasprofissionaissãodeterminadasporaptidõesnaturaisdistintas.
+   560→D promoverolimpíadascientíficasescolaresparamotivaracompetiçãoentremeninasemeninos.
+   561→Árealivre
+   562→PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PMD2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025PND2025
+   563→FORMAÇÃOGERALDOCENTE 17
+   564→R02032025 - CIENCIAS_BIOLOGICAS.indb 17 21/08/2025 17:49:53
+   565→
+   566→

@@ -77,6 +77,8 @@ export interface QuestionImport {
     E: string
   }
   correctAnswer: 'A' | 'B' | 'C' | 'D' | 'E'
+  imageUrl?: string | null
+  orderIndex?: number
 }
 
 // UEMS Courses list

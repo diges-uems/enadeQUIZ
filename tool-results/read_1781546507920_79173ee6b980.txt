@@ -1,0 +1,497 @@
+     1→     1→2025
+     2→     2→QUESTÃO 01
+     3→     3→TEXTO 1
+     4→     4→A Educação de Jovens e Adultos (EJA) é uma modalidade de ensino destinada a pessoas que não estão inseridas na educação
+     5→     5→regular por motivos diversos. Nesse contexto educacional, esse estudante possui uma história de vida, sobretudo por ser,
+     6→     6→efetivamente, um sujeito ativo nas esferas sociais.
+     7→     7→PEREIRA, P. F.; REINALDO, M. A. G. Ensino-aprendizagem de charge na EJA:
+     8→     8→uma experiência no contexto de estágio supervisionado. III CINTED (adaptado).
+     9→     9→TEXTO 2
+    10→    10→As concepções restritas veem a EJA apenas em seu caráter marginal e secundário, camuflando os aspectos políticos, culturais
+    11→    11→e pedagógicos. Sob uma abordagem sistêmica, a EJA é tratada como parte da história da educação do país e, como tal,
+    12→    12→uma modalidade importante no processo de democratização do direito à educação.
+    13→    13→ALMEIDA, A. EJA: uma educação para o trabalho ou para a classe trabalhadora?
+    14→    14→Revista Brasileira de Educação de Jovens e Adultos, 2016 (adaptado).
+    15→    15→Considerando os textos 1 e 2, a alternativa que apresenta uma ação pedagógica condizente com a abordagem sistêmica da EJA é
+    16→    16→A garantir a inclusão de temas relacionados à profissionalização dos estudantes e de atividades relativas ao mundo do trabalho.
+    17→    17→B propor uma organização curricular que oportunize a obtenção de um diploma àquelas pessoas que não puderam frequentar a escola.
+    18→    18→C desenvolver projetos de letramento que integrem experiências de vida dos estudantes a temas como trabalho, identidades
+    19→    19→culturais e vivências intergeracionais.
+    20→    20→D elaborar uma proposta de organização curricular que assegure o cumprimento das diretrizes nacionais aos estudantes e a
+    21→    21→garantia dos mesmos conteúdos e dos mesmos métodos aplicados ao ensino regular.
+    22→    22→QUESTÃO 02
+    23→    23→O letramento científico representa uma competência essencial no contexto educacional e tem como finalidade proporcionar
+    24→    24→que os indivíduos compreendam, apliquem e sejam críticos ao conhecimento científico a ser utilizado em suas vidas cotidianas.
+    25→    25→SOUSA, L. Q.; ABREU, K. F. Análise de Estudos e Pesquisas sobre Letramento Científico.
+    26→    26→Cadernos Cajuína, n. 4, 2024.
+    27→    27→Considerando o que representa o letramento científico, a equipe gestora de uma escola planeja organizar uma palestra com o
+    28→    28→objetivo de conscientizar a comunidade escolar de que a ciência
+    29→    29→A fundamenta-se no rigor metodológico como respaldo para os argumentos produzidos e apresentados publicamente.
+    30→    30→B respeita a liberdade individual e a livre tomada de decisão como direitos sobrepostos às escolhas coletivas.
+    31→    31→C permite a refutação de resultados amplamente aceitos em função de posicionamentos individuais.
+    32→    32→D busca a impessoalidade, a objetividade e a neutralidade, à parte de influências políticas.
+    33→    33→
+    34→    34→2025
+    35→    35→QUESTÃO 03
+    36→    36→Em uma reunião de planejamento, foi proposta uma discussão sobre os diferentes tipos de avaliação e suas aplicações no
+    37→    37→processo de ensino e de aprendizagem. Foram apresentadas as características e as funções das avaliações diagnóstica, formativa
+    38→    38→e somativa no contexto escolar. Os professores foram convidados a descrever suas práticas pedagógicas e a relacioná-las aos
+    39→    39→diferentes objetivos das avaliações.
+    40→    40→Entre as atividades avaliativas descritas, é associada à função formativa aquela que
+    41→    41→A inicia o ensino de frações com uma atividade de recortes de modelos de pizzas de papel divididas em partes iguais, para
+    42→    42→que os estudantes resolvam uma lista de exercícios.
+    43→    43→B propõe uma série de perguntas para serem respondidas pelos estudantes sobre o tema de desmatamento ilegal, com o
+    44→    44→intuito de identificar os conhecimentos prévios dos estudantes sobre o assunto.
+    45→    45→C oferece devolutivas para a produção coletiva de uma linha do tempo com marcos da Revolução Industrial, a fim de orientar
+    46→    46→o que pode ser aperfeiçoado no trabalho.
+    47→    47→D aplica uma prova escrita com questões objetivas e dissertativas sobre os ciclos biogeoquímicos, com a finalidade de classificar
+    48→    48→os estudantes.
+    49→    49→QUESTÃO 04
+    50→    50→As avaliações externas em larga escala, como o Sistema Nacional de Avaliação da Educação Básica (Saeb), são utilizadas
+    51→    51→como instrumentos de aferição da qualidade da Educação Básica no Brasil. Seu resultado é utilizado no cálculo do Índice de
+    52→    52→Desenvolvimento da Educação Básica (Ideb) das escolas. Uma determinada escola recebeu sua nota do Ideb, e o resultado ficou
+    53→    53→abaixo da média prevista. Diante disso, a direção fez uma reunião com o corpo docente para traçar metas para a melhoria do
+    54→    54→desempenho da escola.
+    55→    55→A análise dos resultados do Ideb deve orientar as ações pedagógicas para
+    56→    56→A direcionar o planejamento de forma estratégica.
+    57→    57→B reduzir o espaço de determinadas áreas do currículo.
+    58→    58→C dedicar maior atenção a conteúdos extracurriculares.
+    59→    59→D focalizar o desenvolvimento de habilidades socioemocionais.
+    60→    60→
+    61→    61→2025
+    62→    62→QUESTÃO 05
+    63→    63→Motivado pela revisão da Lei n. 12 711/2012, ocorrida no
+    64→    64→ano de 2023, um professor do Ensino Médio propôs uma
+    65→    65→roda de conversa, utilizando a charge de jornal como recurso
+    66→    66→mobilizador para a discussão sobre os impactos das ações
+    67→    67→afirmativas no sistema educacional brasileiro. A atividade
+    68→    68→promoveu a reflexão e a crítica sobre os princípios do Plano
+    69→    69→Nacional de Educação em Direitos Humanos (PNEDH), como
+    70→    70→o respeito à dignidade humana e o exercício da cidadania
+    71→    71→democrática no Estado de Direito.
+    72→    72→LAERTE. Disponível em: www1.folha.uol.com.br. Acesso em: 12 maio 2025.
+    73→    73→A atividade proposta pelo professor possibilita ao estudante
+    74→    74→A reconhecer as ações afirmativas previstas em lei desvinculadas
+    75→    75→do processo histórico de formação do povo brasileiro.
+    76→    76→B compreender as ações afirmativas previstas em lei como uma
+    77→    77→conquista democrática decorrente da mobilização social.
+    78→    78→C constatar a neutralidade dos meios de comunicação em
+    79→    79→relação ao racismo estrutural e às ações afirmativas.
+    80→    80→D entender o debate sobre as ações afirmativas como garantia
+    81→    81→da superação da discriminação racial.
+    82→    82→QUESTÃO 06
+    83→    83→O espaço escolar é um lugar de convívio. Nele encontramos
+    84→    84→não apenas as relações das pessoas com o conhecimento,
+    85→    85→mas também o aprendizado de como as pessoas se relacionam
+    86→    86→entre si e com o restante do mundo. Exatamente por isso os
+    87→    87→conflitos aparecem, e a gestão da escola deve saber como
+    88→    88→lidar com eles. Por reproduzir as lógicas sociais, encontramos,
+    89→    89→também na escola, relações que desvalorizam o que é
+    90→    90→entendido como contra-hegemônico nas culturas. E isso
+    91→    91→impacta negativamente nas pessoas negras e nas praticantes
+    92→    92→das Religiões de Matrizes Africanas. Talvez os signos de Exu e
+    93→    93→de Ogum sejam boas pistas sobre como lidar com a escola na
+    94→    94→busca de espaços menos opressivos. Essas duas divindades do
+    95→    95→panteão iorubano são vinculadas aos caminhos, à comunicação,
+    96→    96→à política, aos conflitos e, de algum modo, à própria educação.
+    97→    97→Exu e Ogum nos ensinam que a convivência não precisa de
+    98→    98→uma suposição de que todas e todos pensem do mesmo modo,
+    99→    99→desejem do mesmo modo, caminhem pelos mesmos caminhos.
+   100→   100→Mas ensinam que o mundo é criado coletivamente e que, entre
+   101→   101→conflitos e andanças, devemos preservar as diferenças.
+   102→   102→NASCIMENTO, W. F. As religiões de matrizes africanas, resistência
+   103→   103→e contexto escolar: entre encruzilhadas. In: Memórias do
+   104→   104→Baobá II. Fortaleza: Editora UFC, 2017 (adaptado).
+   105→   105→Com base no texto e nas ações de enfrentamento ao racismo
+   106→   106→religioso no espaço escolar, é correto afirmar que a
+   107→   107→A abordagem da religião e da cultura iorubanas em sala de
+   108→   108→aula permite que professores e estudantes reflitam sobre os
+   109→   109→efeitos das violências materiais e simbólicas na sociedade.
+   110→   110→B apresentação de conteúdos vinculados às religiões de
+   111→   111→matrizes africanas e a valorização do diálogo na resolução
+   112→   112→de conflitos nas escolas buscam uma identidade comum a
+   113→   113→todos os estudantes.
+   114→   114→C concepção do ambiente escolar como espaço de convívio
+   115→   115→religioso distancia-se da função social da educação,
+   116→   116→que deve focalizar conhecimentos gerais, formação
+   117→   117→disciplinar e cidadania.
+   118→   118→D utilização de trechos da mitologia africana nas aulas de
+   119→   119→ensino religioso cumpre o prescrito na lei que trata do
+   120→   120→ensino da história iorubana e indígena.
+   121→   121→
+   122→   122→2025
+   123→   123→QUESTÃO 07
+   124→   124→Em O alienista, o protagonista da trama é Simão Bacamarte, médico que funda a clínica Casa Verde para pessoas com distúrbios
+   125→   125→mentais, na pequena cidade de Itaguaí. Simão começa a tratar as pessoas da cidade que apresentam sinais de loucura e passa a
+   126→   126→buscar, por meio de seus estudos, formas de estabelecer quais comportamentos da população podem ser considerados normais
+   127→   127→ou anormais, o que se torna uma obsessão. A história é relatada por um narrador-observador que, ironicamente, fundamenta
+   128→   128→sua narrativa no registro histórico das crônicas da vila de Itaguaí. Com temáticas distintas, porém universais, o estudante do
+   129→   129→Ensino Médio é convidado a acompanhar de perto as experiências de Simão Bacamarte e se depara com dilemas envolvendo
+   130→   130→ciência, ética, exclusão social, loucura, imortalidade, entre outros temas também ambientados no contexto da época retratada
+   131→   131→por Machado de Assis.
+   132→   132→Guia Digital do PNLD Literário 2021. Disponível em: www.pnld.nees.ufal.br. Acesso em: 15 maio 2025.
+   133→   133→Um grupo de professores do Ensino Médio utiliza a obra O alienista para desenvolver um Projeto de Vida que promova discussões
+   134→   134→sobre saúde mental e bem-estar coletivo na comunidade escolar. Essa obra foi selecionada por permitir o desenvolvimento de
+   135→   135→propostas pedagógicas que
+   136→   136→A estimulem a emissão de laudos pela equipe psicopedagógica para subsidiar intervenções feitas pelos professores.
+   137→   137→B desenvolvam ações de escuta entre os estudantes para que eles relacionem os temas abordados com suas vivências.
+   138→   138→C favoreçam críticas à excessiva medicamentalização dos comportamentos incomuns para promover reflexões sobre
+   139→   139→ética profissional.
+   140→   140→D abordem a ciência médica por um viés objetivo para definir quais padrões de comportamento são socialmente aceitos.
+   141→   141→QUESTÃO 08
+   142→   142→Ao realizar a matrícula em uma escola, uma estudante de 15 anos e seus pais solicitaram à secretaria acadêmica o uso de nome
+   143→   143→social, já que na certidão de nascimento consta uma identificação masculina. Eles queriam que o nome social fosse usado em
+   144→   144→sala de aula e em documentos internos da instituição, como chamada, boletins e carteirinha estudantil. No entanto, a direção,
+   145→   145→ao tomar ciência do caso, recusou o pedido, alegando que, sem a alteração no registro civil, seria impossível atender à solicitação.
+   146→   146→Diante do caso, com base na Resolução MEC n. 1/2018, que trata do uso do nome social, a gestão deve
+   147→   147→A permitir o uso do nome social de maneira informal, mantendo os registros escolares internos.
+   148→   148→B convocar o conselho estudantil para deliberar sobre o caso, por se tratar de uma questão interna da escola.
+   149→   149→C acatar o pedido quando o nome social for oficialmente retificado no registro civil da estudante.
+   150→   150→D atender ao pedido mediante formalização da solicitação pelos responsáveis legais da estudante.
+   151→   151→
+   152→   152→2025
+   153→   153→Texto para questões 09 e 10
+   154→   154→TEXTO 1
+   155→   155→O Programa Nacional do Livro e do Material Didático (PNLD), regulamentado pelo Decreto n. 12 021/2024, que altera o
+   156→   156→Decreto n. 9 099/2017, tem como objetivos avaliação, aquisição e distribuição de materiais didáticos e demais materiais de
+   157→   157→apoio à prática educativa para toda a rede pública de ensino básico do país. Os materiais inscritos, avaliados, selecionados e
+   158→   158→disponíveis para a escolha chegam às escolas participantes do PNLD de forma sistemática, regular e gratuita. As etapas que
+   159→   159→compõem o processo de avaliação estão apresentadas a seguir:
+   160→   160→Disponível em: www.gov.br. Acesso em: 1 ago. 2025 (adaptado).
+   161→   161→
+   162→   162→2025
+   163→   163→TEXTO 2
+   164→   164→Os livros escolares assumem, conjuntamente ou não, múltiplas funções:
+   165→   165→• Função referencial: expressa a noção de que os livros didáticos são suportes privilegiados de conteúdos, de conhecimentos
+   166→   166→e de técnicas, estando relacionados àquilo que é considerado importante para determinado grupo social.
+   167→   167→• Função instrumental: o livro didático coloca em prática métodos de aprendizagem, propõe exercícios ou atividades
+   168→   168→que facilitam a memorização de conhecimentos, favorece a aquisição de competências disciplinares e a apropriação
+   169→   169→de habilidades.
+   170→   170→• Função ideológica e cultural: o livro didático afirma-se como um dos vetores essenciais da língua, da cultura e dos valores
+   171→   171→das classes dirigentes. Instrumento privilegiado de construção simbólica de identidade, assume um importante papel político.
+   172→   172→• Função documental: o livro didático fornece um conjunto de documentos, textuais ou icônicos, cuja observação ou
+   173→   173→confrontação podem desenvolver o espírito crítico do aluno.
+   174→   174→CHOPPIN, A. História dos livros e das edições didáticas: sobre o estado da arte.
+   175→   175→Educação e Pesquisa. set.-dez. 2004 (adaptado).
+   176→   176→QUESTÃO 09
+   177→   177→Considerando o Texto 1, o Programa Nacional do Livro e do Material Didático (PNLD) vem contribuindo para
+   178→   178→A difundir conhecimentos socioculturais atuais com base na neutralidade que o processo de ensino e de aprendizagem requer.
+   179→   179→B apresentar abordagens de temas socioculturais atuais e sensíveis que possam alterar o processo de ensino e de aprendizagem.
+   180→   180→C divulgar os saberes socioculturais atuais e a historicidade humana para atender aos estudantes de regiões de difícil acesso.
+   181→   181→D abordar os contextos socioculturais atuais considerados relevantes e a historicidade que consolidou a existência humana.
+   182→   182→QUESTÃO 10
+   183→   183→Relacionando os textos 1 e 2, marque a alternativa que apresenta a percepção docente orientada pela função referencial
+   184→   184→proposta por Choppin (2004).
+   185→   185→A “Escolho um livro que apresente temáticas sociais essenciais com reflexões sobre o conteúdo da disciplina”.
+   186→   186→B “Prefiro os livros com sistematização coerente dos objetos de conhecimento da disciplina e transposição didática adequada”.
+   187→   187→C “Considero adequados os livros que expressam conceitos por meio de elementos variados, como imagens, palavras, mapas
+   188→   188→e gráficos”.
+   189→   189→D “Levo em consideração livros que apresentem a norma culta da língua e valores sociais predominantes nos conteúdos
+   190→   190→apresentados”.
+   191→   191→
+   192→   192→2025
+   193→   193→Texto para questões 11 e 12
+   194→   194→TEXTO 1
+   195→   195→As questões ambientais são um tema de preocupação social, econômica e política que perpassam a escola. Elas aparecem na
+   196→   196→esfera política quando o governo federal reconhece a importância de sediar em Belém, no Pará, a 30ª Conferência das Nações
+   197→   197→Unidas sobre Mudanças Climáticas (COP30). O evento trará um olhar global sobre as soluções para os desafios do clima. É urgente
+   198→   198→que abordemos, de forma abrangente e sinérgica, as crises globais interligadas à mudança do clima e à perda de biodiversidade
+   199→   199→no contexto mais amplo da realização dos Objetivos de Desenvolvimento Sustentável (ODS). Ao fazer isso, devemos continuar
+   200→   200→reconhecendo e expandindo o papel e as contribuições dos povos indígenas e das comunidades locais na administração da natureza
+   201→   201→e na liderança climática, ao mesmo tempo que reconhecemos os efeitos desproporcionais que eles sofrem com a mudança do clima.
+   202→   202→Disponível em: www.cop30.br. Acesso em: 1 ago. 2025 (adaptado).
+   203→   203→TEXTO 2
+   204→   204→Chuva ácida
+   205→   205→Enquanto ser humano eu vou destruindo o que posso
+   206→   206→O elevador aqui só desce, o demônio é meu sócio
+   207→   207→Abriram, uh, a caixa de Pandora
+   208→   208→Simon diz: saiam agora
+   209→   209→A chuva espalhando, todos os males
+   210→   210→Ai ai, uiui, ai como isso arde
+   211→   211→É bateria de celulares, césio, similares
+   212→   212→A peste invisível maculando os ares
+   213→   213→Mercúrio nos rios, diesel nos mares
+   214→   214→solo estéril, já fizeram sua parte (uh)
+   215→   215→CRIOLO. Disponível em: www.letras.mus.br. Acesso em: 1 ago. 2025 (adaptado).
+   216→   216→QUESTÃO 11
+   217→   217→Uma professora organiza um conjunto de ações para discussão crítica de aspectos relacionados às questões ambientais abordadas
+   218→   218→nos textos 1 e 2. Para isso, ela planeja atividades como
+   219→   219→A palestras com rappers na escola; e listagem dos objetivos da COP30 no quadro.
+   220→   220→B leitura coletiva dos textos; e fichamento das ideias centrais e secundárias da letra da canção.
+   221→   221→C interpretação da letra da canção; e pesquisa sobre ações que contribuem com a preservação da natureza.
+   222→   222→D registro dos Objetivos de Desenvolvimento Sustentável (ODS) no caderno; e consulta de termos técnicos em dicionários.
+   223→   223→QUESTÃO 12
+   224→   224→Considere que essa professora atua em uma escola localizada em um centro urbano e quer trabalhar com suas turmas sob uma
+   225→   225→perspectiva freireana. Quais atividades ela deve propor aos estudantes para contemplar as temáticas apresentadas nos textos 1 e 2?
+   226→   226→A 1. realizar um levantamento do entorno escolar, problematizando questões ambientais da comunidade; 2. utilizar conceitos
+   227→   227→escolares que ajudam a compreender o tema; 3. aplicar os conhecimentos aprendidos previamente, considerando uma análise
+   228→   228→crítica das ideias debatidas na COP30 e no rap Chuva Ácida.
+   229→   229→B 1. apresentar um vídeo que mostre os grupos de trabalho e os objetivos da COP30; 2. utilizar um modelo de estufa de plantas a
+   230→   230→fim de estudar o ciclo hidrológico; 3. aplicar atividades que ajudem os estudantes a fixar o conhecimento da temática abordada
+   231→   231→na letra de canção.
+   232→   232→C 1. realizar um levantamento prévio das ideias dos estudantes sobre os problemas ambientais trazidos no rap Chuva Ácida;
+   233→   233→2. organizar os subsunçores que contribuem para estudar o tema; 3. promover uma exposição de cartazes para a comunidade
+   234→   234→considerando as soluções mitigadas na COP30.
+   235→   235→D 1. apresentar o vídeo do rap Chuva Ácida abordando os assuntos sobre mudanças climáticas; 2. organizar a Zona de
+   236→   236→Desenvolvimento Proximal, problematizando a interação entre os estudantes que sabem mais sobre o tema; 3. preparar
+   237→   237→uma exposição apresentando as soluções mitigadas na COP30.
+   238→   238→
+   239→   239→2025
+   240→   240→Texto para questões 13 e 14
+   241→   241→Em uma turma de Educação de Jovens e Adultos (EJA), um professor de História e licenciandos do Estágio Supervisionado
+   242→   242→sentiram dificuldades em desenvolver as atividades planejadas na aula, pois os estudantes estavam dispersos, desanimados
+   243→   243→e afirmavam estar cansados da jornada de trabalho. Buscando motivar a turma, o professor-supervisor e os estagiários
+   244→   244→solicitaram aos estudantes que relatassem seus cotidianos profissionais. Identificou-se que as profissões de motorista de
+   245→   245→aplicativo e de entregador autônomo eram as mais exercidas. Além disso, o professor realizou reflexões com a turma sobre
+   246→   246→as mudanças no mundo do trabalho ao longo do tempo e suas relações sociais e econômicas. Durante o intervalo, o professor
+   247→   247→compartilhou a experiência com as colegas docentes de Língua Portuguesa e de Matemática que decidiram readequar seus
+   248→   248→planejamentos para explorar o mundo do trabalho em suas aulas. A professora de Língua Portuguesa elaborou, coletivamente
+   249→   249→com a turma, um pequeno texto sobre as dificuldades enfrentadas no contexto de trabalho e as expectativas em relação ao
+   250→   250→futuro profissional. Por sua vez, a professora de Matemática tratou das unidades de medida e do conceito de proporção,
+   251→   251→abordando problemas com cálculos que envolviam quantidades, distâncias e porcentagem relativos ao consumo de combustível
+   252→   252→e a outros itens utilizados no campo profissional dos estudantes. Na semana seguinte, como atividade avaliativa do Estágio
+   253→   253→Supervisionado, o professor-supervisor solicitou aos estagiários a elaboração de uma proposta de intervenção baseada na
+   254→   254→situação vivenciada em sala de aula.
+   255→   255→QUESTÃO 13
+   256→   256→Considerando o contexto apresentado, as ações pedagógicas desenvolvidas pelos professores
+   257→   257→A priorizam os conteúdos disciplinares específicos como estratégia motivadora educacional.
+   258→   258→B favorecem a experiência de estudantes, enfatizando saberes de uma área de conhecimento.
+   259→   259→C incentivam a valorização do mundo do trabalho com base em metodologias de ensino inovadoras.
+   260→   260→D integram as vivências dos estudantes ao currículo, promovendo reflexões sobre o mundo do trabalho.
+   261→   261→QUESTÃO 14
+   262→   262→No contexto relatado, o Estágio Supervisionado é concebido como espaço de
+   263→   263→A formação pedagógica que considera o papel do professor-supervisor como coformador.
+   264→   264→B interação entre professor-supervisor e estagiários para a aquisição dos conteúdos curriculares.
+   265→   265→C aquisição de novas tecnologias pelo professor-supervisor para a aplicação em sala de aula.
+   266→   266→D aplicação de conhecimentos teórico-metodológicos do professor-supervisor no cotidiano escolar.
+   267→   267→
+   268→   268→2025
+   269→   269→QUESTÃO 15
+   270→   270→O acesso à internet e aos recursos tecnológicos, como dispositivos móveis e outros, vem crescendo na atualidade, impactando
+   271→   271→os sistemas educacionais no Brasil e no mundo. Com isso, o uso de Metodologias Ativas foi intensificado, visando atender às
+   272→   272→diferentes demandas da comunidade escolar. Muitas dessas metodologias são implementadas via plataformas digitais, excluindo
+   273→   273→uma parcela considerável de estudantes que não têm acesso a tais plataformas devido a desigualdades sociais, conforme
+   274→   274→apontam dados do Instituto Brasileiro de Geografia e Estatística (IBGE). Os dados indicam que cerca de 60% das pessoas não
+   275→   275→possuem acesso à internet devido aos altos custos dos serviços e dos equipamentos.
+   276→   276→IBGE. Pesquisa Nacional por Amostra de Domicílios Contínua. Rio de Janeiro: IBGE, 2023 (adaptado).
+   277→   277→Nesse contexto, uma atividade de ensino que utilize Metodologias Ativas na Educação Básica para minimizar a exclusão na sala
+   278→   278→de aula é
+   279→   279→A uma aula expositiva realizada pelo professor que aborde o tema de tecnologias, seguida de exercícios de múltipla escolha.
+   280→   280→B jogos desplugados produzidos pelos estudantes, seguidos da socialização das aprendizagens em uma plenária.
+   281→   281→C leitura de um texto de referência sobre tecnologias proposta pelo professor, seguida de uma avaliação.
+   282→   282→D uma aula gamificada com seus dispositivos móveis planejada pelos estudantes, seguida da socialização dos resultados.
+   283→   283→QUESTÃO 16
+   284→   284→A Educação do Campo emerge da discussão de diálogos com movimentos sociais e em diferentes eventos, como as Conferências
+   285→   285→Nacionais por uma Educação Básica do Campo. Normativas foram promulgadas, tais como a Resolução CEB/CNE n. 1/2002,
+   286→   286→que institui Diretrizes Operacionais para a Educação Básica nas Escolas do Campo, em prol de um projeto que continue a “luta para
+   287→   287→que os sistemas de ensino discutam um currículo para a área rural e que a formação de professores, inicial, continuada ou em
+   288→   288→serviço, não reproduza o currículo da área urbana na rural”.
+   289→   289→ALENCAR, M. F. S. Educação do Campo e a formação de professores: construção de uma política
+   290→   290→educacional para o campo brasileiro. Ci. & Tróp., n. 2, 2010 (adaptado).
+   291→   291→Nesse contexto, a formação do professor para a Educação do Campo tem como princípio
+   292→   292→A subordinar a cultura, as memórias e a luta do povo do campo à história urbana.
+   293→   293→B identificar os conhecimentos das comunidades do campo, que contrariam o currículo instituído.
+   294→   294→C vincular o ensino ao trabalho e desconsiderar os saberes produzidos no contexto escolar urbano.
+   295→   295→D reconhecer o campo como lugar de vida e de produção que sofreu com um projeto de desenvolvimento exploratório.
+   296→   296→QUESTÃO 17
+   297→   297→A História da Educação no Brasil pode ser organizada em períodos com características específicas de paradigmas educacionais
+   298→   298→de cada época, a exemplo da Escola Nova (décadas de 1920-1930), cujas práticas pedagógicas
+   299→   299→A tinham uma visão filosófica essencialista de sujeito e uma perspectiva didática centrada no professor.
+   300→   300→B partiam do pressuposto da neutralidade científica, inspiradas nos princípios da racionalidade e da eficiência.
+   301→   301→C promoviam o aprendizado do português para os indígenas e seguiam ancoradas na doutrina cristã.
+   302→   302→D centralizavam a educação nas vivências, nas estratégias de ensino e no interesse do estudante.
+   303→   303→
+   304→   304→2025
+   305→   305→QUESTÃO 18
+   306→   306→Com a intenção de valorizar a presença de estudantes indígenas em uma turma do Ensino Médio, uma professora de Filosofia
+   307→   307→apresentou o pensamento do escritor indígena Daniel Munduruku: “um caçador aprende com um caçador mais experiente;
+   308→   308→um jovem aprende sua arte na medida em que é capaz de reproduzir a arte dos mais velhos”. Essa ideia aborda diferentes
+   309→   309→formas de transmissão de conhecimento por meio da oralidade e da experiência cotidiana.
+   310→   310→Pensando nisso, a professora organizou uma proposta pedagógica envolvendo a história de vida dos estudantes e suas
+   311→   311→experiências com foco no uso da mandioca (aipim ou macaxeira), da qual se faz, por exemplo, a tapioca – um alimento ancestral
+   312→   312→bastante consumido atualmente. Para isso, buscou-se a memória social das famílias por meio de entrevistas informais sobre
+   313→   313→os conhecimentos de plantio, de colheita e de preparo da mandioca até o seu consumo na comunidade, a fim de integrar
+   314→   314→conhecimentos ancestrais ao currículo escolar.
+   315→   315→Assinale a alternativa que apresenta uma proposta pedagógica que fomente a cooperação entre escola, família e comunidade
+   316→   316→em relação às populações indígenas.
+   317→   317→A Elaborar um estudo de caso que exemplifique o uso atual da tapioca na comunidade urbana como forma de validar as
+   318→   318→práticas agrícolas contemporâneas.
+   319→   319→B Apresentar vídeos gravados com a participação da comunidade escolar, registrando técnicas ancestrais e contemporâneas
+   320→   320→de se fazer tapioca.
+   321→   321→C Construir um mural escolar com depoimentos de nutricionistas que sugerem o consumo da tapioca nas dietas.
+   322→   322→D Transcrever as falas dos entrevistados sobre as práticas ancestrais agrícolas para análise nas aulas.
+   323→   323→QUESTÃO 19
+   324→   324→Uma professora, diante da existência de um aterro no entorno da escola, decidiu abordar o tema da sustentabilidade e do descarte
+   325→   325→consciente com seus estudantes. Para isso, solicitou que eles elaborassem um projeto, e a turma sugeriu as seguintes ações:
+   326→   326→• convidar trabalhadores de coleta seletiva e participantes de movimentos sociais de preservação do meio ambiente para
+   327→   327→uma roda de conversa;
+   328→   328→• realizar uma ação com os familiares para aprenderem técnicas de limpeza e separação de material reciclável;
+   329→   329→• conduzir uma dinâmica coletiva em que os estudantes troquem materiais descartados por brindes variados.
+   330→   330→Em uma perspectiva crítica da Educação Ambiental, as ações propostas pelos estudantes
+   331→   331→A normalizam o consumo e o acúmulo de bens como origem da produção dos resíduos.
+   332→   332→B proporcionam uma mudança comportamental em relação ao descarte dos resíduos.
+   333→   333→C prejudicam o trabalho dos catadores que têm a coleta dos resíduos como fonte de renda.
+   334→   334→D preservam o ambiente ao deslocar os resíduos do entorno escolar para outra área.
+   335→   335→
+   336→   336→2025
+   337→   337→Texto para questões 20 e 21
+   338→   338→Com base nos princípios da Pedagogia de Projetos e em articulação com os Objetivos de Desenvolvimento Sustentável (ODS),
+   339→   339→especialmente o ODS 12, que trata da produção e do consumo responsáveis, os professores de uma escola pública de Ensino
+   340→   340→Fundamental desenvolveram um projeto interdisciplinar com o intuito de promover ações educativas sobre o reaproveitamento
+   341→   341→de resíduos orgânicos na escola. A iniciativa incluiu o desenvolvimento de atividades de separação e de aproveitamento de
+   342→   342→resíduos da alimentação escolar, bem como a montagem de composteiras artesanais para a produção e o uso de adubo em
+   343→   343→jardins e hortas da escola.
+   344→   344→QUESTÃO 20
+   345→   345→Com base na situação descrita, a ação educativa que intervém concretamente no contexto escolar é
+   346→   346→A realizar um levantamento sobre o desperdício na alimentação escolar e divulgá-lo em um evento científico.
+   347→   347→B mapear os locais de descarte de alimentos e elaborar uma redação sobre o uso dos resíduos gerados.
+   348→   348→C pesquisar o uso de adubos orgânicos e analisar dados estatísticos sobre os benefícios da compostagem.
+   349→   349→D organizar uma oficina para o reaproveitamento de alimentos e acompanhar as mudanças comportamentais na escola.
+   350→   350→QUESTÃO 21
+   351→   351→Com base no projeto desenvolvido, a alternativa que, sob uma perspectiva crítica, apresenta a relação coerente entre o
+   352→   352→procedimento metodológico e a avaliação da aprendizagem sobre o consumo responsável de alimentos é um(a)
+   353→   353→A roda de conversa que aborde ações relacionadas ao valor nutricional dos alimentos, seguida pela aplicação de uma prova
+   354→   354→objetiva sobre os conceitos necessários para a realização dessas ações.
+   355→   355→B exposição de banners informativos que apresentem os tipos de alimentos utilizados nas composteiras, seguida por um mapa
+   356→   356→mental sobre o reaproveitamento da alimentação escolar.
+   357→   357→C debate que aborde a insegurança alimentar com base nas reflexões provocadas ao longo do projeto, seguido pela produção
+   358→   358→de um artigo de opinião a ser publicado no jornal da escola.
+   359→   359→D questionário acerca dos tipos de alimentos consumidos pela comunidade escolar, seguido pela montagem de uma composteira
+   360→   360→conforme orientações de um manual técnico.
+   361→   361→
+   362→   362→2025
+   363→   363→QUESTÃO 22
+   364→   364→Durante uma aula envolvendo o ensino de história e cultura afro-brasileira e africana na Educação Básica, em atendimento ao
+   365→   365→disposto na Lei n. 10 639/2003, uma professora explorou o movimento do cinema de países africanos, que tomou corpo a partir
+   366→   366→de 1960, como forma de comunicação e instrumento de expressão cultural. Ela explicou que, nesse contexto, as produções
+   367→   367→audiovisuais contrapõem-se às narrativas coloniais e propõem novas formas de representar suas histórias, suas culturas e
+   368→   368→suas lutas. Entusiasmados com o tema, os estudantes, juntamente com a professora, decidiram realizar uma mostra de filmes
+   369→   369→produzidos em países africanos para ser apresentada à comunidade escolar. A professora orientou que os estudantes deveriam
+   370→   370→selecionar três filmes, com base em critérios relevantes na compreensão do valor das culturas africanas.
+   371→   371→Considerando os objetivos previstos na proposta da professora, os estudantes devem selecionar filmes que
+   372→   372→A retratem os espaços físicos e a vida animal selvagem como elementos característicos do continente africano.
+   373→   373→B produzam a sensação de familiaridade no espectador com base nas narrativas audiovisuais europeias e americanas.
+   374→   374→C reconhecem as variadas formas de expressão dos povos africanos, suas subjetividades e questões sociais associadas a esses povos.
+   375→   375→D apresentem estereótipos relacionados a temáticas da colonização e seus impactos no modo de vida urbanizado em países africanos.
+   376→   376→QUESTÃO 23
+   377→   377→Justiça determina melhorias imediatas nas vias de acesso e
+   378→   378→na estrutura de escolas em assentamentos
+   379→   379→Entre as precariedades identificadas pelo Ministério Público Federal (MPF) está o desgaste da infraestrutura dos prédios das
+   380→   380→escolas com pisos de areia e barro. Os professores e os estudantes são orientados a fazerem as necessidades fisiológicas na
+   381→   381→mata porque não há banheiro, nem rede de água ou de esgotamento sanitário.
+   382→   382→Disponível em: www.g1.globo.com. Acesso em: 11 maio 2025 (adaptado).
+   383→   383→Diante da situação retratada na matéria jornalística, que ação compete à escola e contribui para o enfrentamento dessa realidade?
+   384→   384→A A elaboração de um projeto com base em um diagnóstico sobre a situação da rede de água para solucionar o problema.
+   385→   385→B A instalação mínima de redes de água e de esgotamento sanitário nas escolas para superar as condições precárias de infraestrutura.
+   386→   386→C A articulação da gestão escolar com as autoridades competentes em busca de ações para melhorar a infraestrutura.
+   387→   387→D A convocação da comunidade escolar para proceder à despoluição de um rio do entorno.
+   388→   388→
+   389→   389→2025
+   390→   390→QUESTÃO 24
+   391→   391→Em uma escola localizada em território quilombola, as turmas do Ensino Médio estavam envolvidas com a festividade de Santo
+   392→   392→Antônio, padroeiro da comunidade. Um professor de História, aproveitando a situação, convidou professores de outras áreas para
+   393→   393→realizarem atividades pedagógicas sobre a representatividade da festa para o Inventário Cultural Quilombola. Com a mobilização
+   394→   394→das áreas, foi proposta uma reflexão sobre a autonomia e a identidade escolar presentes no Projeto Político Pedagógico da escola.
+   395→   395→Com base no cenário apresentado, uma intervenção didática que considera a colaboração entre escola e comunidade quilombola
+   396→   396→é aquela que
+   397→   397→A realiza leituras de textos sobre a festividade para normatizar saberes na escola.
+   398→   398→B insere festividades contemporâneas para renovar os princípios educativos da escola.
+   399→   399→C promove atividades para reconhecer ritos significativos para a comunidade durante a organização da festa.
+   400→   400→D organiza feiras com produtos industrializados para possibilitar a integração da comunidade com os espaços urbanos.
+   401→   401→QUESTÃO 25
+   402→   402→Em uma escola da rede pública municipal, a equipe de educadores está revisando o Projeto Político Pedagógico (PPP) à luz
+   403→   403→do novo referencial curricular do município, elaborado de acordo com a Base Nacional Comum Curricular (BNCC). Durante as
+   404→   404→reuniões, surgem diferentes percepções entre os professores: alguns compreendem que esse documento apresenta uma lista de
+   405→   405→conteúdos obrigatórios a serem cumpridos; e outros entendem que ele orienta as decisões didáticas que deverão ser adaptadas,
+   406→   406→considerando o contexto da escola e as necessidades dos estudantes. Diante dessa problemática, a coordenadora pedagógica
+   407→   407→apresenta a perspectiva do currículo moldado, segundo a reflexão de Gimeno Sacristán (2000): “O currículo moldado vai além
+   408→   408→do currículo prescrito (normativo) e do apresentado (materiais didáticos), devendo ser articulado e ressignificado de acordo
+   409→   409→com os diferentes componentes curriculares, de modo a convergir para o contexto local e regional”.
+   410→   410→Diante do exposto, a concepção curricular apresentada pela coordenadora implica assumir o currículo como
+   411→   411→A construção social e o professor como agente mediador no desenvolvimento curricular.
+   412→   412→B elemento neutro e o professor como agente condutor dos referenciais curriculares.
+   413→   413→C diretriz nacional e o professor como agente executor do currículo apresentado.
+   414→   414→D produto e o professor como agente educacional na apropriação curricular.
+   415→   415→
+   416→   416→2025
+   417→   417→QUESTÃO 26
+   418→   418→Na obra Documentos de identidade: uma introdução às teorias de currículo, Tomaz Tadeu da Silva argumenta que as vertentes
+   419→   419→teóricas crítica e pós-crítica do currículo emergem como reações às limitações da teoria tradicional, que concebe o currículo
+   420→   420→como um conjunto neutro de conteúdos organizados para transmissão de conhecimento e mensuração do desempenho.
+   421→   421→A teoria crítica recusa a pretensa neutralidade do currículo e entende que ele é atravessado por relações de poder. Explora a
+   422→   422→ideia de que a escola pode reproduzir desigualdades, mas também pode combatê-las. Valoriza a conscientização dos estudantes
+   423→   423→sobre os mecanismos sociais e históricos que estruturam essas desigualdades.
+   424→   424→A teoria pós-crítica, embora também rejeite o modelo tradicional, desloca a análise para a esfera discursiva e cultural,
+   425→   425→questionando as verdades universais e focalizando a construção das identidades, das subjetividades e das diferenças.
+   426→   426→Nesse sentido, o currículo é um texto cultural que produz significados sobre o mundo e os sujeitos.
+   427→   427→Com base no exposto, qual estratégia pedagógica desenvolvida com os estudantes está alinhada à teoria crítica de currículo?
+   428→   428→A Pesquisa de campo e discussão sobre enfrentamento dos diversos tipos de violência no entorno escolar.
+   429→   429→B Elaboração de resumo e apresentação de seminários sobre desigualdades econômicas no Brasil.
+   430→   430→C Leitura de textos informativos e resolução de lista de exercícios com base no material didático.
+   431→   431→D Exibição de documentários e realização de palestras sobre bullying na escola.
+   432→   432→QUESTÃO 27
+   433→   433→Li uma história de um pesquisador europeu no começo do século XX que estava nos EUA e chegou a um território dos hopi.
+   434→   434→Ele tinha pedido que alguém daquela aldeia facilitasse o encontro dele com uma anciã que ele queria entrevistar. Quando foi
+   435→   435→encontrá-la, ela estava parada perto de uma rocha. Estava conversando com a irmã dela: uma pedra. Assim como aquela senhora
+   436→   436→hopi que conversava com a pedra, sua irmã, tem um monte de gente que fala com montanhas.
+   437→   437→Por que essas narrativas não nos entusiasmam? Por que elas vão sendo esquecidas e apagadas em favor de uma narrativa
+   438→   438→globalizante, superficial, que quer contar a mesma história para a gente?
+   439→   439→KRENAK, A. Ideias para adiar o fim do mundo. São Paulo: Companhia das Letras, 2020 (adaptado).
+   440→   440→Para contemplar a reflexão de Ailton Krenak, os professores da Educação Básica devem considerar na elaboração de um plano
+   441→   441→de ensino os conhecimentos
+   442→   442→A científicos, fundamentados em uma visão eurocêntrica dos conhecimentos tradicionais locais.
+   443→   443→B tradicionais locais, pautados por uma visão hegemônica dos conhecimentos científicos.
+   444→   444→C científicos, integrados com os conhecimentos tradicionais locais.
+   445→   445→D tradicionais locais, subordinados aos conhecimentos científicos.
+   446→   446→
+   447→   447→2025
+   448→   448→QUESTÃO 28
+   449→   449→TEXTO 1
+   450→   450→Disponível em: www.educadorinclusivo.org.br. Acesso em: 15 ago. 2025 (adaptado).
+   451→   451→TEXTO 2
+   452→   452→Em uma sala de aula do Ensino Fundamental, uma turma recebeu um estudante surdo e que se comunicava por meio da Língua
+   453→   453→Brasileira de Sinais (Libras). Considerando que o professor regente não era fluente em Libras, para garantir a participação do
+   454→   454→estudante nas atividades, a escola contratou um intérprete que adaptava e conduzia as atividades pedagógicas com o estudante
+   455→   455→sem a participação do professor.
+   456→   456→Ao relacionar a situação descrita no Texto 2 com a figura apresentada no Texto 1, conclui-se que está ocorrendo um processo de
+   457→   457→A exclusão, pois o professor não dialoga diretamente com o estudante surdo.
+   458→   458→B segregação, porque a turma não consegue se comunicar com o estudante surdo.
+   459→   459→C inclusão, porque o estudante surdo participa regularmente das aulas com a turma.
+   460→   460→D integração, porque o intérprete estabelece uma relação individual com o estudante surdo.
+   461→   461→QUESTÃO 29
+   462→   462→Um professor, diante de questionamentos acerca da eficácia das vacinas na comunidade, propõe aos estudantes a realização de
+   463→   463→práticas pedagógicas sobre a relação entre o aumento da ocorrência de doenças que haviam sido erradicadas e o baixo índice
+   464→   464→de vacinação referente aos imunizantes do Programa Nacional de Imunizações (PNI). Considerando o papel da escola como
+   465→   465→espaço de promoção do letramento científico, o professor inicia um projeto de conscientização da comunidade escolar quanto
+   466→   466→à importância da atualização das carteiras vacinais e do combate à desinformação. A fim de atender aos objetivos do projeto,
+   467→   467→foi elaborada uma proposta de prática pedagógica.
+   468→   468→Para que essa proposta promova o letramento científico, o professor deve
+   469→   469→A solicitar uma pesquisa em que os estudantes façam um levantamento junto aos familiares relativo a pendências na carteira
+   470→   470→de vacinação.
+   471→   471→B desenvolver um projeto interdisciplinar em que os estudantes investiguem dados científicos sobre vacinação e apresentem
+   472→   472→os resultados em uma feira de ciências com a participação da comunidade escolar.
+   473→   473→C promover rodas de conversa em que os estudantes construam um espaço de escuta e reflexão coletiva sobre a importância
+   474→   474→do conhecimento para a tomada de decisão em relação à escolha das melhores vacinas.
+   475→   475→D propor uma prática pedagógica em que os estudantes tenham acesso aos materiais informativos da campanha de vacinação
+   476→   476→organizada pela Secretaria de Saúde na própria unidade escolar.
+   477→   477→
+   478→   478→2025
+   479→   479→QUESTÃO 30
+   480→   480→A fim de cumprir a Lei n. 14 986/2024, que inclui na Lei de Diretrizes e Bases da Educação (LDB) a “obrigatoriedade de abordagens
+   481→   481→fundamentadas nas experiências e nas perspectivas femininas nos conteúdos curriculares do ensino fundamental e médio”,
+   482→   482→um professor do Ensino Médio apresentou aos estudantes dados do Relatório “Em direção à equidade de gênero no Brasil”
+   483→   483→sobre a participação de mulheres em publicações científicas no Brasil entre 2018 e 2022:
+   484→   484→Participação feminina por área do conhecimento
+   485→   485→Participação feminina em cada área do conhecimento para publicações com autores no Brasil no período 2018 a 2022.
+   486→   486→Disponível em: www.static.poder360.com.br. Acesso em: 29 jul. 2025 (adaptado).
+   487→   487→Os dados do gráfico seguem a classificação de áreas de pesquisa das revistas científicas em que as publicações foram
+   488→   488→editadas e revelam marcante presença feminina em áreas como Enfermagem (80%) e Psicologia (61%), mas baixos índices em
+   489→   489→Matemática (19%), Ciência da Computação (21%) e Engenharia (24%).
+   490→   490→A partir desse material, a proposta pedagógica que representa uma ação do professor para estimular a equidade de gênero
+   491→   491→nas áreas do conhecimento é
+   492→   492→A pautar as avaliações escolares em práticas meritocráticas para neutralizar tentativas de favorecimento por questões de gênero.
+   493→   493→B analisar os dados com o intuito de promover investigações sobre a falta de representatividade feminina em áreas de exatas.
+   494→   494→C utilizar os dados para reforçar que as escolhas profissionais são determinadas por aptidões naturais distintas.
+   495→   495→D promover olimpíadas científicas escolares para motivar a competição entre meninas e meninos.
+   496→   496→
+   497→   497→

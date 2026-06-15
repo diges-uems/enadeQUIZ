@@ -17,6 +17,8 @@ const io = new Server(httpServer, {
 // In-memory state for real-time features
 // Map of sessionCode -> Set of socket IDs (participants)
 const sessionParticipants = new Map<string, Set<string>>()
+// Map of sessionCode -> total unique participants ever connected (only increments, never decrements)
+const sessionTotalParticipants = new Map<string, number>()
 // Map of sessionCode -> current question ID
 const sessionCurrentQuestion = new Map<string, string | null>()
 // Map of sessionCode -> voting paused state
@@ -78,7 +80,8 @@ const PARTICIPANT_BATCH_INTERVAL = 200 // ms
 setInterval(() => {
   for (const sessionCode of pendingParticipantBroadcasts) {
     const count = sessionParticipants.get(sessionCode)?.size || 0
-    io.to(`session:${sessionCode}`).emit('participant-count', count)
+    const total = sessionTotalParticipants.get(sessionCode) || 0
+    io.to(`session:${sessionCode}`).emit('participant-count', { live: count, total })
   }
   pendingParticipantBroadcasts.clear()
 }, PARTICIPANT_BATCH_INTERVAL)
@@ -123,7 +126,14 @@ io.on('connection', (socket) => {
     }
 
     if (role === 'student') {
+      const isNewStudent = !sessionParticipants.get(sessionCode)?.has(socket.id)
       sessionParticipants.get(sessionCode)!.add(socket.id)
+
+      // Track total unique participants (only increments)
+      if (isNewStudent) {
+        const currentTotal = sessionTotalParticipants.get(sessionCode) || 0
+        sessionTotalParticipants.set(sessionCode, currentTotal + 1)
+      }
 
       // If name and rgm provided, associate with socket
       if (name && rgm) {
@@ -133,8 +143,10 @@ io.on('connection', (socket) => {
 
     // Send current state to the newly joined client
     const participantCount = sessionParticipants.get(sessionCode)?.size || 0
+    const totalParticipants = sessionTotalParticipants.get(sessionCode) || 0
     socket.emit('session-state', {
       participantCount,
+      totalParticipants,
       currentQuestionId: sessionCurrentQuestion.get(sessionCode) || null,
       votingPaused: sessionVotingPaused.get(sessionCode) || false,
     })
@@ -333,6 +345,7 @@ io.on('connection', (socket) => {
     sessionCurrentQuestion.set(sessionCode, null)
     sessionVotingPaused.delete(sessionCode)
     sessionScores.delete(sessionCode)
+    sessionTotalParticipants.delete(sessionCode)
 
     // Clear all vote counts for this session
     for (const key of sessionVoteCounts.keys()) {

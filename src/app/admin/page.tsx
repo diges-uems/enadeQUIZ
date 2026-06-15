@@ -769,6 +769,7 @@ export default function AdminPage() {
   // ── Presenter / Socket state ──
   const [socket, setSocket] = useState<Socket | null>(null)
   const [participantCount, setParticipantCount] = useState(0)
+  const [totalParticipants, setTotalParticipants] = useState(0)
   const [votingPaused, setVotingPaused] = useState(false)
   const [voteResults, setVoteResults] = useState<VoteResults>({
     A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
@@ -872,16 +873,19 @@ export default function AdminPage() {
       setVoteResults(data)
     })
 
-    socketInstance.on('participant-count', (count: number) => {
-      setParticipantCount(count)
+    socketInstance.on('participant-count', (data: { live: number; total: number }) => {
+      setParticipantCount(data.live)
+      setTotalParticipants(data.total)
     })
 
     socketInstance.on('session-state', (data: {
       participantCount: number
+      totalParticipants: number
       currentQuestionId: string | null
       votingPaused: boolean
     }) => {
       setParticipantCount(data.participantCount)
+      setTotalParticipants(data.totalParticipants)
       if (data.currentQuestionId) {
         setCurrentQuestionId(data.currentQuestionId)
       }
@@ -1623,39 +1627,38 @@ export default function AdminPage() {
 
             {/* ═══ TAB 2: APRESENTAR ═══ */}
             <TabsContent value="apresentar">
-              <div className="grid gap-6">
-                {/* Row 1: Presentation Preview (at the top for better visibility) */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Preview da Apresentação</CardTitle>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          window.open(`/apresentacao/${selectedSession.code}`, '_blank')
-                        }
-                        className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
-                      >
-                        <Monitor className="size-4" />
-                        Abrir Tela Cheia
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="w-full rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#050A1A]" style={{ aspectRatio: '16/9' }}>
-                      <iframe
-                        src={`/apresentacao/${selectedSession.code}`}
-                        className="w-full h-full border-0"
-                        title="Preview da Apresentação"
-                        style={{ transformOrigin: 'top left' }}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Presentation Preview (at the top for better visibility) */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Preview da Apresentação</CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+                      }
+                      className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+                    >
+                      <Monitor className="size-4" />
+                      Abrir Tela Cheia
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <div className="w-full rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#050A1A]" style={{ maxHeight: '300px' }}>
+                    <iframe
+                      src={`/apresentacao/${selectedSession.code}`}
+                      className="w-full border-0"
+                      title="Preview da Apresentação"
+                      style={{ height: '280px' }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-                {/* Row 2: Session Status + Participant Counter */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Session Status + Participant Counter */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Session Status Card */}
                   <Card>
                     <CardHeader className="pb-3">
@@ -1734,11 +1737,14 @@ export default function AdminPage() {
                     <CardContent>
                       <div className="flex items-center gap-3 mb-3">
                         <span className="text-4xl font-bold text-[#00338C] dark:text-[#C8A84B]">
-                          {participantCount}
+                          {totalParticipants || participantCount}
                         </span>
-                        <span className="text-sm text-muted-foreground">
-                          {participantCount === 1 ? 'participante' : 'participantes'}
-                        </span>
+                        <div className="text-sm text-muted-foreground">
+                          <div>{(totalParticipants || participantCount) === 1 ? 'participante' : 'participantes'}</div>
+                          {totalParticipants > participantCount && participantCount > 0 && (
+                            <div className="text-xs text-[#C8A84B]/70">{participantCount} conectados agora</div>
+                          )}
+                        </div>
                       </div>
                       <Button
                         onClick={() => {
@@ -2035,7 +2041,6 @@ export default function AdminPage() {
                       )}
                     </CardContent>
                   </Card>
-                </div>
               </div>
             </TabsContent>
           </Tabs>

@@ -14,6 +14,7 @@ type PageState = 'loading' | 'error' | 'waiting' | 'voting' | 'voted' | 'reveale
 
 interface SessionStatePayload {
   participantCount: number
+  totalParticipants: number
   currentQuestionId: string | null
   votingPaused: boolean
 }
@@ -60,6 +61,7 @@ export default function StudentVotingPage({
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
   const [votingPaused, setVotingPaused] = useState(false)
   const [participantCount, setParticipantCount] = useState(0)
+  const [totalParticipants, setTotalParticipants] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [voteTimestamp, setVoteTimestamp] = useState<number | null>(null)
@@ -67,6 +69,41 @@ export default function StudentVotingPage({
 
   const socketRef = useRef<Socket | null>(null)
   const sessionFetchedRef = useRef<Session | null>(null)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+
+  // ── Wake Lock: Keep phone screen awake ───────────────────────────────────
+  const requestWakeLock = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
+    try {
+      const wakeLock = await navigator.wakeLock.request('screen')
+      wakeLockRef.current = wakeLock
+      wakeLock.addEventListener('release', () => {
+        wakeLockRef.current = null
+      })
+    } catch (err) {
+      console.warn('Wake Lock request failed:', err)
+    }
+  }, [])
+
+  // Acquire wake lock when page is active and re-acquire on visibility change
+  useEffect(() => {
+    requestWakeLock()
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release()
+        wakeLockRef.current = null
+      }
+    }
+  }, [requestWakeLock])
 
   // ── Score tracking ──────────────────────────────────────────────────────
   const [correctCount, setCorrectCount] = useState(() => {
@@ -205,6 +242,7 @@ export default function StudentVotingPage({
 
         socket.on('session-state', (state: SessionStatePayload) => {
           setParticipantCount(state.participantCount)
+          setTotalParticipants(state.totalParticipants)
           setVotingPaused(state.votingPaused)
 
           const newState = determineState(sessionFetchedRef.current!, state.currentQuestionId, state.votingPaused)
@@ -316,8 +354,9 @@ export default function StudentVotingPage({
           toast.info('Sessão reiniciada pelo apresentador')
         })
 
-        socket.on('participant-count', (count: number) => {
-          setParticipantCount(count)
+        socket.on('participant-count', (data: { live: number; total: number }) => {
+          setParticipantCount(data.live)
+          setTotalParticipants(data.total)
         })
 
         socket.on('connect_error', () => {
