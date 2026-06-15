@@ -172,7 +172,6 @@ export default function ApresentacaoPage({
       setParticipantCount(data.participantCount)
       if (data.currentQuestionId !== currentQuestionId) {
         setCurrentQuestionId(data.currentQuestionId)
-        // Reset revealed state when question changes
         if (data.currentQuestionId && session) {
           const q = session.questions.find((q) => q.id === data.currentQuestionId)
           if (q) setRevealed(q.isRevealed)
@@ -188,12 +187,8 @@ export default function ApresentacaoPage({
       setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
     })
 
-    socketInstance.on('answer-revealed', (data: { correctAnswer: string }) => {
+    socketInstance.on('answer-revealed', () => {
       setRevealed(true)
-    })
-
-    socketInstance.on('voting-toggled', (data: { paused: boolean }) => {
-      // Just for awareness, no UI controls needed
     })
 
     socketInstance.on('ranking-data', (data: RankingEntry[]) => {
@@ -220,46 +215,6 @@ export default function ApresentacaoPage({
   })).filter((d) => d.value > 0)
 
   const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
-
-  // ── Custom label renderer for pie slices ──
-  const renderCustomLabel = ({
-    cx,
-    cy,
-    midAngle,
-    innerRadius,
-    outerRadius,
-    name,
-    percent,
-  }: {
-    cx: number
-    cy: number
-    midAngle: number
-    innerRadius: number
-    outerRadius: number
-    name: string
-    percent: number
-  }) => {
-    if (percent < 0.05) return null
-    const RADIAN = Math.PI / 180
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
-    const x = cx + radius * Math.cos(-midAngle * RADIAN)
-    const y = cy + radius * Math.sin(-midAngle * RADIAN)
-    return (
-      <text
-        x={x}
-        y={y}
-        fill="#E8EDFF"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={16}
-        fontWeight="bold"
-        style={{ fontFamily: 'var(--font-space-grotesk)' }}
-      >
-        <tspan x={x} dy="-0.5em">{name}</tspan>
-        <tspan x={x} dy="1.2em">{`${(percent * 100).toFixed(0)}%`}</tspan>
-      </text>
-    )
-  }
 
   // ─── Loading state ───
   if (loading) {
@@ -299,25 +254,25 @@ export default function ApresentacaoPage({
     return (
       <div className="h-screen w-screen flex items-center justify-center overflow-hidden" style={{ background: '#050A1A' }}>
         <motion.div
-          className="max-w-xl w-full mx-4 text-center"
+          className="max-w-2xl w-full mx-4 text-center"
           initial={{ y: 60, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
         >
           <h1
-            className="text-5xl font-bold mb-3"
+            className="text-6xl font-bold mb-3"
             style={{ fontFamily: 'var(--font-space-grotesk)', color: '#C8A84B' }}
           >
             Sessão Encerrada
           </h1>
-          <p className="text-[#8899CC] text-xl mb-10">Ranking Final</p>
+          <p className="text-[#8899CC] text-2xl mb-10">Ranking Final</p>
 
           {ranking.length === 0 ? (
             <div className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-8">
-              <p className="text-[#8899CC] text-lg">Nenhum voto registrado ainda</p>
+              <p className="text-[#8899CC] text-xl">Nenhum voto registrado ainda</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {ranking.slice(0, 3).map((entry, idx) => {
                 const medals = ['🥇', '🥈', '🥉']
                 const medalColors = [
@@ -328,29 +283,29 @@ export default function ApresentacaoPage({
                 return (
                   <motion.div
                     key={entry.rgm}
-                    className={`flex items-center gap-5 p-5 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
+                    className={`flex items-center gap-6 p-6 rounded-xl border ${medalColors[idx] || 'border-[#1A2A5E] bg-[#050A1A]'} bg-[#0D1B3E]`}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.4, delay: 0.3 + idx * 0.2 }}
                   >
-                    <span className="text-5xl">{medals[idx]}</span>
+                    <span className="text-6xl">{medals[idx]}</span>
                     <div className="flex-1 min-w-0 text-left">
                       <p
-                        className="text-[#E8EDFF] font-bold text-2xl truncate"
+                        className="text-[#E8EDFF] font-bold text-3xl truncate"
                         style={{ fontFamily: 'var(--font-space-grotesk)' }}
                       >
                         {entry.name}
                       </p>
-                      <p className="text-[#8899CC] text-base">RGM: {entry.rgm}</p>
+                      <p className="text-[#8899CC] text-lg">RGM: {entry.rgm}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <p
-                        className="text-[#C8A84B] font-bold text-3xl"
+                        className="text-[#C8A84B] font-bold text-4xl"
                         style={{ fontFamily: 'var(--font-space-grotesk)' }}
                       >
                         {entry.corrects}/{totalQuestions}
                       </p>
-                      <p className="text-[#8899CC] text-sm">
+                      <p className="text-[#8899CC] text-base">
                         {entry.corrects === 1 ? 'acerto' : 'acertos'}
                       </p>
                     </div>
@@ -386,108 +341,160 @@ export default function ApresentacaoPage({
   // ─── Main presenter display (16:9 PowerPoint-style, read-only) ───
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#050A1A' }}>
-      {/* ── Header Bar (thin) ── */}
-      <header className="flex items-center justify-between px-8 py-2 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
+      {/* ── Thin Header Bar ── */}
+      <header className="flex items-center justify-between px-6 py-1.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="UEMS" className="h-8 w-8 object-contain" />
+          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
           <span
-            className="text-[#E8EDFF] text-xl font-semibold"
+            className="text-[#E8EDFF] text-lg font-semibold"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
           >
             ENADE Quiz
           </span>
           <span className="text-[#3A4A7E]">—</span>
-          <span className="text-[#8899CC] text-lg">{session.title}</span>
+          <span className="text-[#8899CC] text-base">{session.title}</span>
         </div>
-        <span
-          className="px-4 py-1 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-base tracking-wider"
-          style={{ fontFamily: 'var(--font-space-grotesk)' }}
-        >
-          {codigo}
-        </span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-[#C8A84B]" />
+            <span className="text-[#E8EDFF] text-base font-medium" style={{ fontFamily: 'var(--font-space-grotesk)' }}>
+              {participantCount}
+            </span>
+          </div>
+          <span
+            className="px-3 py-0.5 bg-[#0D1B3E] border border-[#1A2A5E] rounded text-[#C8A84B] font-bold text-sm tracking-wider"
+            style={{ fontFamily: 'var(--font-space-grotesk)' }}
+          >
+            {codigo}
+          </span>
+        </div>
       </header>
 
-      {/* ── Main Content: QR (left) + Chart (right) ── */}
+      {/* ── Main Content Area ── */}
       <div className="flex-1 flex min-h-0">
-        {/* Left: QR Code & Session Info */}
-        <div className="w-[360px] shrink-0 flex flex-col items-center justify-center p-6 border-r border-[#1A2A5E]">
-          <div
-            className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-5 flex flex-col items-center gap-3"
-          >
-            <QRCode
-              value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
-              size={220}
-              bgColor="#0D1B3E"
-              fgColor="#E8EDFF"
-              qrStyle="dots"
-              eyeRadius={8}
-              logoImage="/logo.svg"
-              logoSize={48}
-            />
-            <div className="w-full border-t border-[#1A2A5E] pt-3 space-y-1.5 text-center">
-              <p className="text-[#8899CC] text-sm">acesse:</p>
-              <p
-                className="text-[#E8EDFF] text-xl font-bold"
-                style={{ fontFamily: 'var(--font-space-grotesk)' }}
-              >
-                enade.uems.br
-              </p>
-              <p className="text-[#8899CC] text-sm">código:</p>
-              <p
-                className="text-[#C8A84B] text-3xl font-bold tracking-widest"
-                style={{ fontFamily: 'var(--font-space-grotesk)' }}
-              >
-                {codigo}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <Users className="w-6 h-6 text-[#C8A84B]" />
-              <span
-                className="text-[#E8EDFF] text-xl font-semibold"
-                style={{ fontFamily: 'var(--font-space-grotesk)' }}
-              >
-                {participantCount} {participantCount === 1 ? 'participante' : 'participantes'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Pie Chart + Legend */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 min-w-0">
-          <AnimatePresence mode="wait">
-            {!currentQuestion ? (
-              <motion.div
-                key="waiting"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="text-center space-y-4"
-              >
-                <div className="w-32 h-32 mx-auto rounded-full border-4 border-dashed border-[#1A2A5E] flex items-center justify-center">
-                  <span className="text-[#8899CC] text-lg">⏳</span>
+        <AnimatePresence mode="wait">
+          {!currentQuestion ? (
+            /* ── Waiting State: QR Code Center ── */
+            <motion.div
+              key="waiting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 flex items-center justify-center gap-16 px-12"
+            >
+              {/* QR Code Section */}
+              <div className="flex flex-col items-center gap-6">
+                <div
+                  className="bg-[#0D1B3E] border border-[#1A2A5E] rounded-2xl p-6 flex flex-col items-center gap-4"
+                >
+                  <QRCode
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
+                    size={280}
+                    bgColor="#0D1B3E"
+                    fgColor="#E8EDFF"
+                    qrStyle="dots"
+                    eyeRadius={8}
+                    logoImage="/logo.svg"
+                    logoSize={56}
+                  />
+                  <div className="w-full border-t border-[#1A2A5E] pt-4 space-y-2 text-center">
+                    <p className="text-[#8899CC] text-base">acesse:</p>
+                    <p
+                      className="text-[#E8EDFF] text-2xl font-bold"
+                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                    >
+                      enade.uems.br
+                    </p>
+                    <p className="text-[#8899CC] text-base">código:</p>
+                    <p
+                      className="text-[#C8A84B] text-4xl font-bold tracking-widest"
+                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                    >
+                      {codigo}
+                    </p>
+                  </div>
                 </div>
+              </div>
+
+              {/* Welcome message */}
+              <div className="max-w-lg text-center space-y-4">
                 <h2
-                  className="text-3xl font-bold text-[#E8EDFF]"
+                  className="text-5xl font-bold text-[#E8EDFF]"
                   style={{ fontFamily: 'var(--font-space-grotesk)' }}
                 >
-                  Aguardando início da apresentação
+                  Aguardando Início
                 </h2>
-                <p className="text-[#8899CC] text-lg">
-                  O apresentador iniciará em breve
+                <p className="text-[#8899CC] text-xl">
+                  Escaneie o QR Code ou acesse o endereço acima com o código da sessão para participar
                 </p>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="chart"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="w-full h-full flex flex-col items-center justify-center gap-3"
-              >
-                {/* Pie Chart */}
-                <div className="w-full max-w-[420px] aspect-square">
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Users className="w-6 h-6 text-[#C8A84B]" />
+                  <span
+                    className="text-[#E8EDFF] text-2xl font-semibold"
+                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  >
+                    {participantCount} {participantCount === 1 ? 'participante' : 'participantes'}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            /* ── Active Question State ── */
+            <motion.div
+              key="question"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex min-h-0"
+            >
+              {/* Left: Question Text + Image */}
+              <div className="w-[45%] flex flex-col p-6 gap-4 min-h-0 overflow-hidden">
+                {/* Question number badge */}
+                <div className="shrink-0 flex items-center gap-3">
+                  <span
+                    className="px-4 py-1.5 bg-[#00338C] text-white font-bold text-lg rounded-lg"
+                    style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                  >
+                    Questão {currentIndex + 1}/{totalQuestions}
+                  </span>
+                  {revealed && (
+                    <motion.span
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold text-lg rounded-lg"
+                      style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                    >
+                      Gabarito: {currentQuestion.correctAnswer}
+                    </motion.span>
+                  )}
+                </div>
+
+                {/* Question image */}
+                {currentQuestion.imageUrl && (
+                  <div className="shrink-0 max-h-[35%] overflow-hidden rounded-xl border border-[#1A2A5E] bg-[#0D1B3E] flex items-center justify-center">
+                    <img
+                      src={currentQuestion.imageUrl}
+                      alt="Imagem da questão"
+                      className="max-h-full max-w-full object-contain p-2"
+                    />
+                  </div>
+                )}
+
+                {/* Question text */}
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+                  <p
+                    className="text-[#E8EDFF] text-2xl leading-relaxed"
+                    style={{ fontFamily: 'var(--font-inter)' }}
+                  >
+                    {currentQuestion.text}
+                  </p>
+                </div>
+              </div>
+
+              {/* Center: Pie Chart */}
+              <div className="w-[30%] flex flex-col items-center justify-center p-4 min-h-0">
+                <div className="w-full aspect-square max-w-[400px] max-h-[400px]">
                   {pieData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -495,11 +502,34 @@ export default function ApresentacaoPage({
                           data={pieData}
                           cx="50%"
                           cy="50%"
-                          outerRadius="82%"
-                          innerRadius="50%"
+                          outerRadius="80%"
+                          innerRadius="45%"
                           dataKey="value"
                           labelLine={false}
-                          label={renderCustomLabel}
+                          label={({ cx, cy, midAngle, innerRadius, outerRadius, name, percent }: {
+                            cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; name: string; percent: number
+                          }) => {
+                            if (percent < 0.05) return null
+                            const RADIAN = Math.PI / 180
+                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+                            const x = cx + radius * Math.cos(-midAngle * RADIAN)
+                            const y = cy + radius * Math.sin(-midAngle * RADIAN)
+                            return (
+                              <text
+                                x={x}
+                                y={y}
+                                fill="#E8EDFF"
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                                fontSize={18}
+                                fontWeight="bold"
+                                style={{ fontFamily: 'var(--font-space-grotesk)' }}
+                              >
+                                <tspan x={x} dy="-0.5em">{name}</tspan>
+                                <tspan x={x} dy="1.2em">{`${(percent * 100).toFixed(0)}%`}</tspan>
+                              </text>
+                            )
+                          }}
                           isAnimationActive={true}
                           animationDuration={300}
                         >
@@ -510,8 +540,8 @@ export default function ApresentacaoPage({
                                 key={`cell-${index}`}
                                 fill={entry.color}
                                 stroke={isCorrect ? '#C8A84B' : 'transparent'}
-                                strokeWidth={isCorrect ? 3 : 0}
-                                opacity={revealed && !isCorrect ? 0.4 : 1}
+                                strokeWidth={isCorrect ? 4 : 0}
+                                opacity={revealed && !isCorrect ? 0.35 : 1}
                               />
                             )
                           })}
@@ -529,115 +559,78 @@ export default function ApresentacaoPage({
                     </div>
                   )}
                 </div>
+                {/* Total votes */}
+                <div className="mt-2 text-center">
+                  <span className="text-[#8899CC] text-lg">
+                    Total: <strong className="text-[#E8EDFF] text-xl">{totalVotes}</strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
+                  </span>
+                </div>
+              </div>
 
-                {/* Legend */}
-                <div className="grid grid-cols-1 gap-1.5 w-full max-w-lg">
-                  {ALT_LABELS.map((alt) => {
+              {/* Right: Alternatives Legend */}
+              <div className="w-[25%] flex flex-col justify-center p-4 gap-2 min-h-0 overflow-y-auto">
+                <AnimatePresence>
+                  {ALT_LABELS.map((alt, idx) => {
+                    const altKey = `alt${alt}` as 'altA' | 'altB' | 'altC' | 'altD' | 'altE'
                     const votes = voteResults[alt] ?? 0
                     const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
                     const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+                    const altText = currentQuestion?.[altKey] ?? ''
 
                     return (
                       <motion.div
                         key={alt}
-                        className={`flex items-center gap-4 px-5 py-2 rounded-lg transition-all ${
+                        className={`rounded-xl px-4 py-3 transition-all ${
                           isCorrect
-                            ? 'bg-[#C8A84B]/10 border-2 border-[#C8A84B]'
+                            ? 'bg-[#C8A84B]/15 border-2 border-[#C8A84B]'
                             : revealed
-                            ? 'opacity-40 border-2 border-transparent'
-                            : 'border-2 border-transparent'
+                            ? 'opacity-35 border-2 border-transparent bg-[#0D1B3E]'
+                            : 'border-2 border-transparent bg-[#0D1B3E]'
                         }`}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2, delay: ALT_LABELS.indexOf(alt) * 0.05 }}
+                        transition={{ duration: 0.2, delay: idx * 0.05 }}
                       >
-                        <span
-                          className="w-4 h-4 rounded-full shrink-0"
-                          style={{ backgroundColor: COLORS[alt] }}
-                        />
-                        <span
-                          className={`font-bold text-lg ${
-                            isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'
-                          }`}
-                          style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                        >
-                          {alt}
-                        </span>
-                        <span className="flex-1" />
-                        <span className="text-[#E8EDFF] font-bold text-lg shrink-0">
-                          {pct}%
-                        </span>
-                        <span className="text-[#8899CC] text-sm shrink-0">
-                          ({votes} {votes === 1 ? 'voto' : 'votos'})
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold text-white shrink-0"
+                            style={{ backgroundColor: COLORS[alt] }}
+                          >
+                            {alt}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[#8899CC] text-xs line-clamp-1">{altText}</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className={`font-bold text-lg ${isCorrect ? 'text-[#C8A84B]' : 'text-[#E8EDFF]'}`}>
+                              {pct}%
+                            </span>
+                            <span className="text-[#8899CC] text-sm ml-1">
+                              ({votes})
+                            </span>
+                          </div>
+                        </div>
                       </motion.div>
                     )
                   })}
-                  <div className="flex justify-center pt-2 border-t border-[#1A2A5E] mt-1">
-                    <span className="text-[#8899CC] text-lg">
-                      Total: <strong className="text-[#E8EDFF]">{totalVotes}</strong> {totalVotes === 1 ? 'resposta' : 'respostas'}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* ── Question Bar (bottom) ── */}
-      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0D1B3E] px-8 py-3">
-        <AnimatePresence mode="wait">
-          {currentQuestion ? (
-            <motion.div
-              key={currentQuestion.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="flex items-center gap-4"
-            >
-              <span
-                className="text-[#C8A84B] font-bold text-2xl shrink-0"
-                style={{ fontFamily: 'var(--font-space-grotesk)' }}
-              >
-                Questão {currentIndex + 1}/{totalQuestions}:
-              </span>
-              {currentQuestion.imageUrl && (
-                <img
-                  src={currentQuestion.imageUrl}
-                  alt="Imagem da questão"
-                  className="h-12 w-auto max-w-20 object-contain rounded shrink-0 border border-[#1A2A5E]"
-                />
-              )}
-              <p
-                className="text-[#E8EDFF] text-xl leading-relaxed line-clamp-2 flex-1"
-                style={{ fontFamily: 'var(--font-inter)' }}
-              >
-                &ldquo;{currentQuestion.text}&rdquo;
-              </p>
-              {revealed && (
-                <motion.span
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="shrink-0 px-4 py-1.5 bg-[#C8A84B] text-[#050A1A] font-bold rounded text-base"
-                  style={{ fontFamily: 'var(--font-space-grotesk)' }}
-                >
-                  Gabarito: {currentQuestion.correctAnswer}
-                </motion.span>
-              )}
+                </AnimatePresence>
+              </div>
             </motion.div>
-          ) : (
-            <motion.p
-              key="no-question"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-[#8899CC] text-center text-xl"
-            >
-              Nenhuma questão ativa
-            </motion.p>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* ── Bottom Bar ── */}
+      <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-1.5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src="/logo.svg" alt="UEMS" className="h-5 w-5 object-contain opacity-50" />
+          <span className="text-[#3A4A7E] text-xs">UEMS/DIGES — ENADE Quiz</span>
+        </div>
+        {currentQuestion && (
+          <span className="text-[#3A4A7E] text-xs">
+            {currentQuestion.year} • {currentQuestion.course}
+          </span>
+        )}
       </div>
     </div>
   )

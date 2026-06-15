@@ -20,13 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { io, Socket } from 'socket.io-client'
 import { toast } from 'sonner'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts'
+// Recharts removed - using CSS bar charts instead for lighter compilation
 import {
   Card,
   CardContent,
@@ -1183,14 +1177,7 @@ export default function AdminPage() {
     }
   }
 
-  // ── Pie chart data ──
-  const pieData = ALT_LABELS.map((alt) => ({
-    name: alt,
-    value: voteResults[alt] ?? 0,
-    color: CHART_COLORS[alt],
-  })).filter((d) => d.value > 0)
-
-  const totalVotes = voteResults.total || pieData.reduce((sum, d) => sum + d.value, 0)
+  const totalVotes = voteResults.total || ALT_LABELS.reduce((sum, alt) => sum + (voteResults[alt] ?? 0), 0)
 
   // ── LOGIN SCREEN ─────────────────────────────────────────────
   if (!isAuthenticated) {
@@ -1661,7 +1648,7 @@ export default function AdminPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Live Results (Pie Chart) */}
+                  {/* Live Results (CSS Bar Chart) */}
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -1676,71 +1663,47 @@ export default function AdminPage() {
                         <div className="py-8 text-center text-muted-foreground">
                           <p>Selecione uma questão para ver os resultados</p>
                         </div>
-                      ) : pieData.length > 0 ? (
-                        <div className="space-y-3">
-                          <div className="w-full max-w-[250px] mx-auto">
-                            <ResponsiveContainer width="100%" height={200}>
-                              <PieChart>
-                                <Pie
-                                  data={pieData}
-                                  cx="50%"
-                                  cy="50%"
-                                  outerRadius="80%"
-                                  innerRadius="30%"
-                                  dataKey="value"
-                                  labelLine={false}
-                                  label={({ name, percent }: { name: string; percent: number }) =>
-                                    percent < 0.05 ? null : `${name} ${(percent * 100).toFixed(0)}%`
-                                  }
-                                  isAnimationActive={true}
-                                  animationDuration={300}
+                      ) : totalVotes > 0 ? (
+                        <div className="space-y-2">
+                          {ALT_LABELS.map((alt) => {
+                            const votes = voteResults[alt] ?? 0
+                            const pct = totalVotes > 0 ? (votes / totalVotes) * 100 : 0
+                            const isCorrect = revealed && currentQuestion?.correctAnswer === alt
+                            return (
+                              <div
+                                key={alt}
+                                className={`flex items-center gap-2 ${revealed && !isCorrect ? 'opacity-35' : ''}`}
+                              >
+                                <span
+                                  className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                  style={{ backgroundColor: CHART_COLORS[alt] }}
                                 >
-                                  {pieData.map((entry, index) => {
-                                    const isCorrect = revealed && currentQuestion?.correctAnswer === entry.name
-                                    return (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={entry.color}
-                                        stroke={isCorrect ? '#C8A84B' : 'transparent'}
-                                        strokeWidth={isCorrect ? 3 : 0}
-                                        opacity={revealed && !isCorrect ? 0.4 : 1}
-                                      />
-                                    )
-                                  })}
-                                </Pie>
-                                <Tooltip />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-
-                          {/* Legend with vote counts */}
-                          <div className="grid gap-1">
-                            {ALT_LABELS.map((alt) => {
-                              const votes = voteResults[alt] ?? 0
-                              const pct = totalVotes > 0 ? ((votes / totalVotes) * 100).toFixed(0) : '0'
-                              const isCorrect = revealed && currentQuestion?.correctAnswer === alt
-                              return (
-                                <div
-                                  key={alt}
-                                  className={`flex items-center gap-2 px-2 py-1 rounded text-sm ${
-                                    isCorrect ? 'bg-green-100 dark:bg-green-900/20' : revealed ? 'opacity-40' : ''
-                                  }`}
-                                >
-                                  <span
-                                    className="w-3 h-3 rounded-full shrink-0"
-                                    style={{ backgroundColor: CHART_COLORS[alt] }}
+                                  {alt}
+                                </span>
+                                <div className="flex-1 h-7 bg-muted/50 rounded-full overflow-hidden relative">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500 ease-out"
+                                    style={{
+                                      width: `${pct}%`,
+                                      backgroundColor: CHART_COLORS[alt],
+                                      minWidth: votes > 0 ? '2rem' : '0',
+                                    }}
                                   />
-                                  <span className="font-bold">{alt}</span>
-                                  <span className="flex-1 text-right text-muted-foreground">
-                                    {pct}%
-                                  </span>
-                                  <span className="text-muted-foreground text-xs">
-                                    ({votes})
-                                  </span>
+                                  {votes > 0 && (
+                                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-sm">
+                                      {pct.toFixed(0)}%
+                                    </span>
+                                  )}
                                 </div>
-                              )
-                            })}
-                          </div>
+                                <span className="text-sm text-muted-foreground w-12 text-right shrink-0">
+                                  {votes} {votes === 1 ? 'voto' : 'votos'}
+                                </span>
+                                {isCorrect && (
+                                  <span className="text-xs font-bold text-[#C8A84B] shrink-0">✓</span>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       ) : (
                         <div className="py-8 text-center text-muted-foreground">
