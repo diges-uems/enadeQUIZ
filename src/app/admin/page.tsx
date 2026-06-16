@@ -58,6 +58,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Lock,
@@ -85,6 +86,10 @@ import {
   StopCircle,
   Zap,
   Activity,
+  Library,
+  Search,
+  Download,
+  CheckSquare,
 } from 'lucide-react'
 import type { Session, Question, SessionStatus } from '@/types'
 import { UEMS_COURSES, CHART_COLORS } from '@/types'
@@ -109,6 +114,24 @@ interface RankingEntry {
 }
 
 const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+
+// ─── Bank Question Type ─────────────────────────────────────────────
+interface BankQuestion {
+  id: string
+  title: string
+  year?: number | null
+  course?: string | null
+  correctAnswer: string
+  category?: string | null
+  tags?: string[] | null
+  altA: string
+  altB: string
+  altC: string
+  altD: string
+  altE?: string | null
+  imageUrl?: string | null
+  createdAt: string
+}
 
 // ─── Status Badge ───────────────────────────────────────────────────
 function StatusBadge({ status }: { status: SessionStatus }) {
@@ -790,6 +813,29 @@ export default function AdminPage() {
   const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
+  // Question Bank state
+  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([])
+  const [bankCategories, setBankCategories] = useState<string[]>([])
+  const [bankCourses, setBankCourses] = useState<string[]>([])
+  const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set())
+  const [showCreateBankDialog, setShowCreateBankDialog] = useState(false)
+  const [showImportBankDialog, setShowImportBankDialog] = useState(false)
+  const [bankLoading, setBankLoading] = useState(false)
+  const [bankFilterCategory, setBankFilterCategory] = useState<string>('all')
+  const [bankFilterCourse, setBankFilterCourse] = useState<string>('all')
+  const [bankSearch, setBankSearch] = useState('')
+  // Create question form
+  const [bankForm, setBankForm] = useState({
+    title: '', text: '', year: '', course: '', altA: '', altB: '', altC: '', altD: '', altE: '',
+    correctAnswer: 'A', category: '', tags: '', imageUrl: '',
+  })
+  const [creatingBankQuestion, setCreatingBankQuestion] = useState(false)
+  // Import to session
+  const [importTargetSession, setImportTargetSession] = useState<string>('')
+  const [importingBank, setImportingBank] = useState(false)
+  // Delete bank question
+  const [deleteBankQuestionId, setDeleteBankQuestionId] = useState<string | null>(null)
+
   // Stress test state
   const [stressTestOpen, setStressTestOpen] = useState(false)
   const [stressTestRunning, setStressTestRunning] = useState(false)
@@ -827,6 +873,31 @@ export default function AdminPage() {
     const token = sessionStorage.getItem('admin_token')
     if (token) setIsAuthenticated(true)
   }, [])
+
+  // Fetch question bank when banco tab is active
+  const fetchBankQuestions = useCallback(async () => {
+    setBankLoading(true)
+    try {
+      const res = await fetch('/api/question-bank')
+      if (res.ok) {
+        const data = await res.json()
+        setBankQuestions(data.questions || [])
+        setBankCategories(data.categories || [])
+        setBankCourses(data.courses || [])
+      }
+    } catch {
+      toast.error('Erro ao carregar banco de questões.')
+    } finally {
+      setBankLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'banco') {
+      fetchBankQuestions()
+      setSelectedBankIds(new Set())
+    }
+  }, [activeTab, fetchBankQuestions])
 
   // Fetch sessions when authenticated
   const fetchSessions = useCallback(async () => {
@@ -1072,6 +1143,145 @@ export default function AdminPage() {
       setDeleteQuestionId(null)
     }
   }
+
+  // ── Bank question handlers ───────────────────────────────────
+  const handleCreateBankQuestion = async () => {
+    if (!bankForm.title || !bankForm.text || !bankForm.altA || !bankForm.altB || !bankForm.altC || !bankForm.altD) {
+      toast.error('Preencha os campos obrigatórios: título, texto, alternativas A-D.')
+      return
+    }
+    setCreatingBankQuestion(true)
+    try {
+      const body: Record<string, unknown> = {
+        title: bankForm.title,
+        text: bankForm.text,
+        year: bankForm.year ? Number(bankForm.year) : null,
+        course: bankForm.course || null,
+        altA: bankForm.altA,
+        altB: bankForm.altB,
+        altC: bankForm.altC,
+        altD: bankForm.altD,
+        altE: bankForm.altE || null,
+        correctAnswer: bankForm.correctAnswer,
+        category: bankForm.category || null,
+        tags: bankForm.tags ? bankForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        imageUrl: bankForm.imageUrl || null,
+      }
+      const res = await fetch('/api/question-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Questão criada no banco.')
+      setShowCreateBankDialog(false)
+      setBankForm({
+        title: '', text: '', year: '', course: '', altA: '', altB: '', altC: '', altD: '', altE: '',
+        correctAnswer: 'A', category: '', tags: '', imageUrl: '',
+      })
+      fetchBankQuestions()
+    } catch {
+      toast.error('Erro ao criar questão no banco.')
+    } finally {
+      setCreatingBankQuestion(false)
+    }
+  }
+
+  const handleDeleteBankQuestion = async () => {
+    if (!deleteBankQuestionId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/question-bank?id=${deleteBankQuestionId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Questão removida do banco.')
+      setSelectedBankIds((prev) => {
+        const next = new Set(prev)
+        next.delete(deleteBankQuestionId)
+        return next
+      })
+      fetchBankQuestions()
+    } catch {
+      toast.error('Erro ao remover questão do banco.')
+    } finally {
+      setDeleting(false)
+      setDeleteBankQuestionId(null)
+    }
+  }
+
+  const handleImportToSession = async () => {
+    if (selectedBankIds.size === 0) {
+      toast.error('Selecione ao menos uma questão.')
+      return
+    }
+    if (!importTargetSession) {
+      toast.error('Selecione uma sessão para importar.')
+      return
+    }
+    setImportingBank(true)
+    try {
+      const res = await fetch('/api/question-bank/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionCode: importTargetSession,
+          questionIds: Array.from(selectedBankIds),
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success(`${selectedBankIds.size} questão(ões) importada(s) com sucesso.`)
+      setShowImportBankDialog(false)
+      setSelectedBankIds(new Set())
+      setImportTargetSession('')
+      // Refresh if imported to current session
+      if (importTargetSession === selectedSession?.code) {
+        refreshSession()
+      }
+      fetchSessions()
+    } catch {
+      toast.error('Erro ao importar questões.')
+    } finally {
+      setImportingBank(false)
+    }
+  }
+
+  const toggleBankSelection = (id: string) => {
+    setSelectedBankIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const toggleAllBankSelection = () => {
+    if (selectedBankIds.size === filteredBankQuestions.length) {
+      setSelectedBankIds(new Set())
+    } else {
+      setSelectedBankIds(new Set(filteredBankQuestions.map((q) => q.id)))
+    }
+  }
+
+  // Filtered bank questions
+  const filteredBankQuestions = bankQuestions.filter((q) => {
+    if (bankFilterCategory !== 'all' && q.category !== bankFilterCategory) return false
+    if (bankFilterCourse !== 'all' && q.course !== bankFilterCourse) return false
+    if (bankSearch) {
+      const s = bankSearch.toLowerCase()
+      if (
+        !q.title.toLowerCase().includes(s) &&
+        !q.category?.toLowerCase().includes(s) &&
+        !q.course?.toLowerCase().includes(s) &&
+        !q.tags?.some((t) => t.toLowerCase().includes(s))
+      )
+        return false
+    }
+    return true
+  })
 
   // ── Session detail / management ──────────────────────────────
   const openSessionManagement = (session: Session) => {
@@ -1519,6 +1729,10 @@ export default function AdminPage() {
               <TabsTrigger value="apresentar" className="gap-1.5">
                 <Monitor className="size-3.5" />
                 Apresentar
+              </TabsTrigger>
+              <TabsTrigger value="banco" className="gap-1.5">
+                <Library className="size-3.5" />
+                Banco de Questões
               </TabsTrigger>
             </TabsList>
 
@@ -2051,6 +2265,184 @@ export default function AdminPage() {
                   </Card>
               </div>
             </TabsContent>
+
+            {/* ═══ TAB 3: BANCO DE QUESTÕES ═══ */}
+            <TabsContent value="banco">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-foreground">Banco de Questões</h2>
+                  <Badge variant="secondary" className="bg-[#00338C]/10 text-[#00338C] dark:bg-[#C8A84B]/10 dark:text-[#C8A84B]">
+                    {bankQuestions.length} questão(ões)
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+                    onClick={() => {
+                      if (selectedBankIds.size === 0) {
+                        toast.error('Selecione questões para importar.')
+                        return
+                      }
+                      setImportTargetSession(selectedSession?.code || '')
+                      setShowImportBankDialog(true)
+                    }}
+                  >
+                    <Download className="size-3.5" />
+                    Importar para Sessão
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+                    onClick={() => setShowCreateBankDialog(true)}
+                  >
+                    <Plus className="size-3.5" />
+                    Nova Questão
+                  </Button>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <Card className="mb-4">
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Select value={bankFilterCategory} onValueChange={setBankFilterCategory}>
+                      <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectValue placeholder="Categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as categorias</SelectItem>
+                        {bankCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={bankFilterCourse} onValueChange={setBankFilterCourse}>
+                      <SelectTrigger className="w-full sm:w-[220px]">
+                        <SelectValue placeholder="Curso" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os cursos</SelectItem>
+                        {bankCourses.map((course) => (
+                          <SelectItem key={course} value={course}>{course}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar questões..."
+                        value={bankSearch}
+                        onChange={(e) => setBankSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Selection controls */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={filteredBankQuestions.length > 0 && selectedBankIds.size === filteredBankQuestions.length}
+                    onCheckedChange={toggleAllBankSelection}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Selecionar todos ({filteredBankQuestions.length})
+                  </span>
+                </div>
+                {selectedBankIds.size > 0 && (
+                  <Badge variant="outline" className="border-[#C8A84B]/30 text-[#C8A84B]">
+                    {selectedBankIds.size} selecionada(s)
+                  </Badge>
+                )}
+              </div>
+
+              {/* Questions list */}
+              {bankLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="size-8 animate-spin text-[#00338C]" />
+                </div>
+              ) : filteredBankQuestions.length === 0 ? (
+                <Card className="py-12">
+                  <div className="text-center text-muted-foreground">
+                    <Library className="size-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">Nenhuma questão encontrada</p>
+                    <p className="text-sm mt-1">
+                      {bankQuestions.length === 0
+                        ? 'Crie questões no banco para começar.'
+                        : 'Tente ajustar os filtros.'}
+                    </p>
+                  </div>
+                </Card>
+              ) : (
+                <div className="max-h-[500px] overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-[#1A2A5E] scrollbar-track-transparent">
+                  {filteredBankQuestions.map((q) => (
+                    <Card
+                      key={q.id}
+                      className={`transition-colors ${
+                        selectedBankIds.has(q.id)
+                          ? 'border-[#C8A84B]/50 bg-[#C8A84B]/5'
+                          : 'hover:border-[#1A2A5E]'
+                      }`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedBankIds.has(q.id)}
+                            onCheckedChange={() => toggleBankSelection(q.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <h3 className="font-semibold text-sm text-foreground line-clamp-1">
+                                    {q.title}
+                                  </h3>
+                                  {q.category && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-[#00338C]/30 text-[#00338C] dark:border-[#2196F3]/30 dark:text-[#2196F3]">
+                                      {q.category}
+                                    </Badge>
+                                  )}
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] px-1.5 py-0 border-green-600/30 text-green-700 dark:text-green-400"
+                                  >
+                                    Resp: {q.correctAnswer}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  {q.year && <span>Ano: {q.year}</span>}
+                                  {q.course && <span>Curso: {q.course}</span>}
+                                  {q.tags && q.tags.length > 0 && (
+                                    <span className="truncate">
+                                      {q.tags.slice(0, 3).join(', ')}
+                                      {q.tags.length > 3 ? '...' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteBankQuestionId(q.id)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         </main>
 
@@ -2133,6 +2525,248 @@ export default function AdminPage() {
                 className="bg-amber-600 text-white hover:bg-amber-700"
               >
                 Resetar Sessao
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Create Bank Question Dialog */}
+        <Dialog open={showCreateBankDialog} onOpenChange={setShowCreateBankDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Library className="size-5 text-[#00338C] dark:text-[#C8A84B]" />
+                Nova Questão no Banco
+              </DialogTitle>
+              <DialogDescription>
+                Preencha os campos para criar uma questão no banco de questões.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="bank-title">Título *</Label>
+                <Input
+                  id="bank-title"
+                  placeholder="Ex: Questão 1 — Direito Administrativo"
+                  value={bankForm.title}
+                  onChange={(e) => setBankForm({ ...bankForm, title: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bank-text">Texto da Questão *</Label>
+                <Textarea
+                  id="bank-text"
+                  placeholder="Enunciado da questão..."
+                  rows={4}
+                  value={bankForm.text}
+                  onChange={(e) => setBankForm({ ...bankForm, text: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="bank-year">Ano</Label>
+                  <Input
+                    id="bank-year"
+                    type="number"
+                    placeholder="Ex: 2024"
+                    value={bankForm.year}
+                    onChange={(e) => setBankForm({ ...bankForm, year: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bank-course">Curso</Label>
+                  <Select value={bankForm.course} onValueChange={(v) => setBankForm({ ...bankForm, course: v === '__none__' ? '' : v })}>
+                    <SelectTrigger id="bank-course">
+                      <SelectValue placeholder="Selecione o curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhum</SelectItem>
+                      {UEMS_COURSES.map((course) => (
+                        <SelectItem key={course} value={course}>{course}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Alternativa A *</Label>
+                <Input
+                  placeholder="Texto da alternativa A"
+                  value={bankForm.altA}
+                  onChange={(e) => setBankForm({ ...bankForm, altA: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Alternativa B *</Label>
+                <Input
+                  placeholder="Texto da alternativa B"
+                  value={bankForm.altB}
+                  onChange={(e) => setBankForm({ ...bankForm, altB: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Alternativa C *</Label>
+                <Input
+                  placeholder="Texto da alternativa C"
+                  value={bankForm.altC}
+                  onChange={(e) => setBankForm({ ...bankForm, altC: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Alternativa D *</Label>
+                <Input
+                  placeholder="Texto da alternativa D"
+                  value={bankForm.altD}
+                  onChange={(e) => setBankForm({ ...bankForm, altD: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Alternativa E (opcional)</Label>
+                <Input
+                  placeholder="Texto da alternativa E"
+                  value={bankForm.altE}
+                  onChange={(e) => setBankForm({ ...bankForm, altE: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Resposta Correta *</Label>
+                  <Select value={bankForm.correctAnswer} onValueChange={(v) => setBankForm({ ...bankForm, correctAnswer: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ALT_LABELS.map((alt) => (
+                        <SelectItem key={alt} value={alt}>Alternativa {alt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bank-category">Categoria</Label>
+                  <Input
+                    id="bank-category"
+                    placeholder="Ex: Direito, Matemática..."
+                    value={bankForm.category}
+                    onChange={(e) => setBankForm({ ...bankForm, category: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="bank-tags">Tags (separadas por vírgula)</Label>
+                  <Input
+                    id="bank-tags"
+                    placeholder="Ex: enade, 2024, direito"
+                    value={bankForm.tags}
+                    onChange={(e) => setBankForm({ ...bankForm, tags: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bank-imageUrl">URL da Imagem</Label>
+                  <Input
+                    id="bank-imageUrl"
+                    placeholder="https://..."
+                    value={bankForm.imageUrl}
+                    onChange={(e) => setBankForm({ ...bankForm, imageUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateBankDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCreateBankQuestion}
+                disabled={creatingBankQuestion}
+                className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+              >
+                {creatingBankQuestion && <Loader2 className="size-4 animate-spin" />}
+                Criar Questão
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Import to Session Dialog */}
+        <Dialog open={showImportBankDialog} onOpenChange={setShowImportBankDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="size-5 text-[#C8A84B]" />
+                Importar para Sessão
+              </DialogTitle>
+              <DialogDescription>
+                Selecione a sessão de destino para importar {selectedBankIds.size} questão(ões) selecionada(s).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div className="p-3 rounded-lg bg-[#00338C]/5 dark:bg-[#C8A84B]/5 border border-[#00338C]/10 dark:border-[#C8A84B]/10">
+                <p className="text-sm font-medium text-foreground">
+                  {selectedBankIds.size} questão(ões) selecionada(s)
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label>Sessão de Destino</Label>
+                <Select value={importTargetSession} onValueChange={setImportTargetSession}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a sessão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.code} value={session.code}>
+                        <span className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-[#00338C] dark:text-[#C8A84B]">
+                            {session.code}
+                          </span>
+                          <span className="truncate">{session.title}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowImportBankDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImportToSession}
+                disabled={importingBank || !importTargetSession}
+                className="bg-[#C8A84B] hover:bg-[#C8A84B]/90 text-white"
+              >
+                {importingBank && <Loader2 className="size-4 animate-spin" />}
+                <Download className="size-4" />
+                Importar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Bank Question Confirmation */}
+        <AlertDialog
+          open={!!deleteBankQuestionId}
+          onOpenChange={(open) => !open && setDeleteBankQuestionId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Questão do Banco</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta questão do banco? Esta ação não pode
+                ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteBankQuestion}
+                disabled={deleting}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                {deleting && <Loader2 className="size-4 animate-spin" />}
+                Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

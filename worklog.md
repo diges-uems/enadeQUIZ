@@ -116,3 +116,70 @@ Priority Recommendations for Next Phase:
 2. Add more visual polish (animations, transitions)
 3. Implement Start Presentation workflow improvements
 4. Test with actual students for stability
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Remove scrollbar from apresentacao, add text-justify, replace logo, update correct answers, create Question Bank
+
+Work Log:
+- Removed all scrollbars from apresentacao page (`/src/app/apresentacao/[codigo]/page.tsx`):
+  - Changed `overflow-y-auto` to `overflow-hidden` on question text area
+  - Added `useFitContent` hook that scales content to fit container without scrollbar
+  - Reduced padding/gaps/text sizes for compact layout
+  - Active question state now uses `overflow-hidden` throughout
+- Added `text-justify` to question text rendering:
+  - `QuestionText` component now includes `text-justify` in its className
+  - Alternatives text in apresentacao uses `text-justify`
+  - Alternatives text in votar uses `text-justify`
+- Replaced logo SVG with PNG from user upload (`/home/z/my-project/upload/Artboard 4.png`):
+  - Copied to `/home/z/my-project/public/logo.png`
+  - Replaced all `logo.svg` references with `logo.png` across all pages
+  - Removed fixed width constraints (h-X only, no w-X) to prevent deformation
+  - Removed background/border containers around logo per user request
+  - Updated favicon in layout.tsx
+- Updated correct answers for all 30 ENADE 2025 Ciências Biológicas questions:
+  - Used VLM (z-ai vision) to extract answers from uploaded image
+  - Correct answers: Q1:C, Q2:A, Q3:C, Q4:A, Q5:B, Q6:A, Q7:C, Q8:D, Q9:D, Q10:B,
+    Q11:C, Q12:A, Q13:D, Q14:A, Q15:B, Q16:D, Q17:D, Q18:B, Q19:A, Q20:D,
+    Q21:C, Q22:C, Q23:C, Q24:C, Q25:A, Q26:A, Q27:C, Q28:D, Q29:B, Q30:B
+  - Updated via PUT /api/session/67QAFO/questions/[id] for each question
+- Created Question Bank feature (Banco de Questões):
+  - Added `QuestionBank` model to Prisma schema with fields: title, text, year, course, altA-E, correctAnswer, imageUrl, category, tags
+  - Created API routes:
+    - `GET/POST/DELETE /api/question-bank` — list, create, delete questions
+    - `GET/PUT/DELETE /api/question-bank/[id]` — individual question CRUD
+    - `POST /api/question-bank/import` — import bank questions to a session
+    - `POST /api/question-bank/save-from-session` — save session questions to bank
+  - Saved all 30 ENADE questions to the bank (category: "ENADE 2025")
+  - Added "Banco de Questões" tab to admin page with:
+    - Question listing with filters (category, course, search)
+    - Create new question dialog
+    - Import to session dialog
+    - Delete confirmation dialog
+    - Checkbox selection for bulk operations
+- Server stability issues:
+  - Dev server (`bun run dev`, `npx next dev`) experiences frequent OOM crashes
+  - Production server (`npx next start`) also crashes after multiple large page requests
+  - Standalone server works for 1-2 requests then crashes (Prisma client issue)
+  - Need to copy Prisma engine files to standalone build for it to work
+
+Stage Summary:
+- No scrollbar on apresentacao page — content auto-fits via scale transform
+- All question text is justified (text-justify)
+- Logo replaced with UEMS PNG (no deformation, no containers)
+- All 30 correct answers updated from gabarito image
+- Question Bank feature complete with CRUD API and admin UI
+- 30 ENADE questions saved in the bank
+
+Unresolved Issues:
+- Server instability (OOM crashes) limits testing
+- useFitContent hook may need refinement for very long questions
+- Admin page Question Bank tab needs browser testing
+
+Priority Recommendations for Next Phase:
+1. Fix server stability (try different Node.js version or memory configuration)
+2. Test Question Bank UI in browser
+3. Refine auto-fit scaling for apresentacao
+4. Add ability to edit questions in the bank
+5. Add bulk import from bank when creating new sessions

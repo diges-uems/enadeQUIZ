@@ -71,3 +71,25 @@ model Vote {
   @@index([questionId])
   @@index([studentId])
 }
+
+model QuestionBank {
+  id            String   @id @default(cuid())
+  title         String
+  text          String
+  year          Int
+  course        String   @default("Formação Geral")
+  altA          String
+  altB          String
+  altC          String
+  altD          String
+  altE          String   @default("")
+  correctAnswer String
+  imageUrl      String?
+  category      String   @default("Geral")
+  tags          String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([category])
+  @@index([course])
+}
