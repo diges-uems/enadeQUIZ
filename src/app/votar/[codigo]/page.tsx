@@ -598,7 +598,7 @@ export default function StudentVotingPage({
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
         <div className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+          <img src="/logo.png" alt="UEMS" className="h-7 w-7 object-contain" />
           <span
             className="text-[#E8EDFF] text-sm font-semibold"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
@@ -710,7 +710,7 @@ export default function StudentVotingPage({
               <div className="inline-block bg-[#00338C] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
                 ENADE {currentQuestion.year} · Q{(session?.questions.findIndex((q) => q.id === currentQuestion.id) ?? -1) + 1}
               </div>
-              <QuestionText text={currentQuestion.text} textSize="base" className="text-[#E8EDFF]" />
+              <QuestionText text={currentQuestion.text} textSize="base" className="text-[#E8EDFF]" imageUrl={currentQuestion.imageUrl} />
             </div>
 
             {/* Optional image */}
@@ -743,7 +743,7 @@ export default function StudentVotingPage({
                     >
                       {letter}
                     </span>
-                    <span className="flex-1 leading-snug text-[#E8EDFF]">{altText}</span>
+                    <span className="flex-1 leading-snug text-[#E8EDFF] text-justify">{altText}</span>
                   </button>
                 )
               })}
@@ -939,7 +939,7 @@ export default function StudentVotingPage({
       <footer className="border-t border-[#1A2A5E] px-4 py-3 mt-auto" style={{ background: '#0A1128' }}>
         <div className="max-w-lg mx-auto flex items-center justify-between text-xs text-[#5A6A9E]">
           <div className="flex items-center gap-1.5">
-            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-40" />
+            <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-40" />
             <span>UEMS / DIGES</span>
           </div>
           <span>

@@ -119,11 +119,12 @@ const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
 interface BankQuestion {
   id: string
   title: string
+  text?: string
   year?: number | null
   course?: string | null
   correctAnswer: string
   category?: string | null
-  tags?: string[] | null
+  tags?: string | null
   altA: string
   altB: string
   altC: string
@@ -881,7 +882,11 @@ export default function AdminPage() {
       const res = await fetch('/api/question-bank')
       if (res.ok) {
         const data = await res.json()
-        setBankQuestions(data.questions || [])
+        // API returns tags as string, ensure type compatibility
+        setBankQuestions((data.questions || []).map((q: Record<string, unknown>) => ({
+          ...q,
+          tags: typeof q.tags === 'string' ? q.tags : (Array.isArray(q.tags) ? q.tags.join(', ') : ''),
+        })))
         setBankCategories(data.categories || [])
         setBankCourses(data.courses || [])
       }
@@ -1164,7 +1169,7 @@ export default function AdminPage() {
         altE: bankForm.altE || null,
         correctAnswer: bankForm.correctAnswer,
         category: bankForm.category || null,
-        tags: bankForm.tags ? bankForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        tags: bankForm.tags ? bankForm.tags.split(',').map((t) => t.trim()).filter(Boolean).join(', ') : '',
         imageUrl: bankForm.imageUrl || null,
       }
       const res = await fetch('/api/question-bank', {
@@ -1272,11 +1277,12 @@ export default function AdminPage() {
     if (bankFilterCourse !== 'all' && q.course !== bankFilterCourse) return false
     if (bankSearch) {
       const s = bankSearch.toLowerCase()
+      const tagsStr = typeof q.tags === 'string' ? q.tags : (Array.isArray(q.tags) ? q.tags.join(', ') : '')
       if (
         !q.title.toLowerCase().includes(s) &&
         !q.category?.toLowerCase().includes(s) &&
         !q.course?.toLowerCase().includes(s) &&
-        !q.tags?.some((t) => t.toLowerCase().includes(s))
+        !tagsStr.toLowerCase().includes(s)
       )
         return false
     }
@@ -1669,7 +1675,7 @@ export default function AdminPage() {
         </Card>
         <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
           <div className="flex items-center justify-center gap-2">
-            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
             <span>UEMS / DIGES — Sistema ENADE Quiz</span>
           </div>
         </footer>
@@ -2145,7 +2151,7 @@ export default function AdminPage() {
                             />
                           )}
                           <div className="max-h-60 overflow-y-auto">
-                            <QuestionText text={currentQuestion.text} textSize="sm" />
+                            <QuestionText text={currentQuestion.text} textSize="sm" imageUrl={currentQuestion.imageUrl} />
                           </div>
                           <div className="grid gap-1.5">
                             {getActiveAlternatives(currentQuestion).map((alt) => {
@@ -2420,8 +2426,7 @@ export default function AdminPage() {
                                   {q.course && <span>Curso: {q.course}</span>}
                                   {q.tags && q.tags.length > 0 && (
                                     <span className="truncate">
-                                      {q.tags.slice(0, 3).join(', ')}
-                                      {q.tags.length > 3 ? '...' : ''}
+                                      {typeof q.tags === 'string' ? q.tags : q.tags.join(', ')}
                                     </span>
                                   )}
                                 </div>
@@ -2448,7 +2453,7 @@ export default function AdminPage() {
 
         <footer className="mt-auto border-t border-[#1A2A5E] bg-[#0A1128] py-3 text-center text-xs text-[#3A4A7E]">
           <div className="flex items-center justify-center gap-2">
-            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
             <span>UEMS / DIGES — Sistema ENADE Quiz</span>
           </div>
         </footer>
@@ -2943,7 +2948,7 @@ export default function AdminPage() {
       <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="UEMS" className="size-8 object-contain rounded-md bg-[#00338C] p-1" />
+            <img src="/logo.png" alt="UEMS" className="h-8 object-contain" />
             <div>
               <h1 className="text-sm font-bold text-foreground leading-none">
                 ENADE Quiz
@@ -3078,7 +3083,7 @@ export default function AdminPage() {
 
       <footer className="mt-auto border-t border-[#1A2A5E] bg-[#0A1128] py-3 text-center text-xs text-[#3A4A7E]">
         <div className="flex items-center justify-center gap-2">
-          <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+          <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
           <span>UEMS / DIGES — Sistema ENADE Quiz</span>
         </div>
       </footer>

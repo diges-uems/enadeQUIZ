@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   keywords: ["ENADE", "UEMS", "DIGES", "quiz", "votação", "tempo real"],
   authors: [{ name: "UEMS/DIGES" }],
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo.png",
   },
 };
 

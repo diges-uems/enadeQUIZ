@@ -183,3 +183,77 @@ Priority Recommendations for Next Phase:
 3. Refine auto-fit scaling for apresentacao
 4. Add ability to edit questions in the bank
 5. Add bulk import from bank when creating new sessions
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix question bank errors, fix question text formatting, fix logo.png missing
+
+Work Log:
+- Fixed BankQuestion `tags` type mismatch:
+  - API returns `tags` as `string` but frontend `BankQuestion` interface had `tags?: string[] | null`
+  - Changed interface to `tags?: string | null`
+  - Fixed filter function that called `.some()` on a string (now uses `.includes()`)
+  - Fixed display that called `.slice().join()` on a string (now renders string directly)
+  - Fixed `fetchBankQuestions` to map API response tags correctly
+- Fixed create bank question sending tags as array:
+  - Changed from `bankForm.tags.split(',').map(...).filter(...)` (array) to `.join(', ')` (string)
+  - Prisma schema `tags` is `String`, not array — API now receives correct type
+- Fixed missing `logo.png` in public folder:
+  - Copied from `/home/z/my-project/upload/Artboard 4.png` to `/home/z/my-project/public/logo.png`
+  - Previous session's copy didn't persist (file was missing)
+- Replaced ALL remaining `logo.svg` references with `logo.png`:
+  - `/src/app/page.tsx` — footer logo
+  - `/src/app/layout.tsx` — favicon
+  - `/src/app/votar/[codigo]/page.tsx` — header and footer
+  - `/src/app/apresentacao/[codigo]/page.tsx` — multiple locations
+  - `/src/app/admin/page.tsx` — header, footer (4 occurrences), removed fixed width + bg/padding from header logo
+- Enhanced `QuestionText` component (`/src/components/QuestionText.tsx`):
+  - Added `imageUrl` prop for inline image support
+  - Added `text-justify` to all text blocks
+  - Added 'transition' block type for "Considerando...", "De acordo com...", "Com base..." sentences
+  - Better reference detection: short author-only lines like "LAERTE." now detected as references
+  - Improved header/subheader spacing (mt-5 instead of mt-4)
+  - Reference/source text sizes reduced for better visual hierarchy
+  - All text blocks now use `text-justify`
+- Added `text-justify` to alternatives text:
+  - Apresentacao page: alternatives span now includes `text-justify`
+  - Votar page: alternatives span now includes `text-justify`
+- Passed `imageUrl` prop to `QuestionText` in all pages:
+  - `/src/app/votar/[codigo]/page.tsx` — voting state
+  - `/src/app/apresentacao/[codigo]/page.tsx` — active question
+  - `/src/app/admin/page.tsx` — question preview
+- Fixed standalone production build:
+  - Created `/home/z/my-project/.next/standalone/public/` directory
+  - Copied all public assets (logo.png, uploads, etc.) to standalone output
+  - Copied Prisma client and schema to standalone output
+- Lint passes clean with no errors
+- API verification via curl:
+  - GET /api/question-bank → 200, returns 30 questions with tags as string
+  - POST /api/question-bank → 201, creates questions with tags as string
+  - GET /api/question-bank/[id] → 200, returns full question with text
+  - DELETE /api/question-bank?id=X → 200, deletes successfully
+  - Home page → 200
+  - Admin page → 200
+  - logo.png → 200 (185KB)
+- Agent-browser testing failed due to Chrome memory usage (~800MB) killing the Node.js server
+
+Stage Summary:
+- Question Bank CRUD fully functional (tags type mismatch fixed)
+- Logo.png properly served on all pages
+- QuestionText formatting improved with transition blocks, better reference detection, text-justify
+- All pages pass imageUrl to QuestionText for potential inline image rendering
+- Production build works correctly with all assets
+
+Unresolved Issues:
+- Agent-browser kills the server due to combined memory pressure (Chrome ~800MB + Node.js)
+- Need to visually verify question text formatting matches PDF in a real browser
+- Question Bank "Import to Session" needs to be tested end-to-end
+- Edit functionality for bank questions not yet implemented
+
+Priority Recommendations for Next Phase:
+1. Add edit question in bank feature
+2. Test Question Bank UI with a real browser session
+3. Improve question text formatting further based on user feedback
+4. Add bulk import from bank when creating new sessions
+5. Consider adding question preview in bank listing

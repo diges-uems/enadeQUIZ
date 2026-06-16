@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import React, { useState, useEffect, useCallback, useRef } from 'react'
+     4→import {
+     5→  DndContext,
+     6→  closestCenter,
+     7→  KeyboardSensor,
+     8→  PointerSensor,
+     9→  useSensor,
+    10→  useSensors,
+    11→  type DragEndEvent,
+    12→} from '@dnd-kit/core'
+    13→import {
+    14→  arrayMove,
+    15→  SortableContext,
+    16→  sortableKeyboardCoordinates,
+    17→  useSortable,
+    18→  verticalListSortingStrategy,
+    19→} from '@dnd-kit/sortable'
+    20→import { CSS } from '@dnd-kit/utilities'
+    21→import { io, Socket } from 'socket.io-client'
+    22→import { toast } from 'sonner'
+    23→import {
+    24→  Card,
+    25→  CardContent,
+    26→  CardDescription,
+    27→  CardHeader,
+    28→  CardTitle,
+    29→} from '@/components/ui/card'
+    30→import { Button } from '@/components/ui/button'
+    31→import { Input } from '@/components/ui/input'
+    32→import { Label } from '@/components/ui/label'
+    33→import { Textarea } from '@/components/ui/textarea'
+    34→import { Badge } from '@/components/ui/badge'
+    35→import {
+    36→  Dialog,
+    37→  DialogContent,
+    38→  DialogDescription,
+    39→  DialogFooter,
+    40→  DialogHeader,
+    41→  DialogTitle,
+    42→} from '@/components/ui/dialog'
+    43→import {
+    44→  AlertDialog,
+    45→  AlertDialogAction,
+    46→  AlertDialogCancel,
+    47→  AlertDialogContent,
+    48→  AlertDialogDescription,
+    49→  AlertDialogFooter,
+    50→  AlertDialogHeader,
+    51→  AlertDialogTitle,
+    52→} from '@/components/ui/alert-dialog'
+    53→import {
+    54→  Select,
+    55→  SelectContent,
+    56→  SelectItem,
+    57→  SelectTrigger,
+    58→  SelectValue,
+    59→} from '@/components/ui/select'
+    60→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    61→import { Checkbox } from '@/components/ui/checkbox'
+    62→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    63→import {
+    64→  Lock,
+    65→  Plus,
+    66→  Trash2,
+    67→  ExternalLink,
+    68→  Settings2,
+    69→  GripVertical,
+    70→  Pencil,
+    71→  FileJson,
+    72→  LogOut,
+    73→  Loader2,
+    74→  ChevronLeft,
+    75→  ChevronRight,
+    76→  Copy,
+    77→  Pause,
+    78→  Play,
+    79→  KeyRound,
+    80→  Users,
+    81→  Trophy,
+    82→  ImagePlus,
+    83→  X,
+    84→  Monitor,
+    85→  PlayCircle,
+    86→  StopCircle,
+    87→  Zap,
+    88→  Activity,
+    89→  Library,
+    90→  Search,
+    91→  Download,
+    92→  CheckSquare,
+    93→} from 'lucide-react'
+    94→import type { Session, Question, SessionStatus } from '@/types'
+    95→import { UEMS_COURSES, CHART_COLORS } from '@/types'
+    96→import { QuestionText, getActiveAlternatives } from '@/components/QuestionText'
+    97→
+    98→// ─── Types ────────────────────────────────────────────────────────
+    99→interface VoteResults {
+   100→  A: number
+   101→  B: number
+   102→  C: number
+   103→  D: number
+   104→  E: number
+   105→  total: number
+   106→}
+   107→
+   108→interface RankingEntry {
+   109→  name: string
+   110→  rgm: string
+   111→  score: number
+   112→  answers: number
+   113→  corrects: number
+   114→}
+   115→
+   116→const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+   117→
+   118→// ─── Bank Question Type ─────────────────────────────────────────────
+   119→interface BankQuestion {
+   120→  id: string
+   121→  title: string
+   122→  year?: number | null
+   123→  course?: string | null
+   124→  correctAnswer: string
+   125→  category?: string | null
+   126→  tags?: string[] | null
+   127→  altA: string
+   128→  altB: string
+   129→  altC: string
+   130→  altD: string
+   131→  altE?: string | null
+   132→  imageUrl?: string | null
+   133→  createdAt: string
+   134→}
+   135→
+   136→// ─── Status Badge ───────────────────────────────────────────────────
+   137→function StatusBadge({ status }: { status: SessionStatus }) {
+   138→  const config: Record<SessionStatus, { label: string; className: string }> = {
+   139→    waiting: {
+   140→      label: 'Aguardando',
+   141→      className:
+   142→        'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800',
+   143→    },
+   144→    active: {
+   145→      label: 'Ativa',
+   146→      className:
+   147→        'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+   148→    },
+   149→    finished: {
+   150→      label: 'Finalizada',
+   151→      className:
+   152→        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
+   153→    },
+   154→  }
+   155→  const c = config[status] || config.waiting
+   156→  return (
+   157→    <Badge variant="outline" className={c.className}>
+   158→      {c.label}
+   159→    </Badge>
+   160→  )
+   161→}
+   162→
+   163→// ─── Sortable Question Item ─────────────────────────────────────────
+   164→function SortableQuestionItem({
+   165→  question,
+   166→  index,
+   167→  onEdit,
+   168→  onDelete,
+   169→}: {
+   170→  question: Question
+   171→  index: number
+   172→  onEdit: (q: Question) => void
+   173→  onDelete: (id: string) => void
+   174→}) {
+   175→  const {
+   176→    attributes,
+   177→    listeners,
+   178→    setNodeRef,
+   179→    transform,
+   180→    transition,
+   181→    isDragging,
+   182→  } = useSortable({ id: question.id })
+   183→
+   184→  const style = {
+   185→    transform: CSS.Transform.toString(transform),
+   186→    transition,
+   187→  }
+   188→
+   189→  return (
+   190→    <div
+   191→      ref={setNodeRef}
+   192→      style={style}
+   193→      className={`flex items-start gap-3 rounded-lg border p-3 ${
+   194→        isDragging
+   195→          ? 'z-50 border-[#C8A84B] bg-[#C8A84B]/5 shadow-lg'
+   196→          : 'border-border bg-card hover:bg-accent/50'
+   197→      }`}
+   198→    >
+   199→      <button
+   200→        className="mt-1 cursor-grab touch-none text-muted-foreground hover:text-foreground"
+   201→        {...attributes}
+   202→        {...listeners}
+   203→      >
+   204→        <GripVertical className="size-4" />
+   205→      </button>
+   206→
+   207→      <div className="flex-1 min-w-0">
+   208→        <div className="flex items-center gap-2 mb-1">
+   209→          <span className="text-xs font-bold text-[#00338C] dark:text-[#C8A84B]">
+   210→            #{index + 1}
+   211→          </span>
+   212→          <span className="text-xs text-muted-foreground">
+   213→            {question.year} &middot; {question.course}
+   214→          </span>
+   215→          {question.imageUrl && (
+   216→            <ImagePlus className="size-3 text-blue-500" />
+   217→          )}
+   218→        </div>
+   219→        <p className="text-sm line-clamp-2 text-foreground whitespace-pre-line">
+   220→          {question.text}
+   221→        </p>
+   222→        <div className="flex items-center gap-1 mt-1">
+   223→          {getActiveAlternatives(question).map((alt) => (
+   224→            <span key={alt} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+   225→              {alt}
+   226→            </span>
+   227→          ))}
+   228→        </div>
+   229→      </div>
+   230→
+   231→      <div className="flex items-center gap-1 shrink-0">
+   232→        <Button
+   233→          variant="ghost"
+   234→          size="icon"
+   235→          className="size-8"
+   236→          onClick={() => onEdit(question)}
+   237→          title="Editar questão"
+   238→        >
+   239→          <Pencil className="size-3.5" />
+   240→        </Button>
+   241→        <Button
+   242→          variant="ghost"
+   243→          size="icon"
+   244→          className="size-8 text-destructive hover:text-destructive"
+   245→          onClick={() => onDelete(question.id)}
+   246→          title="Excluir questão"
+   247→        >
+   248→          <Trash2 className="size-3.5" />
+   249→        </Button>
+   250→      </div>
+   251→    </div>
+   252→  )
+   253→}
+   254→
+   255→// ─── Question Form (Dialog) ─────────────────────────────────────────
+   256→function QuestionFormDialog({
+   257→  open,
+   258→  onOpenChange,
+   259→  question,
+   260→  sessionId,
+   261→  sessionCode,
+   262→  onSave,
+   263→}: {
+   264→  open: boolean
+   265→  onOpenChange: (open: boolean) => void
+   266→  question: Question | null
+   267→  sessionId: string
+   268→  sessionCode: string
+   269→  onSave: () => void
+   270→}) {
+   271→  const [text, setText] = useState('')
+   272→  const [year, setYear] = useState('2025')
+   273→  const [course, setCourse] = useState('')
+   274→  const [altA, setAltA] = useState('')
+   275→  const [altB, setAltB] = useState('')
+   276→  const [altC, setAltC] = useState('')
+   277→  const [altD, setAltD] = useState('')
+   278→  const [altE, setAltE] = useState('')
+   279→  const [correctAnswer, setCorrectAnswer] = useState('A')
+   280→  const [imageUrl, setImageUrl] = useState<string | null>(null)
+   281→  const [saving, setSaving] = useState(false)
+   282→  const [uploading, setUploading] = useState(false)
+   283→  const fileInputRef = useRef<HTMLInputElement>(null)
+   284→
+   285→  const isEditing = question !== null
+   286→
+   287→  useEffect(() => {
+   288→    if (open) {
+   289→      if (question) {
+   290→        setText(question.text)
+   291→        setYear(String(question.year))
+   292→        setCourse(question.course)
+   293→        setAltA(question.altA)
+   294→        setAltB(question.altB)
+   295→        setAltC(question.altC)
+   296→        setAltD(question.altD)
+   297→        setAltE(question.altE)
+   298→        setCorrectAnswer(question.correctAnswer)
+   299→        setImageUrl(question.imageUrl)
+   300→      } else {
+   301→        setText('')
+   302→        setYear('2025')
+   303→        setCourse('')
+   304→        setAltA('')
+   305→        setAltB('')
+   306→        setAltC('')
+   307→        setAltD('')
+   308→        setAltE('')
+   309→        setCorrectAnswer('A')
+   310→        setImageUrl(null)
+   311→      }
+   312→    }
+   313→  }, [open, question])
+   314→
+   315→  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+   316→    const file = e.target.files?.[0]
+   317→    if (!file) return
+   318→
+   319→    // Validate type
+   320→    const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+   321→    if (!validTypes.includes(file.type)) {
+   322→      toast.error('Tipo de arquivo inválido. Use PNG, JPG, GIF ou WebP.')
+   323→      return
+   324→    }
+   325→
+   326→    // Validate size (5MB)
+   327→    if (file.size > 5 * 1024 * 1024) {
+   328→      toast.error('Arquivo muito grande. Máximo 5MB.')
+   329→      return
+   330→    }
+   331→
+   332→    setUploading(true)
+   333→    try {
+   334→      // Convert to base64 data URL for reliable upload
+   335→      const dataUrl = await new Promise<string>((resolve, reject) => {
+   336→        const reader = new FileReader()
+   337→        reader.onload = () => resolve(reader.result as string)
+   338→        reader.onerror = reject
+   339→        reader.readAsDataURL(file)
+   340→      })
+   341→
+   342→      const res = await fetch('/api/upload', {
+   343→        method: 'POST',
+   344→        headers: { 'Content-Type': 'application/json' },
+   345→        body: JSON.stringify({ dataUrl, filename: file.name }),
+   346→      })
+   347→
+   348→      if (!res.ok) {
+   349→        const errData = await res.json()
+   350→        throw new Error(errData.error || 'Erro no upload')
+   351→      }
+   352→
+   353→      const data = await res.json()
+   354→      setImageUrl(data.url)
+   355→      toast.success('Imagem enviada com sucesso!')
+   356→    } catch (err) {
+   357→      toast.error(err instanceof Error ? err.message : 'Erro ao enviar imagem.')
+   358→    } finally {
+   359→      setUploading(false)
+   360→      // Reset file input
+   361→      if (fileInputRef.current) {
+   362→        fileInputRef.current.value = ''
+   363→      }
+   364→    }
+   365→  }
+   366→
+   367→  const handleRemoveImage = () => {
+   368→    setImageUrl(null)
+   369→  }
+   370→
+   371→  const handleSubmit = async () => {
+   372→    if (!text.trim() || !altA.trim() || !altB.trim() || !altC.trim() || !altD.trim()) {
+   373→      toast.error('Preencha todos os campos obrigatórios (A-D).')
+   374→      return
+   375→    }
+   376→
+   377→    setSaving(true)
+   378→    try {
+   379→      if (isEditing && question) {
+   380→        const res = await fetch(
+   381→          `/api/session/${sessionCode}/questions/${question.id}`,
+   382→          {
+   383→            method: 'PUT',
+   384→            headers: { 'Content-Type': 'application/json' },
+   385→            body: JSON.stringify({
+   386→              text,
+   387→              year: parseInt(year),
+   388→              course,
+   389→              altA,
+   390→              altB,
+   391→              altC,
+   392→              altD,
+   393→              altE,
+   394→              correctAnswer,
+   395→              imageUrl,
+   396→            }),
+   397→          }
+   398→        )
+   399→        if (!res.ok) throw new Error('Erro ao atualizar questão')
+   400→        toast.success('Questão atualizada com sucesso!')
+   401→      } else {
+   402→        const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   403→          method: 'POST',
+   404→          headers: { 'Content-Type': 'application/json' },
+   405→          body: JSON.stringify({
+   406→            text,
+   407→            year: parseInt(year),
+   408→            course,
+   409→            altA,
+   410→            altB,
+   411→            altC,
+   412→            altD,
+   413→            altE,
+   414→            correctAnswer,
+   415→            imageUrl,
+   416→          }),
+   417→        })
+   418→        if (!res.ok) throw new Error('Erro ao criar questão')
+   419→        toast.success('Questão criada com sucesso!')
+   420→      }
+   421→      onSave()
+   422→      onOpenChange(false)
+   423→    } catch {
+   424→      toast.error('Erro ao salvar questão.')
+   425→    } finally {
+   426→      setSaving(false)
+   427→    }
+   428→  }
+   429→
+   430→  const years = Array.from({ length: 11 }, (_, i) => 2015 + i)
+   431→
+   432→  return (
+   433→    <Dialog open={open} onOpenChange={onOpenChange}>
+   434→      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+   435→        <DialogHeader>
+   436→          <DialogTitle>
+   437→            {isEditing ? 'Editar Questão' : 'Adicionar Questão'}
+   438→          </DialogTitle>
+   439→          <DialogDescription>
+   440→            {isEditing
+   441→              ? 'Altere os campos desejados e salve.'
+   442→              : 'Preencha os dados da questão do ENADE.'}
+   443→          </DialogDescription>
+   444→        </DialogHeader>
+   445→
+   446→        <div className="grid gap-4 py-2">
+   447→          <div className="grid gap-2">
+   448→            <Label htmlFor="q-text">Enunciado *</Label>
+   449→            <Textarea
+   450→              id="q-text"
+   451→              value={text}
+   452→              onChange={(e) => setText(e.target.value)}
+   453→              rows={5}
+   454→              placeholder="Digite o enunciado da questão..."
+   455→            />
+   456→          </div>
+   457→
+   458→          {/* Image Upload */}
+   459→          <div className="grid gap-2">
+   460→            <Label>Imagem (opcional)</Label>
+   461→            <div className="flex items-center gap-3">
+   462→              {imageUrl ? (
+   463→                <div className="relative group rounded-lg border border-border overflow-hidden">
+   464→                  <img
+   465→                    src={imageUrl}
+   466→                    alt="Imagem da questão"
+   467→                    className="max-h-32 max-w-full object-contain"
+   468→                  />
+   469→                  <button
+   470→                    type="button"
+   471→                    onClick={handleRemoveImage}
+   472→                    className="absolute top-1 right-1 size-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+   473→                    title="Remover imagem"
+   474→                  >
+   475→                    <X className="size-3" />
+   476→                  </button>
+   477→                </div>
+   478→              ) : (
+   479→                <div className="flex items-center gap-3">
+   480→                  <Button
+   481→                    type="button"
+   482→                    variant="outline"
+   483→                    size="sm"
+   484→                    onClick={() => fileInputRef.current?.click()}
+   485→                    disabled={uploading}
+   486→                  >
+   487→                    {uploading ? (
+   488→                      <Loader2 className="size-4 animate-spin" />
+   489→                    ) : (
+   490→                      <ImagePlus className="size-4" />
+   491→                    )}
+   492→                    {uploading ? 'Enviando...' : 'Adicionar Imagem'}
+   493→                  </Button>
+   494→                </div>
+   495→              )}
+   496→              <input
+   497→                ref={fileInputRef}
+   498→                type="file"
+   499→                accept="image/png,image/jpeg,image/gif,image/webp"
+   500→                onChange={handleImageUpload}
+   501→                className="hidden"
+   502→              />
+   503→            </div>
+   504→            <p className="text-xs text-muted-foreground">
+   505→              PNG, JPG, GIF ou WebP. Máximo 5MB.
+   506→            </p>
+   507→          </div>
+   508→
+   509→          <div className="grid grid-cols-2 gap-4">
+   510→            <div className="grid gap-2">
+   511→              <Label>Ano ENADE *</Label>
+   512→              <Select value={year} onValueChange={setYear}>
+   513→                <SelectTrigger className="w-full">
+   514→                  <SelectValue placeholder="Selecione o ano" />
+   515→                </SelectTrigger>
+   516→                <SelectContent>
+   517→                  {years.map((y) => (
+   518→                    <SelectItem key={y} value={String(y)}>
+   519→                      {y}
+   520→                    </SelectItem>
+   521→                  ))}
+   522→                </SelectContent>
+   523→              </Select>
+   524→            </div>
+   525→            <div className="grid gap-2">
+   526→              <Label>Curso</Label>
+   527→              <Select value={course} onValueChange={setCourse}>
+   528→                <SelectTrigger className="w-full">
+   529→                  <SelectValue placeholder="Selecione o curso" />
+   530→                </SelectTrigger>
+   531→                <SelectContent>
+   532→                  {UEMS_COURSES.map((c) => (
+   533→                    <SelectItem key={c} value={c}>
+   534→                      {c}
+   535→                    </SelectItem>
+   536→                  ))}
+   537→                </SelectContent>
+   538→              </Select>
+   539→            </div>
+   540→          </div>
+   541→
+   542→          <div className="grid gap-3">
+   543→            <Label>Alternativas * <span className="text-xs font-normal text-muted-foreground">(A-D obrigatórias, E opcional)</span></Label>
+   544→            {[
+   545→              { letter: 'A', value: altA, setter: setAltA, required: true },
+   546→              { letter: 'B', value: altB, setter: setAltB, required: true },
+   547→              { letter: 'C', value: altC, setter: setAltC, required: true },
+   548→              { letter: 'D', value: altD, setter: setAltD, required: true },
+   549→              { letter: 'E', value: altE, setter: setAltE, required: false },
+   550→            ].map(({ letter, value, setter, required }) => (
+   551→              <div key={letter} className="flex items-center gap-2">
+   552→                <span className={`flex size-7 items-center justify-center rounded text-xs font-bold text-white shrink-0 ${required ? 'bg-[#00338C]' : 'bg-[#3A4A7E]'}`}>
+   553→                  {letter}
+   554→                </span>
+   555→                <Input
+   556→                  value={value}
+   557→                  onChange={(e) => setter(e.target.value)}
+   558→                  placeholder={`Alternativa ${letter}${!required ? ' (opcional)' : ''}`}
+   559→                  className="flex-1"
+   560→                />
+   561→              </div>
+   562→            ))}
+   563→          </div>
+   564→
+   565→          <div className="grid gap-2">
+   566→            <Label>Gabarito *</Label>
+   567→            <RadioGroup
+   568→              value={correctAnswer}
+   569→              onValueChange={setCorrectAnswer}
+   570→              className="flex gap-4"
+   571→            >
+   572→              {['A', 'B', 'C', 'D', 'E'].map((l) => (
+   573→                <div key={l} className="flex items-center gap-1.5">
+   574→                  <RadioGroupItem value={l} id={`gab-${l}`} />
+   575→                  <Label htmlFor={`gab-${l}`} className="cursor-pointer">
+   576→                    {l}
+   577→                  </Label>
+   578→                </div>
+   579→              ))}
+   580→            </RadioGroup>
+   581→          </div>
+   582→        </div>
+   583→
+   584→        <DialogFooter>
+   585→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   586→            Cancelar
+   587→          </Button>
+   588→          <Button
+   589→            onClick={handleSubmit}
+   590→            disabled={saving || uploading}
+   591→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   592→          >
+   593→            {saving && <Loader2 className="size-4 animate-spin" />}
+   594→            {isEditing ? 'Salvar Alterações' : 'Criar Questão'}
+   595→          </Button>
+   596→        </DialogFooter>
+   597→      </DialogContent>
+   598→    </Dialog>
+   599→  )
+   600→}
+   601→
+   602→// ─── Import JSON Dialog ──────────────────────────────────────────────
+   603→function ImportJsonDialog({
+   604→  open,
+   605→  onOpenChange,
+   606→  sessionCode,
+   607→  onImport,
+   608→}: {
+   609→  open: boolean
+   610→  onOpenChange: (open: boolean) => void
+   611→  sessionCode: string
+   612→  onImport: () => void
+   613→}) {
+   614→  const [jsonText, setJsonText] = useState('')
+   615→  const [importing, setImporting] = useState(false)
+   616→
+   617→  useEffect(() => {
+   618→    if (open) setJsonText('')
+   619→  }, [open])
+   620→
+   621→  const handleImport = async () => {
+   622→    if (!jsonText.trim()) {
+   623→      toast.error('Cole o JSON no campo acima.')
+   624→      return
+   625→    }
+   626→    let parsed: unknown
+   627→    try {
+   628→      parsed = JSON.parse(jsonText)
+   629→    } catch {
+   630→      toast.error('JSON inválido. Verifique o formato.')
+   631→      return
+   632→    }
+   633→    if (!Array.isArray(parsed)) {
+   634→      toast.error('O JSON deve ser um array de questões.')
+   635→      return
+   636→    }
+   637→
+   638→    setImporting(true)
+   639→    try {
+   640→      const res = await fetch(`/api/session/${sessionCode}/questions`, {
+   641→        method: 'POST',
+   642→        headers: { 'Content-Type': 'application/json' },
+   643→        body: JSON.stringify(parsed),
+   644→      })
+   645→      if (!res.ok) throw new Error('Erro ao importar')
+   646→      const data = await res.json()
+   647→      toast.success(`${Array.isArray(data) ? data.length : 1} questão(ões) importada(s)!`)
+   648→      onImport()
+   649→      onOpenChange(false)
+   650→    } catch {
+   651→      toast.error('Erro ao importar questões.')
+   652→    } finally {
+   653→      setImporting(false)
+   654→    }
+   655→  }
+   656→
+   657→  return (
+   658→    <Dialog open={open} onOpenChange={onOpenChange}>
+   659→      <DialogContent className="sm:max-w-2xl">
+   660→        <DialogHeader>
+   661→          <DialogTitle>Importar Questões (JSON)</DialogTitle>
+   662→          <DialogDescription>
+   663→            Cole um array JSON com as questões no formato especificado.
+   664→          </DialogDescription>
+   665→        </DialogHeader>
+   666→        <div className="grid gap-2">
+   667→          <Label htmlFor="json-import">JSON</Label>
+   668→          <Textarea
+   669→            id="json-import"
+   670→            value={jsonText}
+   671→            onChange={(e) => setJsonText(e.target.value)}
+   672→            rows={12}
+   673→            className="font-mono text-xs"
+   674→            placeholder={`[\n  {\n    "year": 2023,\n    "course": "Administração",\n    "text": "Enunciado...",\n    "alternatives": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },\n    "correctAnswer": "B"\n  }\n]`}
+   675→          />
+   676→        </div>
+   677→        <DialogFooter>
+   678→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   679→            Cancelar
+   680→          </Button>
+   681→          <Button
+   682→            onClick={handleImport}
+   683→            disabled={importing}
+   684→            className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+   685→          >
+   686→            {importing && <Loader2 className="size-4 animate-spin" />}
+   687→            Importar
+   688→          </Button>
+   689→        </DialogFooter>
+   690→      </DialogContent>
+   691→    </Dialog>
+   692→  )
+   693→}
+   694→
+   695→// ─── Vencedores Dialog ──────────────────────────────────────────────
+   696→function VencedoresDialog({
+   697→  open,
+   698→  onOpenChange,
+   699→  ranking,
+   700→  totalQuestions,
+   701→}: {
+   702→  open: boolean
+   703→  onOpenChange: (open: boolean) => void
+   704→  ranking: RankingEntry[]
+   705→  totalQuestions: number
+   706→}) {
+   707→  const medals = ['1o', '2o', '3o']
+   708→  const medalColors = [
+   709→    'border-yellow-400 bg-yellow-50 dark:border-yellow-600 dark:bg-yellow-900/20',
+   710→    'border-gray-400 bg-gray-50 dark:border-gray-500 dark:bg-gray-800/20',
+   711→    'border-amber-600 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
+   712→  ]
+   713→
+   714→  return (
+   715→    <Dialog open={open} onOpenChange={onOpenChange}>
+   716→      <DialogContent className="sm:max-w-md">
+   717→        <DialogHeader>
+   718→          <DialogTitle className="flex items-center gap-2 text-xl">
+   719→            <Trophy className="size-5 text-[#C8A84B]" />
+   720→            Ranking — Top 3
+   721→          </DialogTitle>
+   722→          <DialogDescription>
+   723→            Maiores pontuadores da sessão
+   724→          </DialogDescription>
+   725→        </DialogHeader>
+   726→
+   727→        {ranking.length === 0 ? (
+   728→          <div className="py-8 text-center text-muted-foreground">
+   729→            <p>Nenhum voto registrado ainda</p>
+   730→          </div>
+   731→        ) : (
+   732→          <div className="grid gap-3 py-2">
+   733→            {ranking.slice(0, 3).map((entry, idx) => (
+   734→              <div
+   735→                key={entry.rgm}
+   736→                className={`flex items-center gap-3 p-3 rounded-xl border ${medalColors[idx] || 'border-border'}`}
+   737→              >
+   738→                <span className="text-2xl">{medals[idx]}</span>
+   739→                <div className="flex-1 min-w-0">
+   740→                  <p className="font-bold truncate">{entry.name}</p>
+   741→                  <p className="text-xs text-muted-foreground">RGM: {entry.rgm}</p>
+   742→                </div>
+   743→                <div className="text-right shrink-0">
+   744→                  <p className="text-[#C8A84B] font-bold text-lg">
+   745→                    {entry.corrects}/{totalQuestions}
+   746→                  </p>
+   747→                  <p className="text-xs text-muted-foreground">
+   748→                    {entry.corrects === 1 ? 'acerto' : 'acertos'}
+   749→                  </p>
+   750→                </div>
+   751→              </div>
+   752→            ))}
+   753→          </div>
+   754→        )}
+   755→
+   756→        <DialogFooter>
+   757→          <Button variant="outline" onClick={() => onOpenChange(false)}>
+   758→            Fechar
+   759→          </Button>
+   760→        </DialogFooter>
+   761→      </DialogContent>
+   762→    </Dialog>
+   763→  )
+   764→}
+   765→
+   766→// ─── Main Admin Page ────────────────────────────────────────────────
+   767→export default function AdminPage() {
+   768→  // Auth state
+   769→  const [isAuthenticated, setIsAuthenticated] = useState(false)
+   770→  const [password, setPassword] = useState('')
+   771→  const [authLoading, setAuthLoading] = useState(false)
+   772→  const [authError, setAuthError] = useState('')
+   773→
+   774→  // Dashboard state
+   775→  const [sessions, setSessions] = useState<Session[]>([])
+   776→  const [loading, setLoading] = useState(false)
+   777→
+   778→  // New session dialog
+   779→  const [newSessionOpen, setNewSessionOpen] = useState(false)
+   780→  const [newTitle, setNewTitle] = useState('')
+   781→  const [creatingSession, setCreatingSession] = useState(false)
+   782→
+   783→  // Session management
+   784→  const [selectedSession, setSelectedSession] = useState<Session | null>(null)
+   785→  const [managingSession, setManagingSession] = useState(false)
+   786→  const [activeTab, setActiveTab] = useState('questoes')
+   787→
+   788→  // Question form
+   789→  const [questionFormOpen, setQuestionFormOpen] = useState(false)
+   790→  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
+   791→
+   792→  // Import JSON
+   793→  const [importJsonOpen, setImportJsonOpen] = useState(false)
+   794→
+   795→  // Delete confirmation
+   796→  const [deleteSessionCode, setDeleteSessionCode] = useState<string | null>(null)
+   797→  const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null)
+   798→  const [deleting, setDeleting] = useState(false)
+   799→
+   800→  // ── Presenter / Socket state ──
+   801→  const [socket, setSocket] = useState<Socket | null>(null)
+   802→  const [participantCount, setParticipantCount] = useState(0)
+   803→  const [totalParticipants, setTotalParticipants] = useState(0)
+   804→  const [votingPaused, setVotingPaused] = useState(false)
+   805→  const [voteResults, setVoteResults] = useState<VoteResults>({
+   806→    A: 0, B: 0, C: 0, D: 0, E: 0, total: 0,
+   807→  })
+   808→  const [revealed, setRevealed] = useState(false)
+   809→  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+   810→  const [isNavigating, setIsNavigating] = useState(false)
+   811→  const [ranking, setRanking] = useState<RankingEntry[]>([])
+   812→  const [showRanking, setShowRanking] = useState(false)
+   813→  const [showQrOnPresentation, setShowQrOnPresentation] = useState(false)
+   814→  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+   815→
+   816→  // Question Bank state
+   817→  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([])
+   818→  const [bankCategories, setBankCategories] = useState<string[]>([])
+   819→  const [bankCourses, setBankCourses] = useState<string[]>([])
+   820→  const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set())
+   821→  const [showCreateBankDialog, setShowCreateBankDialog] = useState(false)
+   822→  const [showImportBankDialog, setShowImportBankDialog] = useState(false)
+   823→  const [bankLoading, setBankLoading] = useState(false)
+   824→  const [bankFilterCategory, setBankFilterCategory] = useState<string>('all')
+   825→  const [bankFilterCourse, setBankFilterCourse] = useState<string>('all')
+   826→  const [bankSearch, setBankSearch] = useState('')
+   827→  // Create question form
+   828→  const [bankForm, setBankForm] = useState({
+   829→    title: '', text: '', year: '', course: '', altA: '', altB: '', altC: '', altD: '', altE: '',
+   830→    correctAnswer: 'A', category: '', tags: '', imageUrl: '',
+   831→  })
+   832→  const [creatingBankQuestion, setCreatingBankQuestion] = useState(false)
+   833→  // Import to session
+   834→  const [importTargetSession, setImportTargetSession] = useState<string>('')
+   835→  const [importingBank, setImportingBank] = useState(false)
+   836→  // Delete bank question
+   837→  const [deleteBankQuestionId, setDeleteBankQuestionId] = useState<string | null>(null)
+   838→
+   839→  // Stress test state
+   840→  const [stressTestOpen, setStressTestOpen] = useState(false)
+   841→  const [stressTestRunning, setStressTestRunning] = useState(false)
+   842→  const [stressTestCount, setStressTestCount] = useState(1000)
+   843→  const [stressTestResult, setStressTestResult] = useState<{
+   844→    totalStudents: number
+   845→    connected: number
+   846→    voted: number
+   847→    failed: number
+   848→    durationMs: number
+   849→    votesPerSecond: number
+   850→    voteDistribution: { A: number; B: number; C: number; D: number; E: number }
+   851→    errors: string[]
+   852→  } | null>(null)
+   853→
+   854→  // DnD sensors
+   855→  const sensors = useSensors(
+   856→    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+   857→    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+   858→  )
+   859→
+   860→  // ── Derived values for presenter ──
+   861→  const currentQuestion = selectedSession?.questions.find(
+   862→    (q) => q.id === currentQuestionId
+   863→  ) ?? null
+   864→  const currentIndex = selectedSession?.questions.findIndex(
+   865→    (q) => q.id === currentQuestionId
+   866→  ) ?? -1
+   867→  const totalQuestions = selectedSession?.questions.length ?? 0
+   868→  const hasPrev = currentIndex > 0
+   869→  const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
+   870→
+   871→  // Check auth on mount
+   872→  useEffect(() => {
+   873→    const token = sessionStorage.getItem('admin_token')
+   874→    if (token) setIsAuthenticated(true)
+   875→  }, [])
+   876→
+   877→  // Fetch question bank when banco tab is active
+   878→  const fetchBankQuestions = useCallback(async () => {
+   879→    setBankLoading(true)
+   880→    try {
+   881→      const res = await fetch('/api/question-bank')
+   882→      if (res.ok) {
+   883→        const data = await res.json()
+   884→        setBankQuestions(data.questions || [])
+   885→        setBankCategories(data.categories || [])
+   886→        setBankCourses(data.courses || [])
+   887→      }
+   888→    } catch {
+   889→      toast.error('Erro ao carregar banco de questões.')
+   890→    } finally {
+   891→      setBankLoading(false)
+   892→    }
+   893→  }, [])
+   894→
+   895→  useEffect(() => {
+   896→    if (activeTab === 'banco') {
+   897→      fetchBankQuestions()
+   898→      setSelectedBankIds(new Set())
+   899→    }
+   900→  }, [activeTab, fetchBankQuestions])
+   901→
+   902→  // Fetch sessions when authenticated
+   903→  const fetchSessions = useCallback(async () => {
+   904→    setLoading(true)
+   905→    try {
+   906→      const res = await fetch('/api/session')
+   907→      if (res.ok) {
+   908→        const data = await res.json()
+   909→        setSessions(data)
+   910→      }
+   911→    } catch {
+   912→      toast.error('Erro ao carregar sessões.')
+   913→    } finally {
+   914→      setLoading(false)
+   915→    }
+   916→  }, [])
+   917→
+   918→  useEffect(() => {
+   919→    if (isAuthenticated) fetchSessions()
+   920→  }, [isAuthenticated, fetchSessions])
+   921→
+   922→  // ── Socket connection when managing a session ──
+   923→  useEffect(() => {
+   924→    if (!managingSession || !selectedSession) {
+   925→      // Disconnect when leaving session management
+   926→      if (socket) {
+   927→        socket.disconnect()
+   928→        setSocket(null)
+   929→      }
+   930→      return
+   931→    }
+   932→
+   933→    const sessionCode = selectedSession.code
+   934→
+   935→    const socketInstance = io('/?XTransformPort=3003', {
+   936→      transports: ['websocket', 'polling'],
+   937→      forceNew: true,
+   938→      reconnection: true,
+   939→      reconnectionAttempts: 10,
+   940→      reconnectionDelay: 1000,
+   941→      timeout: 10000,
+   942→    })
+   943→
+   944→    socketInstance.on('connect', () => {
+   945→      socketInstance.emit('join-session', {
+   946→        sessionCode,
+   947→        role: 'presenter',
+   948→      })
+   949→    })
+   950→
+   951→    socketInstance.on('vote-results', (data: VoteResults) => {
+   952→      setVoteResults(data)
+   953→    })
+   954→
+   955→    socketInstance.on('participant-count', (data: { live: number; total: number }) => {
+   956→      setParticipantCount(data.live)
+   957→      setTotalParticipants(data.total)
+   958→    })
+   959→
+   960→    socketInstance.on('session-state', (data: {
+   961→      participantCount: number
+   962→      totalParticipants: number
+   963→      currentQuestionId: string | null
+   964→      votingPaused: boolean
+   965→    }) => {
+   966→      setParticipantCount(data.participantCount)
+   967→      setTotalParticipants(data.totalParticipants)
+   968→      if (data.currentQuestionId) {
+   969→        setCurrentQuestionId(data.currentQuestionId)
+   970→      }
+   971→      setVotingPaused(data.votingPaused)
+   972→    })
+   973→
+   974→    socketInstance.on('ranking-data', (data: RankingEntry[]) => {
+   975→      setRanking(data)
+   976→    })
+   977→
+   978→    setSocket(socketInstance)
+   979→
+   980→    // Reset presenter state
+   981→    setCurrentQuestionId(selectedSession.currentQuestionId)
+   982→    setVotingPaused(false)
+   983→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+   984→    setRevealed(false)
+   985→    setParticipantCount(0)
+   986→    setRanking([])
+   987→
+   988→    if (selectedSession.currentQuestionId) {
+   989→      const q = selectedSession.questions.find(
+   990→        (q) => q.id === selectedSession.currentQuestionId
+   991→      )
+   992→      if (q) setRevealed(q.isRevealed)
+   993→    }
+   994→
+   995→    return () => {
+   996→      socketInstance.disconnect()
+   997→      setSocket(null)
+   998→    }
+   999→  }, [managingSession, selectedSession?.code])
+  1000→
+  1001→  // ── Auth handlers ────────────────────────────────────────────
+  1002→  const handleLogin = async (e: React.FormEvent) => {
+  1003→    e.preventDefault()
+  1004→    setAuthLoading(true)
+  1005→    setAuthError('')
+  1006→    try {
+  1007→      const res = await fetch('/api/admin/auth', {
+  1008→        method: 'POST',
+  1009→        headers: { 'Content-Type': 'application/json' },
+  1010→        body: JSON.stringify({ password }),
+  1011→      })
+  1012→      if (res.ok) {
+  1013→        const data = await res.json()
+  1014→        sessionStorage.setItem('admin_token', data.token)
+  1015→        setIsAuthenticated(true)
+  1016→        toast.success('Autenticado com sucesso!')
+  1017→      } else {
+  1018→        setAuthError('Senha incorreta.')
+  1019→      }
+  1020→    } catch {
+  1021→      setAuthError('Erro de conexão.')
+  1022→    } finally {
+  1023→      setAuthLoading(false)
+  1024→    }
+  1025→  }
+  1026→
+  1027→  const handleLogout = () => {
+  1028→    sessionStorage.removeItem('admin_token')
+  1029→    setIsAuthenticated(false)
+  1030→    setSelectedSession(null)
+  1031→    setManagingSession(false)
+  1032→    setPassword('')
+  1033→  }
+  1034→
+  1035→  // ── Session handlers ─────────────────────────────────────────
+  1036→  const handleCreateSession = async () => {
+  1037→    if (!newTitle.trim()) {
+  1038→      toast.error('Informe um título para a sessão.')
+  1039→      return
+  1040→    }
+  1041→    setCreatingSession(true)
+  1042→    try {
+  1043→      const res = await fetch('/api/session', {
+  1044→        method: 'POST',
+  1045→        headers: { 'Content-Type': 'application/json' },
+  1046→        body: JSON.stringify({ title: newTitle.trim() }),
+  1047→      })
+  1048→      if (!res.ok) throw new Error()
+  1049→      const session = await res.json()
+  1050→      toast.success(`Sessão criada! Código: ${session.code}`)
+  1051→      setNewTitle('')
+  1052→      setNewSessionOpen(false)
+  1053→      fetchSessions()
+  1054→    } catch {
+  1055→      toast.error('Erro ao criar sessão.')
+  1056→    } finally {
+  1057→      setCreatingSession(false)
+  1058→    }
+  1059→  }
+  1060→
+  1061→  const handleDeleteSession = async () => {
+  1062→    if (!deleteSessionCode) return
+  1063→    setDeleting(true)
+  1064→    try {
+  1065→      const res = await fetch(`/api/session/${deleteSessionCode}`, {
+  1066→        method: 'DELETE',
+  1067→      })
+  1068→      if (!res.ok) throw new Error()
+  1069→      toast.success('Sessão excluída.')
+  1070→      if (selectedSession?.code === deleteSessionCode) {
+  1071→        setSelectedSession(null)
+  1072→        setManagingSession(false)
+  1073→      }
+  1074→      fetchSessions()
+  1075→    } catch {
+  1076→      toast.error('Erro ao excluir sessão.')
+  1077→    } finally {
+  1078→      setDeleting(false)
+  1079→      setDeleteSessionCode(null)
+  1080→    }
+  1081→  }
+  1082→
+  1083→  const handleDuplicateSession = async (sourceCode: string) => {
+  1084→    try {
+  1085→      // Fetch the source session
+  1086→      const res = await fetch(`/api/session/${sourceCode}`)
+  1087→      if (!res.ok) throw new Error()
+  1088→      const source: Session = await res.json()
+  1089→
+  1090→      // Create a new session with "- Cópia" suffix
+  1091→      const createRes = await fetch('/api/session', {
+  1092→        method: 'POST',
+  1093→        headers: { 'Content-Type': 'application/json' },
+  1094→        body: JSON.stringify({
+  1095→          title: `${source.title} — Cópia`,
+  1096→        }),
+  1097→      })
+  1098→      if (!createRes.ok) throw new Error()
+  1099→      const newSession = await createRes.json()
+  1100→
+  1101→      // Copy all questions to the new session
+  1102→      for (const q of source.questions) {
+  1103→        await fetch(`/api/session/${newSession.code}/questions`, {
+  1104→          method: 'POST',
+  1105→          headers: { 'Content-Type': 'application/json' },
+  1106→          body: JSON.stringify({
+  1107→            text: q.text,
+  1108→            year: q.year,
+  1109→            course: q.course,
+  1110→            altA: q.altA,
+  1111→            altB: q.altB,
+  1112→            altC: q.altC,
+  1113→            altD: q.altD,
+  1114→            altE: q.altE,
+  1115→            correctAnswer: q.correctAnswer,
+  1116→            imageUrl: q.imageUrl,
+  1117→          }),
+  1118→        })
+  1119→      }
+  1120→
+  1121→      toast.success(`Sessão duplicada: ${newSession.code}`)
+  1122→      fetchSessions()
+  1123→    } catch {
+  1124→      toast.error('Erro ao duplicar sessão.')
+  1125→    }
+  1126→  }
+  1127→
+  1128→  const handleDeleteQuestion = async () => {
+  1129→    if (!deleteQuestionId || !selectedSession) return
+  1130→    setDeleting(true)
+  1131→    try {
+  1132→      const res = await fetch(
+  1133→        `/api/session/${selectedSession.code}/questions/${deleteQuestionId}`,
+  1134→        { method: 'DELETE' }
+  1135→      )
+  1136→      if (!res.ok) throw new Error()
+  1137→      toast.success('Questão excluída.')
+  1138→      refreshSession()
+  1139→    } catch {
+  1140→      toast.error('Erro ao excluir questão.')
+  1141→    } finally {
+  1142→      setDeleting(false)
+  1143→      setDeleteQuestionId(null)
+  1144→    }
+  1145→  }
+  1146→
+  1147→  // ── Bank question handlers ───────────────────────────────────
+  1148→  const handleCreateBankQuestion = async () => {
+  1149→    if (!bankForm.title || !bankForm.text || !bankForm.altA || !bankForm.altB || !bankForm.altC || !bankForm.altD) {
+  1150→      toast.error('Preencha os campos obrigatórios: título, texto, alternativas A-D.')
+  1151→      return
+  1152→    }
+  1153→    setCreatingBankQuestion(true)
+  1154→    try {
+  1155→      const body: Record<string, unknown> = {
+  1156→        title: bankForm.title,
+  1157→        text: bankForm.text,
+  1158→        year: bankForm.year ? Number(bankForm.year) : null,
+  1159→        course: bankForm.course || null,
+  1160→        altA: bankForm.altA,
+  1161→        altB: bankForm.altB,
+  1162→        altC: bankForm.altC,
+  1163→        altD: bankForm.altD,
+  1164→        altE: bankForm.altE || null,
+  1165→        correctAnswer: bankForm.correctAnswer,
+  1166→        category: bankForm.category || null,
+  1167→        tags: bankForm.tags ? bankForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+  1168→        imageUrl: bankForm.imageUrl || null,
+  1169→      }
+  1170→      const res = await fetch('/api/question-bank', {
+  1171→        method: 'POST',
+  1172→        headers: { 'Content-Type': 'application/json' },
+  1173→        body: JSON.stringify(body),
+  1174→      })
+  1175→      if (!res.ok) throw new Error()
+  1176→      toast.success('Questão criada no banco.')
+  1177→      setShowCreateBankDialog(false)
+  1178→      setBankForm({
+  1179→        title: '', text: '', year: '', course: '', altA: '', altB: '', altC: '', altD: '', altE: '',
+  1180→        correctAnswer: 'A', category: '', tags: '', imageUrl: '',
+  1181→      })
+  1182→      fetchBankQuestions()
+  1183→    } catch {
+  1184→      toast.error('Erro ao criar questão no banco.')
+  1185→    } finally {
+  1186→      setCreatingBankQuestion(false)
+  1187→    }
+  1188→  }
+  1189→
+  1190→  const handleDeleteBankQuestion = async () => {
+  1191→    if (!deleteBankQuestionId) return
+  1192→    setDeleting(true)
+  1193→    try {
+  1194→      const res = await fetch(`/api/question-bank?id=${deleteBankQuestionId}`, {
+  1195→        method: 'DELETE',
+  1196→      })
+  1197→      if (!res.ok) throw new Error()
+  1198→      toast.success('Questão removida do banco.')
+  1199→      setSelectedBankIds((prev) => {
+  1200→        const next = new Set(prev)
+  1201→        next.delete(deleteBankQuestionId)
+  1202→        return next
+  1203→      })
+  1204→      fetchBankQuestions()
+  1205→    } catch {
+  1206→      toast.error('Erro ao remover questão do banco.')
+  1207→    } finally {
+  1208→      setDeleting(false)
+  1209→      setDeleteBankQuestionId(null)
+  1210→    }
+  1211→  }
+  1212→
+  1213→  const handleImportToSession = async () => {
+  1214→    if (selectedBankIds.size === 0) {
+  1215→      toast.error('Selecione ao menos uma questão.')
+  1216→      return
+  1217→    }
+  1218→    if (!importTargetSession) {
+  1219→      toast.error('Selecione uma sessão para importar.')
+  1220→      return
+  1221→    }
+  1222→    setImportingBank(true)
+  1223→    try {
+  1224→      const res = await fetch('/api/question-bank/import', {
+  1225→        method: 'POST',
+  1226→        headers: { 'Content-Type': 'application/json' },
+  1227→        body: JSON.stringify({
+  1228→          sessionCode: importTargetSession,
+  1229→          questionIds: Array.from(selectedBankIds),
+  1230→        }),
+  1231→      })
+  1232→      if (!res.ok) throw new Error()
+  1233→      toast.success(`${selectedBankIds.size} questão(ões) importada(s) com sucesso.`)
+  1234→      setShowImportBankDialog(false)
+  1235→      setSelectedBankIds(new Set())
+  1236→      setImportTargetSession('')
+  1237→      // Refresh if imported to current session
+  1238→      if (importTargetSession === selectedSession?.code) {
+  1239→        refreshSession()
+  1240→      }
+  1241→      fetchSessions()
+  1242→    } catch {
+  1243→      toast.error('Erro ao importar questões.')
+  1244→    } finally {
+  1245→      setImportingBank(false)
+  1246→    }
+  1247→  }
+  1248→
+  1249→  const toggleBankSelection = (id: string) => {
+  1250→    setSelectedBankIds((prev) => {
+  1251→      const next = new Set(prev)
+  1252→      if (next.has(id)) {
+  1253→        next.delete(id)
+  1254→      } else {
+  1255→        next.add(id)
+  1256→      }
+  1257→      return next
+  1258→    })
+  1259→  }
+  1260→
+  1261→  const toggleAllBankSelection = () => {
+  1262→    if (selectedBankIds.size === filteredBankQuestions.length) {
+  1263→      setSelectedBankIds(new Set())
+  1264→    } else {
+  1265→      setSelectedBankIds(new Set(filteredBankQuestions.map((q) => q.id)))
+  1266→    }
+  1267→  }
+  1268→
+  1269→  // Filtered bank questions
+  1270→  const filteredBankQuestions = bankQuestions.filter((q) => {
+  1271→    if (bankFilterCategory !== 'all' && q.category !== bankFilterCategory) return false
+  1272→    if (bankFilterCourse !== 'all' && q.course !== bankFilterCourse) return false
+  1273→    if (bankSearch) {
+  1274→      const s = bankSearch.toLowerCase()
+  1275→      if (
+  1276→        !q.title.toLowerCase().includes(s) &&
+  1277→        !q.category?.toLowerCase().includes(s) &&
+  1278→        !q.course?.toLowerCase().includes(s) &&
+  1279→        !q.tags?.some((t) => t.toLowerCase().includes(s))
+  1280→      )
+  1281→        return false
+  1282→    }
+  1283→    return true
+  1284→  })
+  1285→
+  1286→  // ── Session detail / management ──────────────────────────────
+  1287→  const openSessionManagement = (session: Session) => {
+  1288→    setSelectedSession(session)
+  1289→    setManagingSession(true)
+  1290→    setActiveTab('questoes')
+  1291→  }
+  1292→
+  1293→  const refreshSession = useCallback(async () => {
+  1294→    if (!selectedSession) return
+  1295→    try {
+  1296→      const res = await fetch(`/api/session/${selectedSession.code}`)
+  1297→      if (res.ok) {
+  1298→        const data = await res.json()
+  1299→        setSelectedSession(data)
+  1300→      }
+  1301→    } catch {
+  1302→      toast.error('Erro ao atualizar sessão.')
+  1303→    }
+  1304→  }, [selectedSession])
+  1305→
+  1306→  // ── Drag & drop reorder ──────────────────────────────────────
+  1307→  const handleDragEnd = async (event: DragEndEvent) => {
+  1308→    if (!selectedSession) return
+  1309→    const { active, over } = event
+  1310→    if (!over || active.id === over.id) return
+  1311→
+  1312→    const oldIndex = selectedSession.questions.findIndex(
+  1313→      (q) => q.id === active.id
+  1314→    )
+  1315→    const newIndex = selectedSession.questions.findIndex(
+  1316→      (q) => q.id === over.id
+  1317→    )
+  1318→    if (oldIndex === -1 || newIndex === -1) return
+  1319→
+  1320→    const reordered = arrayMove(selectedSession.questions, oldIndex, newIndex)
+  1321→    // Optimistic update
+  1322→    setSelectedSession({ ...selectedSession, questions: reordered })
+  1323→
+  1324→    try {
+  1325→      await fetch(`/api/session/${selectedSession.code}/questions`, {
+  1326→        method: 'PUT',
+  1327→        headers: { 'Content-Type': 'application/json' },
+  1328→        body: JSON.stringify({ questionIds: reordered.map((q) => q.id) }),
+  1329→      })
+  1330→    } catch {
+  1331→      toast.error('Erro ao reordenar questões.')
+  1332→      refreshSession()
+  1333→    }
+  1334→  }
+  1335→
+  1336→  // ── Presenter handlers ──────────────────────────────────────
+  1337→  const updateSession = async (updates: {
+  1338→    status?: string
+  1339→    currentQuestionId?: string | null
+  1340→  }) => {
+  1341→    if (!selectedSession) return
+  1342→    try {
+  1343→      await fetch(`/api/session/${selectedSession.code}`, {
+  1344→        method: 'PATCH',
+  1345→        headers: { 'Content-Type': 'application/json' },
+  1346→        body: JSON.stringify(updates),
+  1347→      })
+  1348→    } catch (err) {
+  1349→      console.error('Failed to update session:', err)
+  1350→    }
+  1351→  }
+  1352→
+  1353→  const handleStartSession = async () => {
+  1354→    if (!selectedSession) return
+  1355→    await updateSession({ status: 'active' })
+  1356→    setSelectedSession({ ...selectedSession, status: 'active' })
+  1357→    socket?.emit('activate-question', {
+  1358→      sessionCode: selectedSession.code,
+  1359→      questionId: selectedSession.questions[0]?.id,
+  1360→    })
+  1361→    toast.success('Sessão iniciada!')
+  1362→  }
+  1363→
+  1364→  const handleEndSession = async () => {
+  1365→    if (!selectedSession) return
+  1366→    await updateSession({ status: 'finished' })
+  1367→    setSelectedSession({ ...selectedSession, status: 'finished' })
+  1368→    socket?.emit('end-session', {
+  1369→      sessionCode: selectedSession.code,
+  1370→    })
+  1371→    toast.success('Sessão encerrada!')
+  1372→  }
+  1373→
+  1374→  const handlePrevious = async () => {
+  1375→    if (!selectedSession || !hasPrev || isNavigating) return
+  1376→    setIsNavigating(true)
+  1377→    const prevQuestion = selectedSession.questions[currentIndex - 1]
+  1378→    setCurrentQuestionId(prevQuestion.id)
+  1379→    setRevealed(prevQuestion.isRevealed)
+  1380→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1381→    await updateSession({ currentQuestionId: prevQuestion.id })
+  1382→    socket?.emit('activate-question', {
+  1383→      sessionCode: selectedSession.code,
+  1384→      questionId: prevQuestion.id,
+  1385→    })
+  1386→    setTimeout(() => setIsNavigating(false), 300)
+  1387→  }
+  1388→
+  1389→  const handleNext = async () => {
+  1390→    if (!selectedSession || !hasNext || isNavigating) return
+  1391→    setIsNavigating(true)
+  1392→    const nextQuestion = selectedSession.questions[currentIndex + 1]
+  1393→    setCurrentQuestionId(nextQuestion.id)
+  1394→    setRevealed(nextQuestion.isRevealed)
+  1395→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1396→    await updateSession({ currentQuestionId: nextQuestion.id })
+  1397→    socket?.emit('next-question', {
+  1398→      sessionCode: selectedSession.code,
+  1399→      questionId: nextQuestion.id,
+  1400→    })
+  1401→    setTimeout(() => setIsNavigating(false), 300)
+  1402→  }
+  1403→
+  1404→  const handleToggleVoting = () => {
+  1405→    const newPaused = !votingPaused
+  1406→    setVotingPaused(newPaused)
+  1407→    socket?.emit('toggle-voting', {
+  1408→      sessionCode: selectedSession?.code,
+  1409→      paused: newPaused,
+  1410→    })
+  1411→  }
+  1412→
+  1413→  const handleRevealAnswer = async () => {
+  1414→    if (!currentQuestion || !selectedSession) return
+  1415→    setRevealed(true)
+  1416→    await fetch(
+  1417→      `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
+  1418→      {
+  1419→        method: 'PUT',
+  1420→        headers: { 'Content-Type': 'application/json' },
+  1421→        body: JSON.stringify({ isRevealed: true }),
+  1422→      }
+  1423→    )
+  1424→    socket?.emit('reveal-answer', {
+  1425→      sessionCode: selectedSession.code,
+  1426→      questionId: currentQuestion.id,
+  1427→      correctAnswer: currentQuestion.correctAnswer,
+  1428→    })
+  1429→  }
+  1430→
+  1431→  const handleGetRanking = () => {
+  1432→    socket?.emit('get-ranking', { sessionCode: selectedSession?.code })
+  1433→    setShowRanking(true)
+  1434→  }
+  1435→
+  1436→  const handleResetSession = async () => {
+  1437→    if (!selectedSession) return
+  1438→    try {
+  1439→      const res = await fetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
+  1440→      if (!res.ok) throw new Error()
+  1441→      const data = await res.json()
+  1442→      setSelectedSession(data)
+  1443→      setCurrentQuestionId(null)
+  1444→      setRevealed(false)
+  1445→      setVotingPaused(false)
+  1446→      setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1447→      setRanking([])
+  1448→      setShowQrOnPresentation(false)
+  1449→      socket?.emit('session-reset', { sessionCode: selectedSession.code })
+  1450→      toast.success('Sessão resetada com sucesso!')
+  1451→    } catch {
+  1452→      toast.error('Erro ao resetar sessão.')
+  1453→    }
+  1454→    setResetConfirmOpen(false)
+  1455→  }
+  1456→
+  1457→  const handleStressTest = async () => {
+  1458→    if (!selectedSession || !currentQuestionId) {
+  1459→      toast.error('Selecione uma questão antes de iniciar o stress test.')
+  1460→      return
+  1461→    }
+  1462→    setStressTestRunning(true)
+  1463→    setStressTestResult(null)
+  1464→
+  1465→    const startTime = Date.now()
+  1466→    const result = {
+  1467→      totalStudents: stressTestCount,
+  1468→      connected: 0,
+  1469→      voted: 0,
+  1470→      failed: 0,
+  1471→      durationMs: 0,
+  1472→      votesPerSecond: 0,
+  1473→      voteDistribution: { A: 0, B: 0, C: 0, D: 0, E: 0 },
+  1474→      errors: [] as string[],
+  1475→    }
+  1476→
+  1477→    const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
+  1478→    // Browser limits ~6 concurrent WebSocket connections to same origin
+  1479→    // Use waves: connect small batch -> join -> vote -> disconnect -> next batch
+  1480→    const WAVE_SIZE = 6
+  1481→
+  1482→    const simulateStudent = (idx: number): Promise<void> => {
+  1483→      return new Promise<void>((resolve) => {
+  1484→        try {
+  1485→          const s = io('/?XTransformPort=3003', {
+  1486→            transports: ['websocket'],
+  1487→            forceNew: true,
+  1488→            reconnection: false,
+  1489→            timeout: 5000,
+  1490→          })
+  1491→
+  1492→          const timeout = setTimeout(() => {
+  1493→            result.failed++
+  1494→            if (result.errors.length < 10) {
+  1495→              result.errors.push(`Aluno ${idx + 1}: timeout`)
+  1496→            }
+  1497→            try { s.disconnect() } catch { /* */ }
+  1498→            resolve()
+  1499→          }, 8000)
+  1500→
+  1501→          s.on('connect', () => {
+  1502→            result.connected++
+  1503→            s.emit('join-session', {
+  1504→              sessionCode: selectedSession.code,
+  1505→              role: 'student',
+  1506→              name: `Aluno Stress ${idx + 1}`,
+  1507→              rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+  1508→            })
+  1509→
+  1510→            // Vote immediately after joining
+  1511→            const correctAnswer = currentQuestion?.correctAnswer
+  1512→            let choice: string
+  1513→            const rand = Math.random()
+  1514→            if (correctAnswer && rand < 0.30) {
+  1515→              choice = correctAnswer
+  1516→            } else {
+  1517→              const wrong = altLabels.filter((a) => a !== correctAnswer)
+  1518→              choice = wrong[Math.floor(Math.random() * wrong.length)]
+  1519→            }
+  1520→
+  1521→            s.emit('submit-vote', {
+  1522→              sessionCode: selectedSession.code,
+  1523→              questionId: currentQuestionId,
+  1524→              choice,
+  1525→              correctAnswer: correctAnswer || undefined,
+  1526→              studentId: `STRESS-${String(idx + 1).padStart(5, '0')}`,
+  1527→            })
+  1528→
+  1529→            result.voted++
+  1530→            result.voteDistribution[choice as keyof typeof result.voteDistribution]++
+  1531→
+  1532→            // Disconnect right away to free the connection slot
+  1533→            clearTimeout(timeout)
+  1534→            setTimeout(() => {
+  1535→              try { s.disconnect() } catch { /* */ }
+  1536→              resolve()
+  1537→            }, 50)
+  1538→          })
+  1539→
+  1540→          s.on('connect_error', (err: Error) => {
+  1541→            clearTimeout(timeout)
+  1542→            result.failed++
+  1543→            if (result.errors.length < 10) {
+  1544→              result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
+  1545→            }
+  1546→            try { s.disconnect() } catch { /* */ }
+  1547→            resolve()
+  1548→          })
+  1549→        } catch {
+  1550→          result.failed++
+  1551→          resolve()
+  1552→        }
+  1553→      })
+  1554→    }
+  1555→
+  1556→    try {
+  1557→      // Process in waves of WAVE_SIZE concurrent connections
+  1558→      for (let i = 0; i < stressTestCount; i += WAVE_SIZE) {
+  1559→        const wavePromises: Promise<void>[] = []
+  1560→        const waveEnd = Math.min(i + WAVE_SIZE, stressTestCount)
+  1561→
+  1562→        for (let j = i; j < waveEnd; j++) {
+  1563→          wavePromises.push(simulateStudent(j))
+  1564→        }
+  1565→
+  1566→        await Promise.all(wavePromises)
+  1567→      }
+  1568→
+  1569→      result.durationMs = Date.now() - startTime
+  1570→      result.votesPerSecond = result.durationMs > 0 ? Math.round((result.voted / result.durationMs) * 1000) : 0
+  1571→
+  1572→      setStressTestResult(result)
+  1573→      toast.success(`Stress test concluido! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
+  1574→    } catch (err) {
+  1575→      result.durationMs = Date.now() - startTime
+  1576→      result.errors.push(`Erro fatal: ${err instanceof Error ? err.message : 'Desconhecido'}`)
+  1577→      setStressTestResult(result)
+  1578→      toast.error('Erro durante o stress test.')
+  1579→    } finally {
+  1580→      setStressTestRunning(false)
+  1581→    }
+  1582→  }
+  1583→
+  1584→  const handleShowQr = () => {
+  1585→    const newVisible = !showQrOnPresentation
+  1586→    setShowQrOnPresentation(newVisible)
+  1587→    socket?.emit('show-qr', {
+  1588→      sessionCode: selectedSession?.code,
+  1589→      visible: newVisible,
+  1590→    })
+  1591→  }
+  1592→
+  1593→  const handleSelectQuestion = async (questionId: string) => {
+  1594→    if (isNavigating || !selectedSession) return
+  1595→    setIsNavigating(true)
+  1596→    const q = selectedSession.questions.find((q) => q.id === questionId)
+  1597→    setCurrentQuestionId(questionId)
+  1598→    setRevealed(q?.isRevealed ?? false)
+  1599→    setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
+  1600→    await updateSession({ currentQuestionId: questionId })
+  1601→    socket?.emit('activate-question', {
+  1602→      sessionCode: selectedSession.code,
+  1603→      questionId,
+  1604→    })
+  1605→    setTimeout(() => setIsNavigating(false), 300)
+  1606→  }
+  1607→
+  1608→  const formatDate = (dateStr: string) => {
+  1609→    try {
+  1610→      return new Date(dateStr).toLocaleDateString('pt-BR', {
+  1611→        day: '2-digit',
+  1612→        month: '2-digit',
+  1613→        year: 'numeric',
+  1614→        hour: '2-digit',
+  1615→        minute: '2-digit',
+  1616→      })
+  1617→    } catch {
+  1618→      return dateStr
+  1619→    }
+  1620→  }
+  1621→
+  1622→  const totalVotes = voteResults.total || ALT_LABELS.reduce((sum, alt) => sum + (voteResults[alt] ?? 0), 0)
+  1623→
+  1624→  // ── LOGIN SCREEN ─────────────────────────────────────────────
+  1625→  if (!isAuthenticated) {
+  1626→    return (
+  1627→      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4">
+  1628→        <Card className="w-full max-w-md shadow-2xl border-0">
+  1629→          <CardHeader className="text-center pb-2">
+  1630→            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
+  1631→              <Lock className="size-8 text-white" />
+  1632→            </div>
+  1633→            <CardTitle className="text-2xl font-bold text-[#00338C]">
+  1634→              ENADE Quiz — Admin
+  1635→            </CardTitle>
+  1636→            <CardDescription>
+  1637→              Digite a senha para acessar o painel administrativo
+  1638→            </CardDescription>
+  1639→          </CardHeader>
+  1640→          <CardContent>
+  1641→            <form onSubmit={handleLogin} className="grid gap-4">
+  1642→              <div className="grid gap-2">
+  1643→                <Label htmlFor="password">Senha</Label>
+  1644→                <Input
+  1645→                  id="password"
+  1646→                  type="password"
+  1647→                  placeholder="Digite a senha de acesso"
+  1648→                  value={password}
+  1649→                  onChange={(e) => {
+  1650→                    setPassword(e.target.value)
+  1651→                    setAuthError('')
+  1652→                  }}
+  1653→                  autoFocus
+  1654→                />
+  1655→                {authError && (
+  1656→                  <p className="text-sm text-destructive">{authError}</p>
+  1657→                )}
+  1658→              </div>
+  1659→              <Button
+  1660→                type="submit"
+  1661→                disabled={authLoading}
+  1662→                className="w-full bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1663→              >
+  1664→                {authLoading && <Loader2 className="size-4 animate-spin" />}
+  1665→                Entrar
+  1666→              </Button>
+  1667→            </form>
+  1668→          </CardContent>
+  1669→        </Card>
+  1670→        <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
+  1671→          <div className="flex items-center justify-center gap-2">
+  1672→            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+  1673→            <span>UEMS / DIGES — Sistema ENADE Quiz</span>
+  1674→          </div>
+  1675→        </footer>
+  1676→      </div>
+  1677→    )
+  1678→  }
+  1679→
+  1680→  // ── SESSION MANAGEMENT VIEW ──────────────────────────────────
+  1681→  if (managingSession && selectedSession) {
+  1682→    return (
+  1683→      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#050A1A]">
+  1684→        {/* Header */}
+  1685→        <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-[#0D1B3E]/95">
+  1686→          <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
+  1687→            <Button
+  1688→              variant="ghost"
+  1689→              size="sm"
+  1690→              onClick={() => {
+  1691→                setManagingSession(false)
+  1692→                fetchSessions()
+  1693→              }}
+  1694→            >
+  1695→              <ChevronLeft className="size-4" />
+  1696→              Voltar
+  1697→            </Button>
+  1698→            <div className="flex-1 min-w-0">
+  1699→              <h1 className="truncate text-sm font-semibold text-foreground">
+  1700→                {selectedSession.title}
+  1701→              </h1>
+  1702→              <p className="text-xs text-muted-foreground">
+  1703→                Código: {selectedSession.code}
+  1704→              </p>
+  1705→            </div>
+  1706→            <StatusBadge status={selectedSession.status} />
+  1707→            <Button
+  1708→              variant="outline"
+  1709→              size="sm"
+  1710→              onClick={() =>
+  1711→                window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1712→              }
+  1713→              className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1714→            >
+  1715→              <ExternalLink className="size-3.5" />
+  1716→              Abrir Apresentação
+  1717→            </Button>
+  1718→          </div>
+  1719→        </header>
+  1720→
+  1721→        <main className="flex-1 mx-auto w-full max-w-5xl p-4 sm:p-6">
+  1722→          {/* Tabbed Interface */}
+  1723→          <Tabs value={activeTab} onValueChange={setActiveTab}>
+  1724→            <TabsList className="mb-4">
+  1725→              <TabsTrigger value="questoes" className="gap-1.5">
+  1726→                <Settings2 className="size-3.5" />
+  1727→                Questões
+  1728→              </TabsTrigger>
+  1729→              <TabsTrigger value="apresentar" className="gap-1.5">
+  1730→                <Monitor className="size-3.5" />
+  1731→                Apresentar
+  1732→              </TabsTrigger>
+  1733→              <TabsTrigger value="banco" className="gap-1.5">
+  1734→                <Library className="size-3.5" />
+  1735→                Banco de Questões
+  1736→              </TabsTrigger>
+  1737→            </TabsList>
+  1738→
+  1739→            {/* ═══ TAB 1: QUESTÕES ═══ */}
+  1740→            <TabsContent value="questoes">
+  1741→              {/* Session Info Card */}
+  1742→              <Card className="mb-6">
+  1743→                <CardHeader className="pb-3">
+  1744→                  <CardTitle className="text-lg">Informações da Sessão</CardTitle>
+  1745→                </CardHeader>
+  1746→                <CardContent>
+  1747→                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+  1748→                    <div>
+  1749→                      <p className="text-muted-foreground">Código</p>
+  1750→                      <div className="flex items-center gap-1">
+  1751→                        <p className="font-mono font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1752→                          {selectedSession.code}
+  1753→                        </p>
+  1754→                        <Button
+  1755→                          variant="ghost"
+  1756→                          size="icon"
+  1757→                          className="size-6"
+  1758→                          onClick={() => {
+  1759→                            navigator.clipboard.writeText(selectedSession.code)
+  1760→                            toast.success('Código copiado!')
+  1761→                          }}
+  1762→                        >
+  1763→                          <Copy className="size-3" />
+  1764→                        </Button>
+  1765→                      </div>
+  1766→                    </div>
+  1767→                    <div>
+  1768→                      <p className="text-muted-foreground">Título</p>
+  1769→                      <p className="font-medium truncate">{selectedSession.title}</p>
+  1770→                    </div>
+  1771→                    <div>
+  1772→                      <p className="text-muted-foreground">Questões</p>
+  1773→                      <p className="font-medium">{selectedSession.questions.length}</p>
+  1774→                    </div>
+  1775→                    <div>
+  1776→                      <p className="text-muted-foreground">Criada em</p>
+  1777→                      <p className="font-medium">{formatDate(selectedSession.createdAt)}</p>
+  1778→                    </div>
+  1779→                  </div>
+  1780→                </CardContent>
+  1781→              </Card>
+  1782→
+  1783→              {/* Questions Header */}
+  1784→              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+  1785→                <h2 className="text-lg font-semibold">
+  1786→                  Questões ({selectedSession.questions.length})
+  1787→                </h2>
+  1788→                <div className="flex gap-2">
+  1789→                  <Button
+  1790→                    variant="outline"
+  1791→                    size="sm"
+  1792→                    onClick={() => setImportJsonOpen(true)}
+  1793→                  >
+  1794→                    <FileJson className="size-3.5" />
+  1795→                    Importar JSON
+  1796→                  </Button>
+  1797→                  <Button
+  1798→                    size="sm"
+  1799→                    className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+  1800→                    onClick={() => {
+  1801→                      setEditingQuestion(null)
+  1802→                      setQuestionFormOpen(true)
+  1803→                    }}
+  1804→                  >
+  1805→                    <Plus className="size-3.5" />
+  1806→                    Adicionar Questão
+  1807→                  </Button>
+  1808→                </div>
+  1809→              </div>
+  1810→
+  1811→              {/* Questions List with DnD */}
+  1812→              {selectedSession.questions.length === 0 ? (
+  1813→                <Card className="py-12">
+  1814→                  <div className="text-center text-muted-foreground">
+  1815→                    <p className="text-lg font-medium">Nenhuma questão</p>
+  1816→                    <p className="text-sm mt-1">
+  1817→                      Adicione questões manualmente ou importe via JSON.
+  1818→                    </p>
+  1819→                  </div>
+  1820→                </Card>
+  1821→              ) : (
+  1822→                <DndContext
+  1823→                  sensors={sensors}
+  1824→                  collisionDetection={closestCenter}
+  1825→                  onDragEnd={handleDragEnd}
+  1826→                >
+  1827→                  <SortableContext
+  1828→                    items={selectedSession.questions.map((q) => q.id)}
+  1829→                    strategy={verticalListSortingStrategy}
+  1830→                  >
+  1831→                    <div className="grid gap-2">
+  1832→                      {selectedSession.questions.map((q, i) => (
+  1833→                        <SortableQuestionItem
+  1834→                          key={q.id}
+  1835→                          question={q}
+  1836→                          index={i}
+  1837→                          onEdit={(question) => {
+  1838→                            setEditingQuestion(question)
+  1839→                            setQuestionFormOpen(true)
+  1840→                          }}
+  1841→                          onDelete={(id) => setDeleteQuestionId(id)}
+  1842→                        />
+  1843→                      ))}
+  1844→                    </div>
+  1845→                  </SortableContext>
+  1846→                </DndContext>
+  1847→              )}
+  1848→            </TabsContent>
+  1849→
+  1850→            {/* ═══ TAB 2: APRESENTAR ═══ */}
+  1851→            <TabsContent value="apresentar">
+  1852→              {/* Presentation Preview (at the top for better visibility) */}
+  1853→              <Card>
+  1854→                <CardHeader className="pb-2">
+  1855→                  <div className="flex items-center justify-between">
+  1856→                    <CardTitle className="text-sm">Preview da Apresentação</CardTitle>
+  1857→                    <Button
+  1858→                      variant="outline"
+  1859→                      size="sm"
+  1860→                      onClick={() =>
+  1861→                        window.open(`/apresentacao/${selectedSession.code}`, '_blank')
+  1862→                      }
+  1863→                      className="border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10"
+  1864→                    >
+  1865→                      <Monitor className="size-4" />
+  1866→                      Abrir Tela Cheia
+  1867→                    </Button>
+  1868→                  </div>
+  1869→                </CardHeader>
+  1870→                <CardContent className="pb-3">
+  1871→                  <div className="w-full rounded-xl overflow-hidden border border-[#1A2A5E] bg-[#050A1A]" style={{ maxHeight: '300px' }}>
+  1872→                    <iframe
+  1873→                      src={`/apresentacao/${selectedSession.code}`}
+  1874→                      className="w-full border-0"
+  1875→                      title="Preview da Apresentação"
+  1876→                      style={{ height: '280px' }}
+  1877→                    />
+  1878→                  </div>
+  1879→                </CardContent>
+  1880→              </Card>
+  1881→
+  1882→              {/* Session Status + Participant Counter */}
+  1883→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1884→                  {/* Session Status Card */}
+  1885→                  <Card>
+  1886→                    <CardHeader className="pb-3">
+  1887→                      <CardTitle className="text-base flex items-center gap-2">
+  1888→                        Status da Sessão
+  1889→                      </CardTitle>
+  1890→                    </CardHeader>
+  1891→                    <CardContent>
+  1892→                      <div className="flex items-center gap-3 mb-4">
+  1893→                        <StatusBadge status={selectedSession.status} />
+  1894→                        <span className="text-sm text-muted-foreground">
+  1895→                          {selectedSession.status === 'waiting' && 'Pronta para iniciar'}
+  1896→                          {selectedSession.status === 'active' && 'Em andamento'}
+  1897→                          {selectedSession.status === 'finished' && 'Encerrada'}
+  1898→                        </span>
+  1899→                      </div>
+  1900→                      <div className="flex flex-col gap-2">
+  1901→                        {selectedSession.status === 'waiting' && (
+  1902→                          <>
+  1903→                            <Button
+  1904→                              onClick={handleStartSession}
+  1905→                              disabled={selectedSession.questions.length === 0}
+  1906→                              className="bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-lg shadow-green-600/20"
+  1907→                            >
+  1908→                              <PlayCircle className="size-5" />
+  1909→                              Iniciar Apresentacao
+  1910→                            </Button>
+  1911→                            {selectedSession.questions.length === 0 && (
+  1912→                              <p className="text-xs text-destructive">Adicione questões antes de iniciar</p>
+  1913→                            )}
+  1914→                          </>
+  1915→                        )}
+  1916→                        {selectedSession.status === 'active' && (
+  1917→                          <div className="flex gap-2">
+  1918→                            <Button
+  1919→                              onClick={handleEndSession}
+  1920→                              variant="destructive"
+  1921→                              className="h-10"
+  1922→                            >
+  1923→                              <StopCircle className="size-4" />
+  1924→                              Encerrar Sessão
+  1925→                            </Button>
+  1926→                            <Button
+  1927→                              onClick={handleShowQr}
+  1928→                              variant={showQrOnPresentation ? 'default' : 'outline'}
+  1929→                              className={showQrOnPresentation
+  1930→                                ? 'bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] h-10'
+  1931→                                : 'border-[#C8A84B] text-[#C8A84B] hover:bg-[#C8A84B]/10 h-10'
+  1932→                              }
+  1933→                            >
+  1934→                              <Monitor className="size-4" />
+  1935→                              {showQrOnPresentation ? 'Ocultar QR Code' : 'Mostrar QR Code'}
+  1936→                            </Button>
+  1937→                          </div>
+  1938→                        )}
+  1939→                        {selectedSession.status === 'finished' && (
+  1940→                          <Button
+  1941→                            onClick={() => setResetConfirmOpen(true)}
+  1942→                            className="bg-amber-600 hover:bg-amber-700 text-white h-10"
+  1943→                          >
+  1944→                            Resetar Sessao
+  1945→                          </Button>
+  1946→                        )}
+  1947→                      </div>
+  1948→                    </CardContent>
+  1949→                  </Card>
+  1950→
+  1951→                  {/* Participant Counter Card */}
+  1952→                  <Card>
+  1953→                    <CardHeader className="pb-3">
+  1954→                      <CardTitle className="text-base flex items-center gap-2">
+  1955→                        <Users className="size-4 text-[#C8A84B]" />
+  1956→                        Participantes Conectados
+  1957→                      </CardTitle>
+  1958→                    </CardHeader>
+  1959→                    <CardContent>
+  1960→                      <div className="flex items-center gap-3 mb-3">
+  1961→                        <span className="text-4xl font-bold text-[#00338C] dark:text-[#C8A84B]">
+  1962→                          {totalParticipants || participantCount}
+  1963→                        </span>
+  1964→                        <div className="text-sm text-muted-foreground">
+  1965→                          <div>{(totalParticipants || participantCount) === 1 ? 'participante' : 'participantes'}</div>
+  1966→                          {totalParticipants > participantCount && participantCount > 0 && (
+  1967→                            <div className="text-xs text-[#C8A84B]/70">{participantCount} conectados agora</div>
+  1968→                          )}
+  1969→                        </div>
+  1970→                      </div>
+  1971→                      <Button
+  1972→                        onClick={() => {
+  1973→                          setStressTestResult(null)
+  1974→                          setStressTestOpen(true)
+  1975→                        }}
+  1976→                        disabled={!currentQuestionId || selectedSession.status !== 'active'}
+  1977→                        className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white h-10 font-semibold shadow-lg shadow-red-600/20"
+  1978→                      >
+  1979→                        <Zap className="size-4" />
+  1980→                        Stress Test ({stressTestCount} alunos)
+  1981→                      </Button>
+  1982→                      {!currentQuestionId && selectedSession.status === 'active' && (
+  1983→                        <p className="text-xs text-muted-foreground mt-1">Selecione uma questão primeiro</p>
+  1984→                      )}
+  1985→                    </CardContent>
+  1986→                  </Card>
+  1987→                </div>
+  1988→
+  1989→                {/* Row 3: Session Progress */}
+  1990→                <Card>
+  1991→                  <CardContent className="py-3">
+  1992→                    <div className="flex items-center justify-between">
+  1993→                      <div className="flex items-center gap-4">
+  1994→                        <div className="flex items-center gap-2">
+  1995→                          <Activity className="size-4 text-[#C8A84B]" />
+  1996→                          <span className="text-sm font-medium">Progresso</span>
+  1997→                        </div>
+  1998→                        <div className="flex items-center gap-2">
+  1999→                          <span className="text-xs text-muted-foreground">Questões respondidas:</span>
+  2000→                          <span className="text-sm font-bold text-[#C8A84B]">
+
+[showing lines 1-2000 of 3158; use offset=2001 with limit to continue reading]

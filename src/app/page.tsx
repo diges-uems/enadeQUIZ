@@ -69,7 +69,7 @@ export default function Home() {
           <div className="flex flex-col items-center gap-4" style={{ animation: 'fadeInDown 0.7s ease-out' }}>
             {/* Logo */}
             <img
-              src="/logo.svg"
+              src="/logo.png"
               alt="UEMS"
               className="w-20 h-20 object-contain drop-shadow-[0_0_24px_rgba(200,168,75,0.3)]"
               style={{ animation: 'scaleIn 0.6s ease-out 0.2s both' }}
@@ -195,7 +195,7 @@ export default function Home() {
       <footer className="py-4 relative z-10 border-t border-[#1A2A5E]/50" style={{ animation: 'fadeIn 0.5s ease-out 2.1s both', background: 'rgba(5,10,26,0.6)' }}>
         <div className="flex items-center justify-center gap-4">
           <div className="flex items-center gap-1.5">
-            <img src="/logo.svg" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
+            <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
             <span className="text-xs text-[#3A4A7E]">UEMS / DIGES</span>
           </div>
           <span className="text-[#1A2A5E]">|</span>

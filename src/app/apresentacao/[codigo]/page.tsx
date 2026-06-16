@@ -528,7 +528,7 @@ export default function ApresentacaoPage({
             />
             <div className="flex flex-col items-center gap-4">
               <div className="bg-[#0D1B3E] rounded-xl px-5 py-2.5 border border-[#1A2A5E]">
-                <img src="/logo.svg" alt="UEMS" className="h-16 max-w-[300px] object-contain" />
+                <img src="/logo.png" alt="UEMS" className="h-16 max-w-[300px] object-contain" />
               </div>
               <QRCode
                 value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
@@ -562,7 +562,7 @@ export default function ApresentacaoPage({
       {/* ── Thin Header Bar ── */}
       <header className="flex items-center justify-between px-6 py-1.5 border-b border-[#1A2A5E] shrink-0" style={{ background: '#0A1128' }}>
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="UEMS" className="h-7 w-7 object-contain" />
+          <img src="/logo.png" alt="UEMS" className="h-7 w-7 object-contain" />
           <span
             className="text-[#E8EDFF] text-lg font-semibold"
             style={{ fontFamily: 'var(--font-space-grotesk)' }}
@@ -633,7 +633,7 @@ export default function ApresentacaoPage({
                 />
                 <div className="flex flex-col items-center gap-3">
                   <div className="bg-[#0D1B3E] rounded-lg px-4 py-2 border border-[#1A2A5E]">
-                    <img src="/logo.svg" alt="UEMS" className="h-12 max-w-[200px] object-contain" />
+                    <img src="/logo.png" alt="UEMS" className="h-12 max-w-[200px] object-contain" />
                   </div>
                   <QRCode
                     value={`${typeof window !== 'undefined' ? window.location.origin : ''}/votar/${codigo}`}
@@ -763,6 +763,7 @@ export default function ApresentacaoPage({
                   text={currentQuestion.text}
                   textSize={currentQuestion.imageUrl ? 'lg' : '2xl'}
                   className="text-[#E8EDFF]"
+                  imageUrl={currentQuestion.imageUrl}
                 />
               </div>
 
@@ -795,7 +796,7 @@ export default function ApresentacaoPage({
                       >
                         {alt}
                       </span>
-                      <span className={`leading-snug ${currentQuestion.imageUrl ? 'text-sm' : 'text-base'} ${isCorrect ? 'text-[#E8EDFF]' : isWrong ? 'text-[#8899CC]/50' : 'text-[#C8D0E8]'}`}>
+                      <span className={`leading-snug text-justify ${currentQuestion.imageUrl ? 'text-sm' : 'text-base'} ${isCorrect ? 'text-[#E8EDFF]' : isWrong ? 'text-[#8899CC]/50' : 'text-[#C8D0E8]'}`}>
                         {currentQuestion[altKey]}
                       </span>
                       {isCorrect && (
@@ -871,7 +872,7 @@ export default function ApresentacaoPage({
       {/* ── Bottom Bar ── */}
       <div className="shrink-0 border-t border-[#1A2A5E] bg-[#0A1128] px-6 py-1.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="UEMS" className="h-5 w-5 object-contain opacity-50" />
+          <img src="/logo.png" alt="UEMS" className="h-5 w-5 object-contain opacity-50" />
           <span className="text-[#3A4A7E] text-xs">UEMS/DIGES — ENADE Quiz</span>
         </div>
         {currentQuestion && (

@@ -14,15 +14,19 @@ import React from 'react'
  * - Numbered items (1. 2. 3.) → styled numbered lists
  * - Paragraph breaks → proper spacing
  * - Quoted text in quotes → styled
+ * - Inline images from imageUrl prop
+ * - "Considerando..." transition paragraphs
+ * - Law references (Lei n., Decreto n.)
  */
 
 interface QuestionTextProps {
   text: string
   className?: string
   textSize?: 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl'
+  imageUrl?: string | null
 }
 
-export function QuestionText({ text, className = '', textSize = 'base' }: QuestionTextProps) {
+export function QuestionText({ text, className = '', textSize = 'base', imageUrl }: QuestionTextProps) {
   const sizeClass = {
     sm: 'text-sm',
     base: 'text-base',
@@ -36,16 +40,16 @@ export function QuestionText({ text, className = '', textSize = 'base' }: Questi
   const blocks = parseQuestionText(text)
 
   return (
-    <div className={`leading-relaxed ${sizeClass} ${className}`}>
+    <div className={`leading-relaxed text-justify ${sizeClass} ${className}`}>
       {blocks.map((block, i) => (
-        <QuestionBlock key={i} block={block} />
+        <QuestionBlock key={i} block={block} imageUrl={imageUrl} />
       ))}
     </div>
   )
 }
 
 interface TextBlock {
-  type: 'header' | 'subheader' | 'reference' | 'source' | 'bullet' | 'numbered' | 'emphasis' | 'paragraph' | 'blank'
+  type: 'header' | 'subheader' | 'reference' | 'source' | 'bullet' | 'numbered' | 'emphasis' | 'paragraph' | 'blank' | 'transition' | 'image-placeholder'
   content: string
   children?: TextBlock[]
   level?: number
@@ -91,20 +95,33 @@ function parseQuestionText(text: string): TextBlock[] {
       continue
     }
 
-    // Reference lines — typically all caps surnames with dates
-    // Examples: "PEREIRA, P. F.; REINALDO, M. A. G. ..." or "CHOPPIN, A. História dos livros..."
-    if (/^[A-ZÀ-Ÿ]{2,}[\s,]/.test(line) && line.length > 20 && !line.startsWith('A ') && !line.startsWith('B ') && !line.startsWith('C ') && !line.startsWith('D ') && !line.startsWith('E ')) {
+    // Source references: "Disponível em:" and "Acesso em:" lines
+    if (/^Disponível em:/i.test(line) || /^Acesso em:/i.test(line)) {
+      blocks.push({ type: 'source', content: line })
+      i++
+      continue
+    }
+
+    // Reference lines — typically all caps surnames with dates or academic references
+    // Examples: "PEREIRA, P. F.; REINALDO, M. A. G. ..." or "LAERTE." or "SOUSA, L. Q.; ABREU, K. F. Análise..."
+    if (/^[A-ZÀ-Ÿ]{2,}[\s,;.]/.test(line) && line.length > 5 && !line.startsWith('A ') && !line.startsWith('B ') && !line.startsWith('C ') && !line.startsWith('D ') && !line.startsWith('E ')) {
       // Check if it's a reference (has year pattern or common reference markers)
-      if (/\d{4}|adaptado|Disponível|Acesso|Editora|Revista|Cadernos|In:/.test(line)) {
+      if (/\d{4}|adaptado|Disponível|Acesso|Editora|Revista|Cadernos|In:|Universidade|Dissertação|Tese|Monografia|Anais|Congresso|Simpósio|Periódico/.test(line)) {
+        blocks.push({ type: 'reference', content: line })
+        i++
+        continue
+      }
+      // Short author-only lines like "LAERTE." 
+      if (/^[A-ZÀ-Ÿ]+\.?\s*$/.test(line)) {
         blocks.push({ type: 'reference', content: line })
         i++
         continue
       }
     }
 
-    // Source references: "Disponível em:" and "Acesso em:" lines
-    if (/^Disponível em:/i.test(line) || /^Acesso em:/i.test(line)) {
-      blocks.push({ type: 'source', content: line })
+    // "Considerando..." or "De acordo com..." — transition paragraphs
+    if (/^Considerando/i.test(line) || /^De acordo com/i.test(line) || /^Com base/i.test(line) || /^De acordo/i.test(line) || /^Ao relacionar/i.test(line) || /^Entre as/i.test(line) || /^A análise/i.test(line) || /^A atividade/i.test(line) || /^A fim de/i.test(line)) {
+      blocks.push({ type: 'transition', content: line })
       i++
       continue
     }
@@ -145,39 +162,48 @@ function parseQuestionText(text: string): TextBlock[] {
   return blocks
 }
 
-function QuestionBlock({ block }: { block: TextBlock }) {
+function QuestionBlock({ block, imageUrl }: { block: TextBlock; imageUrl?: string | null }) {
   switch (block.type) {
     case 'header':
       return (
-        <div className="mt-4 mb-2 first:mt-0">
-          <span className="font-bold text-[#C8A84B] tracking-wide">{block.content}</span>
+        <div className="mt-5 mb-2 first:mt-0">
+          <span className="font-bold text-[#C8A84B] tracking-wide uppercase text-[0.95em]">{block.content}</span>
         </div>
       )
 
     case 'subheader':
       return (
-        <div className="mt-4 mb-2 first:mt-0">
+        <div className="mt-5 mb-2 first:mt-0">
           <span className="font-semibold text-[#E8EDFF] italic">{block.content}</span>
         </div>
       )
 
     case 'reference':
       return (
-        <div className="my-1.5 pl-3 border-l-2 border-[#1A2A5E]">
-          <span className="text-[#8899CC] italic text-[0.92em]">{block.content}</span>
+        <div className="my-1.5 pl-3 border-l-2 border-[#1A2A5E]/60">
+          <span className="text-[#8899CC] italic text-[0.88em]">{block.content}</span>
         </div>
       )
 
     case 'source':
+      // If there's an image URL and the source line mentions "Disponível em:", 
+      // we might want to show the image after this source line
       return (
-        <div className="my-1 pl-3 border-l-2 border-[#1A2A5E]">
-          <span className="text-[#6B7AA1] italic text-[0.88em]">{block.content}</span>
+        <div className="my-1 pl-3 border-l-2 border-[#1A2A5E]/60">
+          <span className="text-[#6B7AA1] italic text-[0.85em]">{block.content}</span>
+        </div>
+      )
+
+    case 'transition':
+      return (
+        <div className="my-2 text-justify">
+          <span className="text-[#E8EDFF] font-medium">{renderInlineFormatting(block.content)}</span>
         </div>
       )
 
     case 'bullet':
       return (
-        <div className="my-1 pl-4 flex gap-2">
+        <div className="my-1 pl-4 flex gap-2 text-justify">
           <span className="text-[#C8A84B] shrink-0">•</span>
           <span className="text-[#C8D0E8]">{renderInlineFormatting(block.content)}</span>
         </div>
@@ -185,7 +211,7 @@ function QuestionBlock({ block }: { block: TextBlock }) {
 
     case 'numbered':
       return (
-        <div className="my-1 pl-4 flex gap-2">
+        <div className="my-1 pl-4 flex gap-2 text-justify">
           <span className="text-[#C8A84B] font-bold shrink-0">{block.level}.</span>
           <span className="text-[#C8D0E8]">{renderInlineFormatting(block.content.replace(/^\d+\.\s*/, ''))}</span>
         </div>
@@ -193,7 +219,7 @@ function QuestionBlock({ block }: { block: TextBlock }) {
 
     case 'emphasis':
       return (
-        <div className="my-1.5">
+        <div className="my-1.5 text-justify">
           {renderInlineFormatting(block.content)}
         </div>
       )
@@ -204,7 +230,7 @@ function QuestionBlock({ block }: { block: TextBlock }) {
     case 'paragraph':
     default:
       return (
-        <div className="my-1">
+        <div className="my-1.5 text-justify">
           {renderInlineFormatting(block.content)}
         </div>
       )
@@ -215,6 +241,7 @@ function QuestionBlock({ block }: { block: TextBlock }) {
  * Renders inline formatting within a text block:
  * - Bold: text between ** ** or terms followed by colon (like "Função referencial:")
  * - Italic: text in quotes
+ * - Law references: "Lei n.", "Decreto n." etc.
  */
 function renderInlineFormatting(text: string): React.ReactNode {
   // Split by bold patterns and quoted text
