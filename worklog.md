@@ -2286,3 +2286,102 @@ Priority Recommendations for Next Phase:
 2. Importar 15 questões do ENADE 2025 Administração (Formação Geral) com gabarito.
 3. Investigar bug do ranking (student.corrects não atualiza após voto, só no reveal).
 4. Bug dos comandos de revelar resposta na apresentação (às vezes não funcionam).
+
+---
+Task ID: 15
+Agent: Main Agent
+Task: CORREÇÃO DEFINITIVA do erro 500/deploy-failed em produção — causa raiz REAL encontrada
+
+Work Log:
+- **Contexto do usuário**: "Começou a dar errado depois da otimização e pra preparação pra produção".
+  Isso foi a pista crucial — o problema foi introduzido (ou exposto) durante as Tasks 12-14.
+
+- **Reprodução do ambiente de build da plataforma Z.ai**: Simulei build SEM acesso à rede
+  (http_proxy apontando para porta inexistente) para reproduzir o ambiente de CI/CD restrito
+  da plataforma. O build FALHOU exatamente com:
+
+    Error: Turbopack build failed with 2 errors:
+    [next]/internal/font/google/inter_fe8b9d92.module.css
+    next/font: error: Failed to fetch `Inter` from Google Fonts.
+    [next]/internal/font/google/space_grotesk_d7b50fc5.module.css
+    next/font: error: Failed to fetch `Space Grotesk` from Google Fonts.
+
+- **CAUSA RAIZ REAL IDENTIFICADA**: `src/app/layout.tsx` usava:
+    import { Inter, Space_Grotesk } from "next/font/google";
+  O `next/font/google` faz o Next.js baixar as fontes de `fonts.googleapis.com` /
+  `fonts.gstatic.com` DURANTE O BUILD. A plataforma de build da Z.ai bloqueia (ou
+  restringe) acesso a esses domínios → build falha → plataforma serve o
+  `deploy-failed.svg` (HTTP 500) para TODAS as rotas, inclusive `/favicon.ico`.
+
+  Por que "começou a dar errado depois da otimização": o Next.js cacheia fontes em
+  `.next/cache/`. O primeiro build (com rede) baixou e cacheou as fontes. Builds
+  subsequentes usavam o cache. Quando o cache expirou OU a plataforma fez um build
+  limpo (sem cache), o build passou a falhar ao tentar baixar as fontes.
+
+- **Correção aplicada**: Trocado `next/font/google` por `next/font/local` com fontes
+  auto-hospedadas (TTF) em `/public/fonts/`:
+
+  1. Baixei 10 arquivos TTF do Google Fonts (5 pesos Inter + 5 pesos Space Grotesk,
+     ~1.9MB total) via API CSS2 do Google e salvei em `/public/fonts/`.
+
+  2. `src/app/layout.tsx` — substituído:
+       import { Inter, Space_Grotesk } from "next/font/google";
+     por:
+       import localFont from "next/font/local";
+       const inter = localFont({ src: [...5 pesos...], variable: "--font-inter", display: "swap" });
+       const spaceGrotesk = localFont({ src: [...5 pesos...], variable: "--font-space-grotesk", display: "swap" });
+
+  3. As fontes agora são auto-hospedadas e incluídas no bundle standalone — o build
+     NÃO precisa mais de acesso à internet para fontes.
+
+- **Validação COMPLETA**:
+
+  A) Build com rede bloqueada (simulação exata do ambiente Z.ai):
+     ```
+     timeout 180 env http_proxy=http://127.0.0.1:1 https_proxy=http://127.0.0.1:1 bun run build
+     ```
+     Resultado: ✅ BUILD PASSOU (antes falhava com "Failed to fetch Inter from Google Fonts")
+
+  B) Build normal (com rede):
+     Resultado: ✅ BUILD PASSOU, standalone gerado com fontes em public/fonts/
+
+  C) Standalone server funcionando:
+     - GET / → HTTP 200 (21546 bytes)
+     - GET /favicon.ico → HTTP 200 (9089 bytes)
+     - GET /api/health → HTTP 200 {"ok":true,"db":"connected"}
+     - GET /api/session/ENADE25 → HTTP 200 (7276 bytes)
+
+  D) Agent-browser (dev server):
+     - Home page carrega com "ENADE Quiz", input de código, seção "Como Funciona"
+     - HTML referencia 10 arquivos TTF em /media/ (fontes auto-hospedadas)
+     - Admin login funciona, dashboard mostra 3 sessões
+     - ZERO erros no console
+
+  E) Lint: 0 errors, 0 warnings.
+
+- **Arquivos criados/modificados**:
+  - `public/fonts/inter-300.ttf` até `inter-700.ttf` (5 arquivos, ~1.6MB)
+  - `public/fonts/space-grotesk-300.ttf` até `space-grotesk-700.ttf` (5 arquivos, ~350KB)
+  - `src/app/layout.tsx` — next/font/google → next/font/local
+
+Stage Summary:
+- ✅ **CAUSA RAIZ REAL do deploy-failed encontrada**: `next/font/google` precisava
+  baixar fontes de fonts.googleapis.com durante o build, e a plataforma Z.ai bloqueia
+  esse acesso → build falha → deploy-failed.svg (HTTP 500) em todas as rotas.
+- ✅ **Correção DEFINITIVA**: Fontes agora são auto-hospedadas (next/font/local com
+  arquivos TTF em /public/fonts/). Build não precisa mais de acesso à internet.
+- ✅ **Validado em 5 cenários**: build offline, build online, standalone runtime,
+  agent-browser UI, lint — TODOS passam.
+- ✅ Combinado com as correções anteriores (Task 14: instrumentation.ts + db-ensure.ts,
+  build script sem prisma db push, assemble-standalone com DATABASE_URL relativo),
+  o deploy agora deve funcionar.
+
+Unresolved Issues:
+- Nenhum referente ao build/deploy. A causa raiz foi encontrada e corrigida.
+- O usuário precisa disparar um novo deploy no painel do Z.ai para o fix ter efeito.
+
+Priority Recommendations for Next Phase:
+1. **Usuario deve disparar novo deploy no Z.ai** — o build agora não precisa de rede.
+2. Importar 15 questões do ENADE 2025 Administração (Formação Geral) com gabarito.
+3. Bug do ranking (student.corrects não atualiza após voto, só no reveal).
+4. Bug dos comandos de revelar resposta na apresentação (às vezes não funcionam).
