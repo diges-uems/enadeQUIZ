@@ -91,6 +91,7 @@ import {
   Search,
   Download,
   CheckSquare,
+  FlaskConical,
 } from 'lucide-react'
 import type { Session, Question, SessionStatus } from '@/types'
 import { UEMS_COURSES, CHART_COLORS } from '@/types'
@@ -866,6 +867,8 @@ export default function AdminPage() {
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [creatingSession, setCreatingSession] = useState(false)
+  const [newTestMode, setNewTestMode] = useState(false)
+  const [newCustomCode, setNewCustomCode] = useState('')
 
   // Session management
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
@@ -1202,19 +1205,32 @@ export default function AdminPage() {
     }
     setCreatingSession(true)
     try {
+      const payload: Record<string, unknown> = {
+        title: newTitle.trim(),
+        requireIdentification: !newTestMode,
+      }
+      // Only send customCode when the admin typed one (test mode).
+      if (newTestMode && newCustomCode.trim()) {
+        payload.customCode = newCustomCode.trim().toUpperCase()
+      }
       const res = await adminFetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle.trim() }),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || '')
+      }
       const session = await res.json()
       toast.success(`Sessão criada! Código: ${session.code}`)
       setNewTitle('')
+      setNewTestMode(false)
+      setNewCustomCode('')
       setNewSessionOpen(false)
       fetchSessions()
-    } catch {
-      toast.error('Erro ao criar sessão.')
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'Erro ao criar sessão.')
     } finally {
       setCreatingSession(false)
     }
@@ -3387,6 +3403,8 @@ export default function AdminPage() {
             className="bg-[#00338C] hover:bg-[#00338C]/90 text-white"
             onClick={() => {
               setNewTitle('')
+              setNewTestMode(false)
+              setNewCustomCode('')
               setNewSessionOpen(true)
             }}
           >
@@ -3425,6 +3443,12 @@ export default function AdminPage() {
                           {session.code}
                         </span>
                         <StatusBadge status={session.status} />
+                        {!session.requireIdentification && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-[#C8A84B]/15 text-[#C8A84B] border border-[#C8A84B]/40">
+                            <FlaskConical className="size-3" />
+                            Teste
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-semibold text-foreground truncate">
                         {session.title}
@@ -3518,6 +3542,56 @@ export default function AdminPage() {
                 }}
                 autoFocus
               />
+            </div>
+
+            {/* Test mode toggle */}
+            <div className="rounded-lg border border-[#1A2A5E]/60 bg-[#0D1B3E]/40 p-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={newTestMode}
+                  onCheckedChange={(v) => {
+                    const on = v === true
+                    setNewTestMode(on)
+                    if (on && !newCustomCode) {
+                      setNewCustomCode('TEST25')
+                    }
+                  }}
+                  className="mt-0.5 border-[#C8A84B]/50 data-[state=checked]:bg-[#C8A84B] data-[state=checked]:border-[#C8A84B]"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-foreground block">
+                    Modo Teste (sem identificação de alunos)
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-relaxed">
+                    Quando ativado, os participantes não precisam informar RGM e
+                    nome. Use para testes rápidos. Sessões normais exigem
+                    identificação completa.
+                  </span>
+                </div>
+              </label>
+
+              {newTestMode && (
+                <div className="grid gap-1.5 mt-3" style={{ animation: 'fadeIn 0.2s ease-out' }}>
+                  <Label htmlFor="custom-code" className="text-xs text-muted-foreground">
+                    Código personalizado (opcional)
+                  </Label>
+                  <Input
+                    id="custom-code"
+                    placeholder="TEST25"
+                    value={newCustomCode}
+                    onChange={(e) => setNewCustomCode(e.target.value.toUpperCase().slice(0, 6))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateSession()
+                    }}
+                    className="font-mono tracking-[0.2em] uppercase"
+                    maxLength={6}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Deixe em branco para gerar um código aleatório. Use 6
+                    caracteres (A-Z, 0-9).
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

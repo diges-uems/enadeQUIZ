@@ -71,7 +71,7 @@ export default function Home() {
             <img
               src="/logo.png"
               alt="UEMS"
-              className="w-20 h-20 object-contain drop-shadow-[0_0_24px_rgba(200,168,75,0.3)]"
+              className="w-36 h-36 sm:w-40 sm:h-40 object-contain drop-shadow-[0_0_30px_rgba(200,168,75,0.35)]"
               style={{ animation: 'scaleIn 0.6s ease-out 0.2s both' }}
             />
 
@@ -108,11 +108,11 @@ export default function Home() {
               <Input
                 id="session-code"
                 type="text"
-                placeholder="Ex: ENADE25"
+                placeholder="Ex: 67QAFO"
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 onKeyDown={handleKeyDown}
-                maxLength={8}
+                maxLength={6}
                 className="h-14 text-center text-xl font-semibold tracking-[0.2em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl transition-all"
               />
 

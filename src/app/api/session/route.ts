@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { generateSessionCode } from '@/lib/session'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminAuth } from '@/lib/api-auth'
-import { isSafeJsonBody, sanitizeString } from '@/lib/security'
+import { isSafeJsonBody, sanitizeString, validateSessionCode } from '@/lib/security'
 
 // GET /api/session — List all sessions (PUBLIC).
 //
@@ -27,6 +27,15 @@ export async function GET() {
 }
 
 // POST /api/session — Create a new session (ADMIN ONLY).
+//
+// Body fields:
+//   title                    (required, 1-200 chars)
+//   requireIdentification    (optional, default true) — when false, the
+//                            votar page skips the RGM+Name identification
+//                            screen. Used for "test mode" sessions.
+//   customCode               (optional, 6-char A-Z0-9) — lets the admin
+//                            pick a memorable code (e.g. TEST25) instead
+//                            of a random one. Must be unique.
 export async function POST(request: NextRequest) {
   try {
     if (!verifyAdminAuth(request)) {
@@ -40,7 +49,11 @@ export async function POST(request: NextRequest) {
         { status: bodyResult.status || 400 }
       )
     }
-    const body = (bodyResult.data || {}) as { title?: unknown }
+    const body = (bodyResult.data || {}) as {
+      title?: unknown
+      requireIdentification?: unknown
+      customCode?: unknown
+    }
 
     const title = sanitizeString(body.title, 200)
     if (title.length < 1) {
@@ -50,12 +63,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique code
-    let code = generateSessionCode()
-    let exists = await db.session.findUnique({ where: { code } })
-    while (exists) {
+    // requireIdentification: default true. Explicit false => test mode.
+    const requireIdentification =
+      typeof body.requireIdentification === 'boolean'
+        ? body.requireIdentification
+        : true
+
+    // Resolve the session code: use a custom code if provided + valid,
+    // otherwise generate a random one. Custom codes let the admin create
+    // a fixed, easy-to-remember test code (e.g. TEST25).
+    let code: string
+    if (typeof body.customCode === 'string' && validateSessionCode(body.customCode)) {
+      code = (body.customCode as string).trim().toUpperCase()
+      const taken = await db.session.findUnique({ where: { code } })
+      if (taken) {
+        return NextResponse.json(
+          { error: `Código ${code} já está em uso. Escolha outro.` },
+          { status: 409 }
+        )
+      }
+    } else {
       code = generateSessionCode()
-      exists = await db.session.findUnique({ where: { code } })
+      let exists = await db.session.findUnique({ where: { code } })
+      while (exists) {
+        code = generateSessionCode()
+        exists = await db.session.findUnique({ where: { code } })
+      }
     }
 
     const session = await db.session.create({
@@ -63,6 +96,7 @@ export async function POST(request: NextRequest) {
         code,
         title,
         status: 'waiting',
+        requireIdentification,
       },
       include: {
         questions: {

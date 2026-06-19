@@ -120,6 +120,7 @@ export async function PATCH(
       title?: unknown
       status?: unknown
       currentQuestionId?: unknown
+      requireIdentification?: unknown
     }
 
     const session = await db.session.findUnique({
@@ -142,6 +143,9 @@ export async function PATCH(
       if (s === 'waiting' || s === 'active' || s === 'finished') {
         updateData.status = s
       }
+    }
+    if (typeof body.requireIdentification === 'boolean') {
+      updateData.requireIdentification = body.requireIdentification
     }
     if (body.currentQuestionId === null) {
       updateData.currentQuestionId = null

@@ -7,10 +7,26 @@ export interface Session {
   title: string
   status: SessionStatus
   currentQuestionId: string | null
+  requireIdentification: boolean
   createdAt: string
   updatedAt: string
   questions: Question[]
+  students?: Student[]
 }
+
+export interface Student {
+  id: string
+  sessionId: string
+  name: string
+  rgm: string
+  score: number
+  answers: number
+  corrects: number
+  joinedAt: string
+}
+
+/** Fixed code used for test sessions that skip student identification. */
+export const TEST_SESSION_CODE = 'TEST25'
 
 export interface Question {
   id: string
