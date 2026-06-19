@@ -100,14 +100,31 @@ const prismaDest = path.join(STANDALONE, 'prisma')
 log('Copying prisma/ → standalone/prisma')
 if (copyDir(prismaSrc, prismaDest)) { ok('prisma/ copied'); copied++ } else { skipped++ }
 
-// 4. .env — runtime env vars (DATABASE_URL, ADMIN_SECRET_KEY, etc.)
-// Next.js standalone build already copies .env, but we ensure it's present
-// and up-to-date by overwriting with the project-root version.
+// 4. .env — runtime env vars.
+// CRITICAL: We copy .env BUT strip the DATABASE_URL line.
+//
+// Why: The Z.ai platform's start.sh sets DATABASE_URL=file:/app/db/custom.db
+// via `export`. But Next.js standalone loads .env from CWD, and the .env
+// value would OVERRIDE the exported env var (Next.js .env loading fills
+// missing vars, but Prisma's dotenv loading can override). In production,
+// the sandbox path (file:/home/z/my-project/db/custom.db) doesn't exist,
+// causing "Unable to open database file" → server crashes → deploy fails.
+//
+// Fix: Strip DATABASE_URL from the standalone .env so the platform's
+// start.sh env var is the only source. Keep ADMIN_SECRET_KEY and
+// PRESENTER_KEY (the platform doesn't inject those, and the code has
+// safe defaults if they're missing).
 const envSrc = path.join(ROOT, '.env')
 const envDest = path.join(STANDALONE, '.env')
 if (fs.existsSync(envSrc)) {
-  fs.copyFileSync(envSrc, envDest)
-  ok('.env copied to standalone')
+  const rawEnv = fs.readFileSync(envSrc, 'utf8')
+  // Remove any line that starts with DATABASE_URL= (keep comments + other vars)
+  const stripped = rawEnv
+    .split('\n')
+    .filter((line) => !/^DATABASE_URL\s*=/.test(line))
+    .join('\n')
+  fs.writeFileSync(envDest, stripped, 'utf8')
+  ok('.env copied to standalone (DATABASE_URL stripped — platform injects it via start.sh)')
   copied++
 } else {
   warn('.env not found at project root — relying on platform env vars')
