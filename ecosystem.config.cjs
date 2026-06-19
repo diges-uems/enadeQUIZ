@@ -18,16 +18,25 @@
  * Memory limits trigger an automatic restart (max_memory_restart) to
  * recover from leaks without manual intervention.
  *
+ * DEPLOY_DIR: defaults to the directory this file lives in (process.cwd()).
+ * Override with `DEPLOY_DIR=/opt/app pm2 start ecosystem.config.cjs`.
+ *
  * NOTE: Ports 3003 and 3004 are currently hard-coded inside the Bun
  * services (mini-services/enade-quiz/index.ts and
  * mini-services/stress-test/index.ts). Setting PORT in this env block
  * does NOT change them — edit the source if you need different ports.
  */
+
+// Resolve the deploy directory: explicit env var, or the directory
+// containing this file (so `pm2 start` works from anywhere).
+const path = require('path')
+const DEPLOY_DIR = process.env.DEPLOY_DIR || path.resolve(__dirname)
+
 module.exports = {
   apps: [
     {
       name: 'uems-next',
-      cwd: '/var/www/uems-votacao',
+      cwd: DEPLOY_DIR,
       script: '.next/standalone/server.js',
       env: {
         NODE_ENV: 'production',
@@ -46,7 +55,7 @@ module.exports = {
     },
     {
       name: 'uems-socket',
-      cwd: '/var/www/uems-votacao/mini-services/enade-quiz',
+      cwd: path.join(DEPLOY_DIR, 'mini-services', 'enade-quiz'),
       script: 'index.ts',
       interpreter: 'bun',
       env: {
@@ -64,7 +73,7 @@ module.exports = {
     },
     {
       name: 'uems-stress',
-      cwd: '/var/www/uems-votacao/mini-services/stress-test',
+      cwd: path.join(DEPLOY_DIR, 'mini-services', 'stress-test'),
       script: 'index.ts',
       interpreter: 'bun',
       env: {

@@ -3,12 +3,12 @@
 # UEMS Votação — one-shot production deploy script
 # --------------------------------------------------------------------------
 # Idempotent: safe to re-run. Performs (in order):
-#   1. Required-tools check      (bun, node, pm2, caddy, git)
+#   1. Required-tools check      (bun, node, git)
 #   2. Clone OR pull the repo    (DEPLOY_REPO env var or in-place if no repo)
-#   3. bun install --production
-#   4. prisma generate + db push (creates/migrates the SQLite schema)
-#   5. next build                (with 2 GB Node heap limit to avoid OOM)
-#   6. Copy public/ + prisma/ into .next/standalone/ (standalone requires it)
+#   3. .env presence check       (copy from .env.example if missing)
+#   4. bun install               (full install — devDeps needed for build)
+#   5. prisma generate + db push (creates/migrates the SQLite schema)
+#   6. next build + assemble     (standalone bundle with public/ + prisma/)
 #   7. pm2 reload                (zero-downtime restart of all 3 services)
 #   8. pm2 status                (so the operator sees the result)
 #
@@ -20,7 +20,7 @@
 #        bash /var/www/uems-votacao/deploy/deploy.sh
 #
 # Typical update run (from inside the project):
-#   sudo bash /var/www/uems-votacao/deploy/deploy.sh
+#   sudo bash deploy/deploy.sh
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -87,39 +87,48 @@ if [[ ! -f "$DEPLOY_DIR/.env" ]]; then
   if [[ -f "$DEPLOY_DIR/.env.example" ]]; then
     warn ".env missing — copying .env.example (EDIT IT before going live!)"
     cp "$DEPLOY_DIR/.env.example" "$DEPLOY_DIR/.env"
+    err "STOP: .env was just created from the template. Edit it to set strong"
+    err "      ADMIN_SECRET_KEY and PRESENTER_KEY, then re-run this script."
+    exit 1
   else
     err ".env not found and no .env.example template available. Aborting."
     exit 1
   fi
 fi
 
-# ── 4. Install dependencies ─────────────────────────────────────────────────
-log "Installing production dependencies (bun install --production)…"
-bun install --production
+# ── 4. Install dependencies (FULL — devDeps needed for build) ───────────────
+log "Installing dependencies (bun install)…"
+# We need the FULL dependency tree (including devDependencies like `next`,
+# `prisma`, `typescript`) because the build step runs `next build` and
+# `prisma generate`. Using --production here would drop those and break
+# the build. The standalone bundle produced by `next build` only ships
+# the production deps anyway, so the final runtime is still lean.
+bun install
 
-# Dev-only deps needed for build (next, prisma CLI). bun --production drops
-# them, so we re-add a controlled allowlist if missing.
+# Sanity-check: next CLI must be available for the build.
 if ! command -v next >/dev/null 2>&1 && [[ ! -x "$DEPLOY_DIR/node_modules/.bin/next" ]]; then
-  warn "next CLI missing — installing devDependencies for build only…"
-  bun install
+  err "next CLI still missing after bun install — cannot build."
+  err "Try: rm -rf node_modules && bun install"
+  exit 1
 fi
+ok "next CLI available"
 
 # ── 5. Prisma: generate + push schema ───────────────────────────────────────
 log "Generating Prisma client…"
-# Bun-friendly invocation
 bunx prisma generate
 
 log "Pushing schema to SQLite (prisma db push)…"
 bun run db:push
 
-# ── 6. Build Next.js (standalone) ───────────────────────────────────────────
+# ── 6. Build Next.js (standalone) + assemble bundle ─────────────────────────
 log "Building Next.js (NODE_OPTIONS=--max-old-space-size=${NODE_MEMORY_LIMIT})…"
 NODE_OPTIONS="--max-old-space-size=${NODE_MEMORY_LIMIT}" \
   bunx next build
 
-# ── 7. Assemble standalone bundle ───────────────────────────────────────────
-# Next.js standalone output (.next/standalone/) does NOT include public/ or
-# prisma/ by default — both are required at runtime. Copy them in.
+# Assemble the standalone bundle (copies public/, prisma/, .next/static, .env)
+log "Assembling standalone bundle…"
+node "$DEPLOY_DIR/scripts/assemble-standalone.js"
+
 STANDALONE_DIR="$DEPLOY_DIR/.next/standalone"
 if [[ ! -f "$STANDALONE_DIR/server.js" ]]; then
   err "Build failed: $STANDALONE_DIR/server.js not found."
@@ -127,38 +136,18 @@ if [[ ! -f "$STANDALONE_DIR/server.js" ]]; then
   exit 1
 fi
 
-log "Copying public/ into standalone bundle…"
-mkdir -p "$STANDALONE_DIR/public"
-cp -rT "$DEPLOY_DIR/public" "$STANDALONE_DIR/public"
-
-log "Copying prisma/ into standalone bundle (schema + DB file)…"
-mkdir -p "$STANDALONE_DIR/prisma"
-cp -rT "$DEPLOY_DIR/prisma" "$STANDALONE_DIR/prisma"
-
-# Also copy the .env so the standalone server picks up env vars at runtime.
-# (NODE_ENV and the rest are read from process.env which Caddy/PM2 injects.)
-if [[ -f "$DEPLOY_DIR/.env" ]]; then
-  cp "$DEPLOY_DIR/.env" "$STANDALONE_DIR/.env"
-fi
-
-# Copy the static chunks (Next does not bundle them into standalone).
-if [[ -d "$DEPLOY_DIR/.next/static" ]]; then
-  log "Copying .next/static into standalone bundle…"
-  mkdir -p "$STANDALONE_DIR/.next/static"
-  cp -rT "$DEPLOY_DIR/.next/static" "$STANDALONE_DIR/.next/static"
-fi
-
 ok "Standalone bundle ready at $STANDALONE_DIR"
 
-# ── 8. (Re)start PM2 services ───────────────────────────────────────────────
+# ── 7. (Re)start PM2 services ───────────────────────────────────────────────
 if ! command -v pm2 >/dev/null 2>&1; then
   err "pm2 is not installed — skipping service start."
   err "Install with: sudo npm install -g pm2"
-  err "Then run:     pm2 start $DEPLOY_DIR/$PM2_APP_FILE"
+  err "Then run:     DEPLOY_DIR=$DEPLOY_DIR pm2 start $DEPLOY_DIR/$PM2_APP_FILE"
   exit 1
 fi
 
-log "(Re)starting PM2 services from $PM2_APP_FILE…"
+log "(Re)starting PM2 services from $PM2_APP_FILE (DEPLOY_DIR=$DEPLOY_DIR)…"
+export DEPLOY_DIR  # ecosystem.config.cjs reads this env var for cwd
 if pm2 describe uems-next >/dev/null 2>&1; then
   pm2 reload "$DEPLOY_DIR/$PM2_APP_FILE" --update-env
 else
@@ -168,7 +157,7 @@ fi
 # Persist process list so it survives reboots (requires `pm2 startup` once).
 pm2 save >/dev/null 2>&1 || warn "pm2 save failed — process list won't persist across reboots."
 
-# ── 9. Status report ────────────────────────────────────────────────────────
+# ── 8. Status report ────────────────────────────────────────────────────────
 log "PM2 status:"
 pm2 list
 

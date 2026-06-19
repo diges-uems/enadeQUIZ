@@ -238,31 +238,46 @@ O `next.config.ts` está configurado com `output: 'standalone'`, o que
 gera um bundle autossuficiente em `.next/standalone/` (inclui o
 `server.js` e apenas as deps necessárias, ~150 MB em vez de ~1.5 GB).
 
+> ⚠️ **Importante**: o `next build` **NÃO** inclui `public/`, `prisma/`,
+> `.next/static/` nem `.env` no bundle standalone. Use sempre o script
+> `build:prod` (abaixo) ou o `deploy/deploy.sh` — eles chamam o
+> `scripts/assemble-standalone.js` que copia tudo automaticamente.
+
+### Opção A — Script único (recomendado)
+
 ```bash
 cd /var/www/uems-votacao
-bun install --production   # deps de runtime
-bun install                # também devDeps (precisa do next, prisma CLI)
+bun install                     # instala TUDO (devDeps necessários para build)
 
-# Build com limite de memória (2 GB) para evitar OOM em VMs pequenas
-NODE_OPTIONS="--max-old-space-size=2048" bunx next build
+# Build completo: prisma generate + next build + assemble standalone
+NODE_OPTIONS="--max-old-space-size=2048" bun run build:prod
 ```
 
-Após o build, copie `public/`, `prisma/`, `.next/static/` para dentro
-do bundle standalone (o Next não os inclui automaticamente):
+O `build:prod` executa em sequência:
+1. `prisma generate` — gera o client Prisma
+2. `next build` — compila o app (com `output: 'standalone'`)
+3. `node scripts/assemble-standalone.js` — copia `public/`, `prisma/`,
+   `.next/static/`, `.env` e `db/` para `.next/standalone/`
+
+### Opção B — Passo a passo (manual)
 
 ```bash
-STANDALONE=.next/standalone
-cp -rT public      $STANDALONE/public
-cp -rT prisma      $STANDALONE/prisma
-cp -rT .next/static $STANDALONE/.next/static
-cp .env $STANDALONE/.env
+cd /var/www/uems-votacao
+bun install                     # NÃO use --production (precisa do next, prisma)
+bunx prisma generate
+NODE_OPTIONS="--max-old-space-size=2048" bunx next build
+node scripts/assemble-standalone.js   # copia public/ + prisma/ + static + .env
 ```
 
-> 💡 **Atalho**: o script `deploy/deploy.sh` já faz tudo isso. Pule direto
-> para o §8 depois de rodar:
-> ```bash
-> bash /var/www/uems-votacao/deploy/deploy.sh
-> ```
+### Opção C — Tudo automatizado
+
+```bash
+bash /var/www/uems-votacao/deploy/deploy.sh
+```
+
+O `deploy.sh` faz tudo: git pull → bun install → prisma generate →
+db:push → next build → assemble-standalone → pm2 reload. Pule direto
+para o §8.
 
 ---
 
@@ -426,34 +441,27 @@ cd /var/www/uems-votacao
 # 1. Puxe as mudanças
 git pull --ff-only
 
-# 2. Reinstale deps (caso package.json tenha mudado)
-bun install --production
+# 2. Reinstale deps (NÃO use --production — precisa de next, prisma para o build)
+bun install
 
-# 3. Aplique mudanças no schema se houver
-bunx prisma generate
-bun run db:push
+# 3. Build completo (prisma generate + next build + assemble standalone)
+NODE_OPTIONS="--max-old-space-size=2048" bun run build:prod
 
-# 4. Rebuild
-NODE_OPTIONS="--max-old-space-size=2048" bunx next build
-
-# 5. Copie assets para o standalone
-STANDALONE=.next/standalone
-cp -rT public      $STANDALONE/public
-cp -rT prisma      $STANDALONE/prisma
-cp -rT .next/static $STANDALONE/.next/static
-cp .env $STANDALONE/.env
-
-# 6. Restart (zero-downtime)
+# 4. Restart (zero-downtime)
 pm2 reload ecosystem.config.cjs --update-env
 
-# 7. Health check
-bash deploy/healthcheck.sh
+# 5. Health check
 ```
 
-> 💡 **Atalho**: `bash deploy/deploy.sh` faz tudo isso de forma
-> idempotente. Único cuidado: ele faz `git pull` que pode falhar se
-> você editou arquivos localmente (ex.: ajustou o `PRESENTER_KEY` via
-> `sed`). O script stash automático, mas verifique com `git stash list`.
+> 💡 **Atalho**: `bash deploy/deploy.sh` faz todos os passos 1-5
+> automaticamente (git pull + bun install + prisma + build + pm2).
+> Único cuidado: ele faz `git pull` que pode falhar se você editou
+> arquivos localmente (ex.: ajustou o `PRESENTER_KEY` via `sed`). O
+> script faz stash automático, mas verifique com `git stash list`.
+
+```bash
+bash deploy/healthcheck.sh
+```
 
 ---
 

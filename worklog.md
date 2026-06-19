@@ -1493,3 +1493,131 @@ Priority Recommendations for Next Phase:
 2. Considerar migrar o ranking em tempo real (durante a sessão) para o DB também, em vez do socket in-memory
 3. Adicionar limpeza automática de sessões de teste antigas
 4. Validar em dispositivo móvel real (a tela de identificação e o useFitContent)
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Corrigir erros de deploy (usuário relatou "deu erro ao fazer deploy")
+
+Work Log:
+- **Diagnóstico inicial**: O build `next build` funcionava no sandbox, mas o
+  bundle `.next/standalone/` estava INCOMPLETO após o build — faltavam
+  `public/`, `prisma/`, `.next/static/` e `.env`. O `deploy.sh` copiava
+  alguns, mas o `package.json` `build` script só copiava static + public
+  (faltava prisma e .env). Resultado: standalone server falhava em produção.
+
+- **Problema 1 — middleware deprecation (Next.js 16)**:
+  - `src/middleware.ts` → renomeado para `src/proxy.ts` (Next.js 16 mudou
+    a convenção de "middleware" para "proxy")
+  - Função exportada `middleware()` → `proxy()`
+  - O warning `⚠ The "middleware" file convention is deprecated` sumiu
+  - Security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+    Permissions-Policy) continuam funcionando — verificado via curl:
+    /admin e /api/* têm os 4 headers; / (público) não tem (correto)
+
+- **Problema 2 — build script não copiava prisma/.env para standalone**:
+  - `package.json` `build` script era: `next build && cp -r .next/static
+    .next/standalone/.next/ && cp -r public .next/standalone/` — faltava
+    prisma/ e .env
+  - Criado `scripts/assemble-standalone.js` (Node.js, cross-platform, sem
+    dependência de shell) que copia: .next/static, public/, prisma/, .env,
+    db/ (se existir) para .next/standalone/
+  - Novo script `build:prod`: `prisma generate && next build && node
+    scripts/assemble-standalone.js` — faz tudo em sequência
+  - Script `build` simplificado para apenas `next build` (dev)
+  - Script `start` agora usa `node` (não bun) para máxima compatibilidade
+  - Adicionado `start:bun` para quem preferir bun
+
+- **Problema 3 — ecosystem.config.cjs com path hardcoded**:
+  - `cwd: '/var/www/uems-votacao'` era hardcoded → falhava se deploy
+    fosse em outro path
+  - Agora usa `process.env.DEPLOY_DIR || path.resolve(__dirname)` —
+    funciona de qualquer diretório, ou respeita DEPLOY_DIR se setado
+  - `deploy.sh` agora exporta `DEPLOY_DIR` antes de chamar `pm2 start`
+
+- **Problema 4 — deploy.sh usava `bun install --production`**:
+  - `--production` remove devDependencies (next, prisma, typescript) —
+    quebra o build. O fallback (`bun install` completo) era clunky
+  - Agora usa `bun install` (full) direto — devDeps são necessários
+    para `next build` e `prisma generate`. O standalone final só inclui
+    production deps mesmo, então o runtime fica lean.
+  - Deploy.sh agora chama `node scripts/assemble-standalone.js` em vez
+    de comandos `cp -rT` manuais (mais robusto, cross-platform)
+  - Adicionado check de sanidade: se `next` CLI não estiver disponível
+    após `bun install`, aborta com mensagem clara
+  - Se .env não existir e .env.example for copiado, ABORTA com instrução
+    para editar antes de continuar (não faz deploy com secrets padrão)
+
+- **Problema 5 — .env.example faltando**:
+  - `deploy.sh` referenciava `.env.example` mas o arquivo não existia
+  - Criado `.env.example` completo com TODAS as vars documentadas:
+    DATABASE_URL, ADMIN_SECRET_KEY, ADMIN_PASSWORD, PRESENTER_KEY,
+    PORT, HOSTNAME, NODE_ENV, NODE_OPTIONS, SOCKET_PORT, STRESS_PORT
+  - Inclui instruções de como gerar secret seguro (`openssl rand -hex 32`)
+
+- **Problema 6 — ESLint flaggeava require() em .cjs/.js**:
+  - `ecosystem.config.cjs` e `scripts/assemble-standalone.js` usam
+    `require()` (CommonJS legítimo) mas ESLint reclamava
+  - Adicionado `deploy/**`, `scripts/**`, `ecosystem.config.cjs`,
+    `mini-services/**` ao `ignores` do `eslint.config.mjs`
+  - `bun run lint` agora passa limpo (0 errors, 0 warnings)
+
+- **DEPLOY.md atualizado**:
+  - §7 (Build): reescrito com 3 opções (A: build:prod, B: manual, C: deploy.sh)
+  - Aviso destacado: `next build` NÃO inclui public/prisma/static/.env
+  - §12 (Atualização): simplificado para usar `bun run build:prod`
+
+Stage Summary:
+- ✅ `middleware.ts` → `proxy.ts` (fix deprecation warning do Next.js 16)
+- ✅ `scripts/assemble-standalone.js` criado — copia tudo para standalone
+- ✅ `build:prod` script único: prisma generate + next build + assemble
+- ✅ `ecosystem.config.cjs` usa DEPLOY_DIR env var (não mais hardcoded)
+- ✅ `deploy.sh` robusto: bun install (full), assemble-standalone.js, aborta se .env vazio
+- ✅ `.env.example` criado com todas as vars documentadas
+- ✅ ESLint config ignora arquivos de tooling CommonJS
+- ✅ DEPLOY.md atualizado com novo fluxo de build
+
+Verificação E2E:
+- `bun run lint` — 0 errors, 0 warnings ✅
+- `NODE_OPTIONS=--max-old-space-size=2048 bun run build:prod` — compila 21
+  rotas, assemble-standalone copia 5/5 componentes (static, public, prisma,
+  .env, db) ✅
+- Standalone server (porta 3001): GET / → 200, GET /admin → 200, GET
+  /api/session → 200, GET /logo-uems.png → 200, GET /votar/TEST25 → 200 ✅
+- Standalone bundle completo: .env, .next, db, node_modules, prisma, public,
+  server.js ✅
+- Dev server (porta 3000): sem erros, sem warning de middleware, 200 em
+  todas as rotas ✅
+- Security headers (proxy.ts): /admin e /api/* têm X-Frame-Options:DENY,
+  X-Content-Type-Options:nosniff, Referrer-Policy, Permissions-Policy ✅
+- Página pública / não tem security headers (correto — iframe-friendly) ✅
+
+Arquivos criados/modificados:
+- NOVO: src/proxy.ts (renomeado de src/middleware.ts)
+- DELETADO: src/middleware.ts
+- NOVO: scripts/assemble-standalone.js
+- NOVO: .env.example
+- MOD: package.json (scripts build/build:prod/start/start:bun)
+- MOD: ecosystem.config.cjs (DEPLOY_DIR env-based cwd)
+- MOD: deploy/deploy.sh (bun install full, assemble-standalone.js, aborta se .env)
+- MOD: deploy/DEPLOY.md (§7 e §12 reescritos)
+- MOD: eslint.config.mjs (ignores deploy/scripts/mini-services)
+
+Unresolved Issues:
+- O `PRESENTER_KEY` ainda é hardcoded como 'presenter-default-key-2025' no
+  client-side (src/app/admin/page.tsx, src/app/apresentacao/[codigo]/
+  page.tsx). Em produção, deve ser sed-replaced antes do build. O .env.example
+  documenta isso. Solução limpa: usar NEXT_PUBLIC_PRESENTER_KEY env var.
+- As portas 3003 e 3004 ainda são hardcoded nos mini-services. Para mudar,
+  editar o source. Documentado no ecosystem.config.cjs.
+- Não foi possível testar o deploy.sh end-to-end em VM real (sem VM no
+  sandbox). O script é idempotente e usa ferramentas padrão, mas o
+  primeiro deploy real pode revelar quirks do ambiente.
+
+Priority Recommendations for Next Phase:
+1. Migrar PRESENTER_KEY para NEXT_PUBLIC_PRESENTER_KEY env var (elimina o
+   sed-replace manual antes do build)
+2. Tornar as portas 3003/3004 configuráveis via env nos mini-services
+3. Testar deploy.sh em VM real (Ubuntu 22.04/24.04 com bun+pm2+caddy)
+4. Considerar adicionar um `deploy/quick-install.sh` que instala bun,
+   pm2, caddy numa VM limpa (one-liner para setup inicial)

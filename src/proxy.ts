@@ -1,5 +1,5 @@
 /**
- * Security-headers middleware.
+ * Security-headers proxy (Next.js 16 renamed "middleware" → "proxy").
  *
  * Applies a small set of defensive headers to /admin pages and /api/*
  * routes. Kept deliberately narrow so it does not interfere with the
@@ -22,9 +22,9 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
 }
 
-export function middleware(_request: NextRequest) {
+export function proxy(_request: NextRequest) {
   // Eagerly create the response so headers are set before any other
-  // middleware logic runs.
+  // proxy logic runs.
   const response = NextResponse.next()
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(k, v)
