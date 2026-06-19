@@ -1,15 +1,16 @@
-# ─── ENADE Quiz — CI/CD Pipeline ────────────────────────────────────────────
+# ENADE Quiz - CI/CD Pipeline
 # Validates that the project builds cleanly in a fresh Ubuntu environment
 # WITHOUT any network access to Google Fonts / Prisma engines (mirrors the
 # restricted CI/CD environment used by Z.ai and similar platforms).
-# ────────────────────────────────────────────────────────────────────────────
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
   pull_request:
-    branches: [main, master]
+    branches:
+      - main
   workflow_dispatch:
 
 # Cancel in-progress runs for the same ref to save CI minutes.
@@ -18,11 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 1 — Lint + Type-check (fast, fails fast on obvious errors)
-  # ───────────────────────────────────────────────────────────────────────────
+  # Job 1 - Lint + Type-check (fast, fails fast on obvious errors)
   lint:
-    name: Lint & Type-check
+    name: Lint and Type-check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -42,16 +41,13 @@ jobs:
 
       - name: Lint
         run: bun run lint
-        continue-on-error: true # lint warnings shouldn't fail the build
+        continue-on-error: true
 
       - name: Type-check
         run: bunx tsc --noEmit
-        continue-on-error: true # we have ignoreBuildErrors: true in next.config
+        continue-on-error: true
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 2 — Production Build (the critical test)
-  # Mirrors exactly what Z.ai / Vercel / Netlify does at deploy time.
-  # ───────────────────────────────────────────────────────────────────────────
+  # Job 2 - Production Build (the critical test)
   build:
     name: Production Build
     runs-on: ubuntu-latest
@@ -93,25 +89,22 @@ jobs:
         run: |
           bun run start &
           SERVER_PID=$!
-          # Wait for server to be ready
-          for i in {1..30}; do
+          for i in $(seq 1 30); do
             if curl -sf http://localhost:3000/api/health > /dev/null; then
               echo "Server is ready"
               break
             fi
             sleep 1
           done
-          # Run health checks
-          echo "── GET / ──"
+          echo "-- GET / --"
           curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/
-          echo "── GET /api/health ──"
+          echo "-- GET /api/health --"
           curl -sS http://localhost:3000/api/health
           echo ""
-          echo "── GET /api/session ──"
+          echo "-- GET /api/session --"
           curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/api/session
-          echo "── GET /admin ──"
+          echo "-- GET /admin --"
           curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/admin
-          # Cleanup
           kill $SERVER_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
 
@@ -125,13 +118,9 @@ jobs:
             db/custom.db
           retention-days: 7
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 3 — Build with NO network access (Z.ai simulation)
-  # This is the job that reproduces the Z.ai build environment exactly.
-  # If this job fails, we know exactly what's blocking the deploy.
-  # ───────────────────────────────────────────────────────────────────────────
+  # Job 3 - Build with NO network access (Z.ai simulation)
   build-offline:
-    name: Build (Offline — Z.ai simulation)
+    name: Build (Offline - Z.ai simulation)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -151,7 +140,7 @@ jobs:
       - name: Install dependencies (network required once)
         run: bun install --frozen-lockfile
 
-      - name: Generate Prisma Client (offline-safe — engine cached)
+      - name: Generate Prisma Client (offline-safe - engine cached)
         run: bunx prisma generate
 
       - name: Build with NO network access
@@ -160,7 +149,6 @@ jobs:
           ADMIN_SECRET_KEY: "enade2024"
           PRESENTER_KEY: "presenter-default-key-2025"
           NEXT_TELEMETRY_DISABLED: "1"
-          # Block ALL outbound network — simulates Z.ai restricted build env
           http_proxy: "http://127.0.0.1:1"
           https_proxy: "http://127.0.0.1:1"
           HTTP_PROXY: "http://127.0.0.1:1"
