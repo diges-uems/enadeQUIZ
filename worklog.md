@@ -2385,3 +2385,93 @@ Priority Recommendations for Next Phase:
 2. Importar 15 questões do ENADE 2025 Administração (Formação Geral) com gabarito.
 3. Bug do ranking (student.corrects não atualiza após voto, só no reveal).
 4. Bug dos comandos de revelar resposta na apresentação (às vezes não funcionam).
+
+---
+Task ID: 16
+Agent: Main Agent
+Task: Correção DEFINITIVA do deploy + reimportar 15 questões de Administração
+
+Work Log:
+- **Issue 1 — 15 questões de Formação Geral sumiram**:
+  As 15 questões de "ENADE 2025 Administração (Formação Geral)" estavam no arquivo
+  `upload/adm_questions.json` e foram importadas para a sessão VFJG9V (id antigo),
+  mas essa sessão sumiu do banco (provavelmente perdida em um reset).
+  REIMPORTAÇÃO: Criei nova sessão com código **ADM25** e importei as 15 questões.
+  Verificado: GET /api/session/ADM25 retorna 37157 bytes (15 questões com gabarito).
+
+- **Issue 2 — Deploy ainda falhava (deploy-failed.svg) mesmo após correções anteriores**:
+  O usuário reportou que o erro começou "depois da otimização e pra preparação pra produção".
+  Investiguei todas as mudanças das Tasks 12-15 e encontrei MÚLTIPLAS causas:
+
+  CAUSA A (corrigida na Task 15): `next/font/google` precisava baixar fontes de
+  fonts.googleapis.com durante o build. Plataforma bloqueia → build falha.
+  FIX: Trocado por `next/font/local` com 10 arquivos TTF auto-hospedados em /public/fonts/.
+
+  CAUSA B (corrigida nesta task): `output: "standalone"` + `assemble-standalone.js` +
+  `server.js` custom. Embora o standalone seja uma feature oficial do Next.js, a
+  combinação com a plataforma Z.ai estava causando problemas. O `assemble-standalone.js`
+  copiava arquivos e reescrevia o `.env`, o que podia falhar em ambientes restritos.
+  FIX: REMOVIDO `output: "standalone"` do next.config.ts. Agora uso o build PADRÃO
+  do Next.js (`next build` + `next start`), que é universalmente suportado.
+
+  CAUSA C (corrigida nesta task): O `.env` está no `.gitignore` e NÃO vai para o deploy.
+  Em produção, `DATABASE_URL`, `ADMIN_SECRET_KEY`, `PRESENTER_KEY` não estavam
+  disponíveis (a menos que a plataforma os injetasse).
+  FIX: `db-ensure.ts` agora tem FALLBACK: se `DATABASE_URL` não estiver setado,
+  usa `file:db/custom.db` (arquivo commitado no repo). O `api-auth.ts` já tinha
+  fallback para `ADMIN_SECRET_KEY` (default 'enade2024').
+
+- **Mudanças aplicadas**:
+  1. `next.config.ts` — REMOVIDO: `output: "standalone"`, `compress: false`,
+     headers complexos, `allowedDevOrigins` com hostname do sandbox. Config simplificada.
+  2. `package.json` — build script: `prisma generate && next build` (sem assemble-standalone).
+     start script: `next start` (padrão Next.js, em vez de `node .next/standalone/server.js`).
+  3. `src/lib/db-ensure.ts` — adicionado fallback `DATABASE_URL=file:db/custom.db`.
+  4. `src/app/layout.tsx` — `icons.icon` voltou para `/logo.png` (favicon removido).
+  5. `public/favicon.ico` e `public/favicon.png` — REMOVIDOS (a pedido do usuário para teste).
+  6. `db/custom.db` — atualizado com a sessão ADM25 (15 questões de Administração).
+
+- **Validação**:
+  A) Build padrão (sem standalone): ✅ PASSA
+  B) `next start` com DATABASE_URL setado: ✅ Todas rotas 200 (/ , /api/health, /api/session/ADM25, /api/session/ENADE25)
+  C) `next start` SEM DATABASE_URL (fallback): ✅ Todas rotas 200 (db-ensure usa file:db/custom.db)
+  D) Agent-browser: Home page carrega, admin login funciona, dashboard mostra 4 sessões
+     (ADM25, TEST25, 67QAFO, ENADE25), incluindo a nova "ENADE 2025 — Administração"
+  E) Lint: 0 errors, 0 warnings
+  F) Git: Todas mudanças commitadas (commit b3a6bd4)
+
+- **Estado do banco (4 sessões)**:
+  - ADM25: 15 questões (ENADE 2025 Administração - Formação Geral) ← REIMPORTADA
+  - TEST25: 4 questões (Sessao Teste)
+  - 67QAFO: 30 questões (ENADE 2025 Ciências Biológicas - Formação Geral Docente)
+  - ENADE25: 6 questões (ENADE 2025 Formação Geral)
+  Total: 55 questões em sessões + 30 no Question Bank
+
+Stage Summary:
+- ✅ 15 questões de Administração REIMPORTADAS (sessão ADM25)
+- ✅ Deploy simplificado: removido `output: standalone`, usando `next build` + `next start`
+- ✅ Fallback de DATABASE_URL garante funcionamento mesmo sem .env
+- ✅ Fontes auto-hospedadas (sem dependência de rede no build)
+- ✅ Favicon removido (a pedido)
+- ✅ Todas mudanças commitadas
+- ✅ Validado: build, next start, agent-browser, lint
+
+Arquivos modificados:
+- `next.config.ts` — simplificado (sem standalone, compress, headers complexos)
+- `package.json` — build/start scripts simplificados
+- `src/lib/db-ensure.ts` — fallback DATABASE_URL
+- `src/app/layout.tsx` — icons voltou para /logo.png
+- `public/favicon.ico`, `public/favicon.png` — REMOVIDOS
+- `db/custom.db` — atualizado com sessão ADM25
+
+Unresolved Issues:
+- O deploy precisa ser refeito pelo usuário no painel do Z.ai.
+- Se ainda falhar, o problema pode ser:
+  a) A plataforma não suporta `next start` (improvável — é padrão Next.js)
+  b) Memória insuficiente durante o build (usar NODE_OPTIONS=--max-old-space-size=2048)
+  c) A plataforma precisa de um start.sh ou Dockerfile específico
+
+Priority Recommendations for Next Phase:
+1. **Usuario deve disparar novo deploy no Z.ai** — setup agora é Next.js padrão.
+2. Se ainda falhar, pedir logs de BUILD (não runtime) da plataforma.
+3. Considerar adicionar Dockerfile se a plataforma precisar.
