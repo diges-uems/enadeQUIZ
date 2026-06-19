@@ -112,7 +112,7 @@ export default function Home() {
                 value={codigo}
                 onChange={(e) => setCodigo(e.target.value)}
                 onKeyDown={handleKeyDown}
-                maxLength={6}
+                maxLength={10}
                 className="uems-input-glow h-14 text-center text-xl font-semibold tracking-[0.2em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl"
               />
 

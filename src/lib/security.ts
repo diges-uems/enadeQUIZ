@@ -18,8 +18,9 @@ export const MAX_JSON_BODY_BYTES = 1 * 1024 * 1024 // 1 MB hard limit
 
 /** CUID v2-ish: lower-case alphanumeric, 24+ chars, starts with 'c'. */
 const CUID_RE = /^c[a-z0-9]{20,}$/i
-/** 6-char uppercase alphanumeric session codes (case-insensitive on input). */
-const SESSION_CODE_RE = /^[A-Z0-9]{6}$/i
+/** 4-10 char uppercase alphanumeric session codes (case-insensitive on input).
+ *  Allows custom codes like ENADE25 (7), BIO2025 (7), TEST25 (6), etc. */
+const SESSION_CODE_RE = /^[A-Z0-9]{4,10}$/i
 /** Single letter A-E. */
 const CHOICE_RE = /^[A-E]$/
 

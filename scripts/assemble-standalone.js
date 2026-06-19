@@ -101,25 +101,18 @@ log('Copying prisma/ → standalone/prisma')
 if (copyDir(prismaSrc, prismaDest)) { ok('prisma/ copied'); copied++ } else { skipped++ }
 
 // 4. .env — runtime env vars (DATABASE_URL, ADMIN_SECRET_KEY, etc.)
-// NOTE: We deliberately REMOVE .env from the standalone bundle, because:
-//   - The Z.ai platform's start.sh sets DATABASE_URL via `export DATABASE_URL=...`
-//     (defaulting to file:/app/db/custom.db), and a .env file inside the
-//     standalone dir would OVERRIDE that env var (Next.js loads .env from CWD).
-//   - The .env in the sandbox uses a relative path (file:./db/custom.db) that
-//     would resolve to next-service-dist/db/custom.db, which doesn't exist
-//     in the production layout (the DB lives at /app/db/custom.db, one level
-//     above next-service-dist/).
-// Next.js `next build` with output: standalone COPIES .env into the bundle
-// automatically. We need to explicitly delete it here so the platform's
-// env vars (set via start.sh) take precedence.
+// Next.js standalone build already copies .env, but we ensure it's present
+// and up-to-date by overwriting with the project-root version.
+const envSrc = path.join(ROOT, '.env')
 const envDest = path.join(STANDALONE, '.env')
-if (fs.existsSync(envDest)) {
-  fs.unlinkSync(envDest)
-  ok('.env REMOVED from standalone (platform injects env vars via start.sh)')
+if (fs.existsSync(envSrc)) {
+  fs.copyFileSync(envSrc, envDest)
+  ok('.env copied to standalone')
+  copied++
 } else {
-  warn('.env not in standalone — platform will inject env vars via start.sh')
+  warn('.env not found at project root — relying on platform env vars')
+  skipped++
 }
-skipped++
 
 // 5. db/ — if a custom DB directory exists at the project root (sandbox uses
 //    db/custom.db), copy it so the absolute DATABASE_URL still resolves.
