@@ -1854,3 +1854,102 @@ Priority Recommendations for Next Phase:
    com o .dockerignore corrigido e o build criando o DB fresh
 2. Se ainda falhar, pedir logs da plataforma para identificar o step exato
 3. Considerar adicionar um docker-compose.yml com os 3 services (next + socket + stress)
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: Corrigir deploy no host Z.ai (eventoenade.space-z.ai) — ainda falhando após fixes anteriores
+
+Work Log:
+- **Descoberta crítica**: A plataforma Z.ai NÃO usa Docker! Ela usa scripts próprios em
+  `.zscripts/` (build.sh, start.sh, mini-services-*.sh). O Dockerfile no projeto é
+  ignorado pela plataforma. Li todos os scripts para entender o fluxo real:
+
+  **Fluxo real da plataforma Z.ai:**
+  1. `build.sh`: `bun install` + `bun run build` + copia `.next/standalone/`,
+     `.next/static/`, `public/`, `db/custom.db` para BUILD_DIR + empacota em .tar.gz
+  2. `start.sh`: extrai para `/app/`, seta `DATABASE_URL=file:/app/db/custom.db`
+     (default), roda `bun server.js` no `next-service-dist/`, inicia mini-services,
+     roda Caddy
+
+- **Causa raiz do erro de deploy**:
+  O `next build` com `output: standalone` **copia automaticamente o `.env`** para
+  `.next/standalone/.env`. Esse `.env` tinha `DATABASE_URL=file:./db/custom.db`
+  (path relativo). No ambiente de produção:
+  - O `start.sh` seta `DATABASE_URL=file:/app/db/custom.db` via `export`
+  - Mas o `.env` dentro do standalone (lido pelo Next.js do CWD) **sobrescreve**
+    essa env var com `file:./db/custom.db`
+  - O CWD é `/app/next-service-dist/`, então `./db/custom.db` resolveria para
+    `/app/next-service-dist/db/custom.db` que **NÃO EXISTE**
+  - O DB real está em `/app/db/custom.db` (um nível acima)
+  - Resultado: Prisma falha ao conectar → server crasha → deploy falha
+
+- **Fix aplicado**:
+  1. `scripts/assemble-standalone.js`: agora **DELETA explicitamente** o `.env`
+     do standalone bundle após o `next build` (o Next.js o copia automaticamente,
+     precisamos removê-lo para que as env vars do `start.sh` prevaleçam)
+  2. `.env` do projeto: mudado de `file:/home/z/my-project/db/custom.db` (absoluto
+     sandbox) para `file:./db/custom.db` (relativo, funciona no sandbox)
+  3. `package.json` `build` script: removido `prisma db push` (o `build.sh` da
+     plataforma já faz `db:push` no DB do BUILD_DIR separadamente)
+
+- **Verificação completa (simulação exata do fluxo da plataforma)**:
+  Simulei todo o fluxo `.zscripts/build.sh` + `.zscripts/start.sh`:
+  1. `bun run build` — prisma generate + next build + assemble-standalone (sem .env) ✅
+  2. Copiar `.next/standalone/` → BUILD_DIR/next-service-dist/ ✅
+  3. Copiar `.next/static/`, `public/`, `db/custom.db` → BUILD_DIR/ ✅
+  4. `DATABASE_URL="file:BUILD_DIR/db/custom.db" bun run db:push` ✅
+  5. `cd next-service-dist/ && DATABASE_URL="file:BUILD_DIR/db/custom.db" bun server.js` ✅
+  6. Todos os endpoints retornam 200:
+     - GET / → 200
+     - GET /admin → 200
+     - GET /api/session → 200
+     - GET /logo-uems.png → 200
+     - GET /votar/TEST25 → 200
+  7. Server inicia em 92ms, sem erros ✅
+
+- **Estrutura final do BUILD_DIR (que vira /app/ em produção)**:
+  ```
+  /app/
+  ├── next-service-dist/     ← standalone bundle (SEM .env)
+  │   ├── server.js
+  │   ├── .next/static/
+  │   ├── public/
+  │   ├── prisma/
+  │   ├── db/                ← cópia do DB (não usada em prod, mas presente)
+  │   └── node_modules/
+  ├── db/
+  │   └── custom.db          ← DB real usado em produção
+  ├── Caddyfile
+  ├── mini-services-dist/
+  └── start.sh
+  ```
+
+Stage Summary:
+- ✅ Causa raiz identificada: `.env` no standalone sobrescrevia `DATABASE_URL` do start.sh
+- ✅ `assemble-standalone.js` agora DELETA o `.env` do standalone
+- ✅ `.env` do projeto usa path relativo (`file:./db/custom.db`)
+- ✅ `build` script simplificado (sem `prisma db push` redundante)
+- ✅ Simulação completa do fluxo da plataforma passou: todos endpoints 200
+- ✅ Lint limpo
+
+Arquivos modificados:
+- `scripts/assemble-standalone.js` — agora DELETA .env do standalone (em vez de copiar)
+- `.env` — path relativo (`file:./db/custom.db`) + secrets com defaults
+- `package.json` — `build` sem `prisma db push` (plataforma já faz isso)
+
+Unresolved Issues:
+- Os mini-services (socket 3003, stress-test 3004) são buildados pelo
+  `mini-services-build.sh` via `bun build --target bun`. Verifiquei que ambos
+  buildam com sucesso. Eles rodam separadamente via `mini-services-start.sh`.
+- O `ADMIN_SECRET_KEY` e `PRESENTER_KEY` não são setados pelo `start.sh`, mas
+  têm defaults no código (`enade2024` e `presenter-default-key-2025`). Para
+  produção real, a plataforma deve setar essas env vars.
+
+Priority Recommendations for Next Phase:
+1. **Testar o deploy novamente no eventoenade.space-z.ai** — a causa raiz foi
+   corrigida (`.env` não sobrescreve mais o `DATABASE_URL` do start.sh)
+2. Se ainda falhar, a plataforma pode estar com cache do build anterior —
+   tentar forçar um redeploy limpo
+3. Considerar adicionar `ADMIN_SECRET_KEY` e `PRESENTER_KEY` ao `start.sh`
+   (mas não podemos modificar `.zscripts/` que são da plataforma)
