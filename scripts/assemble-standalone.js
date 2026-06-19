@@ -101,34 +101,50 @@ log('Copying prisma/ → standalone/prisma')
 if (copyDir(prismaSrc, prismaDest)) { ok('prisma/ copied'); copied++ } else { skipped++ }
 
 // 4. .env — runtime env vars.
-// CRITICAL: We copy .env BUT strip the DATABASE_URL line.
+// CRITICAL: We REWRITE DATABASE_URL to a RELATIVE path (file:db/custom.db)
+// instead of the sandbox absolute path (file:/home/z/my-project/db/custom.db).
 //
-// Why: The Z.ai platform's start.sh sets DATABASE_URL=file:/app/db/custom.db
-// via `export`. But Next.js standalone loads .env from CWD, and the .env
-// value would OVERRIDE the exported env var (Next.js .env loading fills
-// missing vars, but Prisma's dotenv loading can override). In production,
-// the sandbox path (file:/home/z/my-project/db/custom.db) doesn't exist,
-// causing "Unable to open database file" → server crashes → deploy fails.
+// Why: In the standalone bundle, the DB file ships at `db/custom.db` (see
+// step 5 below). A relative `file:db/custom.db` URL resolves to `<CWD>/db/custom.db`
+// which works regardless of where the platform runs `node server.js` from.
 //
-// Fix: Strip DATABASE_URL from the standalone .env so the platform's
-// start.sh env var is the only source. Keep ADMIN_SECRET_KEY and
-// PRESENTER_KEY (the platform doesn't inject those, and the code has
-// safe defaults if they're missing).
+// Precedence: process.env (set by platform start.sh) ALWAYS overrides .env.
+// So if the platform sets DATABASE_URL via export, that wins. The .env
+// value is a SAFE FALLBACK for when the platform doesn't inject it.
+//
+// We keep ADMIN_SECRET_KEY and PRESENTER_KEY as-is (the platform doesn't
+// inject those, and the code has safe defaults if they're missing).
 const envSrc = path.join(ROOT, '.env')
 const envDest = path.join(STANDALONE, '.env')
 if (fs.existsSync(envSrc)) {
   const rawEnv = fs.readFileSync(envSrc, 'utf8')
-  // Remove any line that starts with DATABASE_URL= (keep comments + other vars)
-  const stripped = rawEnv
+  // Replace any DATABASE_URL line with a relative-path fallback.
+  const rewritten = rawEnv
     .split('\n')
-    .filter((line) => !/^DATABASE_URL\s*=/.test(line))
+    .map((line) => {
+      if (/^DATABASE_URL\s*=/.test(line)) {
+        return 'DATABASE_URL=file:db/custom.db'
+      }
+      return line
+    })
     .join('\n')
-  fs.writeFileSync(envDest, stripped, 'utf8')
-  ok('.env copied to standalone (DATABASE_URL stripped — platform injects it via start.sh)')
+  // Ensure DATABASE_URL is present even if the source .env didn't have it
+  if (!/^DATABASE_URL\s*=/.test(rewritten)) {
+    fs.writeFileSync(envDest, rewritten + '\nDATABASE_URL=file:db/custom.db\n', 'utf8')
+  } else {
+    fs.writeFileSync(envDest, rewritten, 'utf8')
+  }
+  ok('.env copied to standalone (DATABASE_URL rewritten to relative file:db/custom.db)')
   copied++
 } else {
-  warn('.env not found at project root — relying on platform env vars')
-  skipped++
+  // No source .env — write a minimal one with the relative DATABASE_URL
+  fs.writeFileSync(
+    envDest,
+    'DATABASE_URL=file:db/custom.db\nADMIN_SECRET_KEY=enade2024\nPRESENTER_KEY=presenter-default-key-2025\n',
+    'utf8'
+  )
+  ok('.env created in standalone with relative DATABASE_URL')
+  copied++
 }
 
 // 5. db/ — if a custom DB directory exists at the project root (sandbox uses
