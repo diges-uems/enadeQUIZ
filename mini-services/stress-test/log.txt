@@ -1,1 +1,3 @@
 Stress Test service running on port 3004
+  Scenarios: normal, flood, bad-presenter, bad-input, long-lived, mixed
+  Max students: 5000, Timeout: 90s

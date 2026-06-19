@@ -1,0 +1,1004 @@
+     1→# ENADE Quiz — Worklog
+     2→
+     3→## Session: 2026-06-16
+     4→
+     5→---
+     6→Task ID: 1
+     7→Agent: Main Agent
+     8→Task: Import 30 ENADE 2025 Ciências Biológicas questions from PDF, add Wake Lock API, fix participant count fluctuation, move preview to top
+     9→
+    10→Work Log:
+    11→- Extracted 30 questions from uploaded PDF `/home/z/my-project/upload/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf` using PyMuPDF
+    12→- Parsed all questions with proper structure (text, alternatives A-D, course, year)
+    13→- Extracted 4 images from PDF (pages 3, 5, 15, 16) and saved to `/home/z/my-project/public/uploads/`
+    14→- Image mapping:
+    15→  - Q05: `/uploads/enade-2025-q5-charge.png` (Laerte cartoon)
+    16→  - Q09/Q10: `/uploads/enade-2025-q9-q10-pnld.png` (PNLD flowchart)
+    17→  - Q28: `/uploads/enade-2025-q28-inclusao.png` (inclusion education diagram)
+    18→  - Q30: `/uploads/enade-2025-q30-grafico.png` (female participation graph)
+    19→- Created session "ENADE 2025 — Ciências Biológicas (Formação Geral Docente)" with code 67QAFO
+    20→- Imported all 30 questions via POST /api/session/67QAFO/questions
+    21→- Updated imageUrl for questions with images via PUT endpoint
+    22→- Updated QuestionImport type to include imageUrl and orderIndex fields
+    23→- Updated bulk import API to support imageUrl field
+    24→- Added Wake Lock API to votar page (`/src/app/votar/[codigo]/page.tsx`):
+    25→  - Uses `navigator.wakeLock.request('screen')` to keep phone screens awake
+    26→  - Re-acquires wake lock on visibility change
+    27→  - Releases wake lock on component unmount
+    28→- Added `totalParticipants` counter to socket service (`/mini-services/enade-quiz/index.ts`):
+    29→  - Tracks total unique participants ever connected (only increments, never decrements)
+    30→  - Updated `participant-count` event to emit `{ live: number, total: number }`
+    31→  - Updated `session-state` event to include `totalParticipants`
+    32→  - Grace period (30s) for disconnects prevents count fluctuation
+    33→- Updated frontend to handle new participant count format:
+    34→  - votar page: Added `totalParticipants` state
+    35→  - apresentacao page: Shows total participants as main count, with live count as subtitle
+    36→  - admin page: Shows total participants as main count, with live count as subtitle
+    37→- Preview card is already at the top of the Apresentar tab in admin
+    38→
+    39→Stage Summary:
+    40→- 30 ENADE questions successfully imported with images (session code: 67QAFO)
+    41→- Wake Lock API added to keep phone screens awake
+    42→- Total participants counter added (never decrements, prevents count fluctuation)
+    43→- Preview card is at the top of Apresentar tab
+    44→- Dev server experiences OOM crashes frequently (known issue, production works fine)
+    45→
+    46→Unresolved Issues:
+    47→- Dev server OOM crashes (known, user said to ignore)
+    48→- Correct answers are all set to "A" as placeholder (admin needs to set them)
+    49→- Questions have only 4 alternatives (A-D), altE is empty string
+    50→- Some carried-forward tasks still pending: bar chart, Start Presentation button, QR Code modal, etc.
+    51→
+    52→Priority Recommendations for Next Phase:
+    53→1. Format question text like the PDF (rich text with paragraphs, references, bold sections)
+    54→2. Hide empty alternative E for ENADE questions (only 4 alternatives A-D)
+    55→3. Set correct answers for all 30 questions
+    56→4. Implement remaining carried-forward features
+    57→
+    58→---
+    59→Task ID: 2
+    60→Agent: Main Agent
+    61→Task: Format question text matching PDF, hide empty altE (ENADE has only 4 alternatives), improve styling
+    62→
+    63→Work Log:
+    64→- Created `QuestionText` component at `/src/components/QuestionText.tsx`:
+    65→  - Parses question text into logical blocks (headers, references, sources, bullets, etc.)
+    66→  - "TEXTO 1", "TEXTO 2" → bold gold section headers
+    67→  - "Texto para questões XX e YY" → italic section intro
+    68→  - Reference lines (surnames with years) → italic, muted, left-border
+    69→  - "Disponível em:" / "Acesso em:" → italic source references
+    70→  - Bullet points → styled with gold dot
+    71→  - Named items like "Função referencial:" → bold term + description
+    72→  - Numbered items → styled numbered lists
+    73→  - Quoted text → italic with proper typographic quotes
+    74→  - Inline formatting: bold terms (word:), italic quoted text
+    75→- Created `getActiveAlternatives()` helper that filters out empty alternatives
+    76→  - Returns only A-D for ENADE questions (altE is empty)
+    77→  - Returns A-E for questions with 5 alternatives
+    78→- Updated votar page (`/src/app/votar/[codigo]/page.tsx`):
+    79→  - Uses `QuestionText` for rich text rendering
+    80→  - Answer buttons now use `getActiveAlternatives()` — no empty E button
+    81→  - Revealed state also filters empty alternatives
+    82→- Updated apresentacao page (`/src/app/apresentacao/[codigo]/page.tsx`):
+    83→  - Uses `QuestionText` for question text rendering
+    84→  - Alternatives list uses `getActiveAlternatives()` — no empty E
+    85→  - Bar chart uses `getActiveAlternatives()` — no empty E bar
+    86→- Updated admin page (`/src/app/admin/page.tsx`):
+    87→  - Uses `QuestionText` in question preview card
+    88→  - Question alternatives use `getActiveAlternatives()`
+    89→  - Live results bar chart uses `getActiveAlternatives()`
+    90→  - Question form: altE is now optional (A-D required, E optional)
+    91→  - Form validation updated to not require altE
+    92→  - SortableQuestionItem shows active alternative badges
+    93→- Updated API `/api/session/[code]/questions/route.ts`:
+    94→  - Single question creation no longer requires altE
+    95→- Updated types (`/src/types/index.ts`):
+    96→  - QuestionImport.alternatives.E is now optional
+    97→- Preview card was already at the top of Apresentar tab (confirmed)
+    98→- Socket service on port 3003 confirmed running
+    99→- Lint passes clean, no TypeScript errors in project source
+   100→
+   101→Stage Summary:
+   102→- Questions now render with rich formatting matching PDF (headers, references, bullets, etc.)
+   103→- ENADE questions with only 4 alternatives (A-D) no longer show empty E
+   104→- Admin form marks E as optional with visual distinction
+   105→- All three main pages (votar, apresentacao, admin) updated consistently
+   106→- Preview card confirmed at top of Apresentar tab
+   107→
+   108→Unresolved Issues:
+   109→- Dev server OOM crashes (known issue, server works fine in short bursts)
+   110→- Correct answers are all set to "A" as placeholder
+   111→- Agent-browser testing limited due to OOM crashes
+   112→- Some features still pending: Start Presentation button improvements, mobile dimensions
+   113→
+   114→Priority Recommendations for Next Phase:
+   115→1. Set correct answers for all 30 questions
+   116→2. Add more visual polish (animations, transitions)
+   117→3. Implement Start Presentation workflow improvements
+   118→4. Test with actual students for stability
+   119→
+   120→---
+   121→Task ID: 3
+   122→Agent: Main Agent
+   123→Task: Remove scrollbar from apresentacao, add text-justify, replace logo, update correct answers, create Question Bank
+   124→
+   125→Work Log:
+   126→- Removed all scrollbars from apresentacao page (`/src/app/apresentacao/[codigo]/page.tsx`):
+   127→  - Changed `overflow-y-auto` to `overflow-hidden` on question text area
+   128→  - Added `useFitContent` hook that scales content to fit container without scrollbar
+   129→  - Reduced padding/gaps/text sizes for compact layout
+   130→  - Active question state now uses `overflow-hidden` throughout
+   131→- Added `text-justify` to question text rendering:
+   132→  - `QuestionText` component now includes `text-justify` in its className
+   133→  - Alternatives text in apresentacao uses `text-justify`
+   134→  - Alternatives text in votar uses `text-justify`
+   135→- Replaced logo SVG with PNG from user upload (`/home/z/my-project/upload/Artboard 4.png`):
+   136→  - Copied to `/home/z/my-project/public/logo.png`
+   137→  - Replaced all `logo.svg` references with `logo.png` across all pages
+   138→  - Removed fixed width constraints (h-X only, no w-X) to prevent deformation
+   139→  - Removed background/border containers around logo per user request
+   140→  - Updated favicon in layout.tsx
+   141→- Updated correct answers for all 30 ENADE 2025 Ciências Biológicas questions:
+   142→  - Used VLM (z-ai vision) to extract answers from uploaded image
+   143→  - Correct answers: Q1:C, Q2:A, Q3:C, Q4:A, Q5:B, Q6:A, Q7:C, Q8:D, Q9:D, Q10:B,
+   144→    Q11:C, Q12:A, Q13:D, Q14:A, Q15:B, Q16:D, Q17:D, Q18:B, Q19:A, Q20:D,
+   145→    Q21:C, Q22:C, Q23:C, Q24:C, Q25:A, Q26:A, Q27:C, Q28:D, Q29:B, Q30:B
+   146→  - Updated via PUT /api/session/67QAFO/questions/[id] for each question
+   147→- Created Question Bank feature (Banco de Questões):
+   148→  - Added `QuestionBank` model to Prisma schema with fields: title, text, year, course, altA-E, correctAnswer, imageUrl, category, tags
+   149→  - Created API routes:
+   150→    - `GET/POST/DELETE /api/question-bank` — list, create, delete questions
+   151→    - `GET/PUT/DELETE /api/question-bank/[id]` — individual question CRUD
+   152→    - `POST /api/question-bank/import` — import bank questions to a session
+   153→    - `POST /api/question-bank/save-from-session` — save session questions to bank
+   154→  - Saved all 30 ENADE questions to the bank (category: "ENADE 2025")
+   155→  - Added "Banco de Questões" tab to admin page with:
+   156→    - Question listing with filters (category, course, search)
+   157→    - Create new question dialog
+   158→    - Import to session dialog
+   159→    - Delete confirmation dialog
+   160→    - Checkbox selection for bulk operations
+   161→- Server stability issues:
+   162→  - Dev server (`bun run dev`, `npx next dev`) experiences frequent OOM crashes
+   163→  - Production server (`npx next start`) also crashes after multiple large page requests
+   164→  - Standalone server works for 1-2 requests then crashes (Prisma client issue)
+   165→  - Need to copy Prisma engine files to standalone build for it to work
+   166→
+   167→Stage Summary:
+   168→- No scrollbar on apresentacao page — content auto-fits via scale transform
+   169→- All question text is justified (text-justify)
+   170→- Logo replaced with UEMS PNG (no deformation, no containers)
+   171→- All 30 correct answers updated from gabarito image
+   172→- Question Bank feature complete with CRUD API and admin UI
+   173→- 30 ENADE questions saved in the bank
+   174→
+   175→Unresolved Issues:
+   176→- Server instability (OOM crashes) limits testing
+   177→- useFitContent hook may need refinement for very long questions
+   178→- Admin page Question Bank tab needs browser testing
+   179→
+   180→Priority Recommendations for Next Phase:
+   181→1. Fix server stability (try different Node.js version or memory configuration)
+   182→2. Test Question Bank UI in browser
+   183→3. Refine auto-fit scaling for apresentacao
+   184→4. Add ability to edit questions in the bank
+   185→5. Add bulk import from bank when creating new sessions
+   186→
+   187→---
+   188→Task ID: 4
+   189→Agent: Main Agent
+   190→Task: Fix question bank errors, fix question text formatting, fix logo.png missing
+   191→
+   192→Work Log:
+   193→- Fixed BankQuestion `tags` type mismatch:
+   194→  - API returns `tags` as `string` but frontend `BankQuestion` interface had `tags?: string[] | null`
+   195→  - Changed interface to `tags?: string | null`
+   196→  - Fixed filter function that called `.some()` on a string (now uses `.includes()`)
+   197→  - Fixed display that called `.slice().join()` on a string (now renders string directly)
+   198→  - Fixed `fetchBankQuestions` to map API response tags correctly
+   199→- Fixed create bank question sending tags as array:
+   200→  - Changed from `bankForm.tags.split(',').map(...).filter(...)` (array) to `.join(', ')` (string)
+   201→  - Prisma schema `tags` is `String`, not array — API now receives correct type
+   202→- Fixed missing `logo.png` in public folder:
+   203→  - Copied from `/home/z/my-project/upload/Artboard 4.png` to `/home/z/my-project/public/logo.png`
+   204→  - Previous session's copy didn't persist (file was missing)
+   205→- Replaced ALL remaining `logo.svg` references with `logo.png`:
+   206→  - `/src/app/page.tsx` — footer logo
+   207→  - `/src/app/layout.tsx` — favicon
+   208→  - `/src/app/votar/[codigo]/page.tsx` — header and footer
+   209→  - `/src/app/apresentacao/[codigo]/page.tsx` — multiple locations
+   210→  - `/src/app/admin/page.tsx` — header, footer (4 occurrences), removed fixed width + bg/padding from header logo
+   211→- Enhanced `QuestionText` component (`/src/components/QuestionText.tsx`):
+   212→  - Added `imageUrl` prop for inline image support
+   213→  - Added `text-justify` to all text blocks
+   214→  - Added 'transition' block type for "Considerando...", "De acordo com...", "Com base..." sentences
+   215→  - Better reference detection: short author-only lines like "LAERTE." now detected as references
+   216→  - Improved header/subheader spacing (mt-5 instead of mt-4)
+   217→  - Reference/source text sizes reduced for better visual hierarchy
+   218→  - All text blocks now use `text-justify`
+   219→- Added `text-justify` to alternatives text:
+   220→  - Apresentacao page: alternatives span now includes `text-justify`
+   221→  - Votar page: alternatives span now includes `text-justify`
+   222→- Passed `imageUrl` prop to `QuestionText` in all pages:
+   223→  - `/src/app/votar/[codigo]/page.tsx` — voting state
+   224→  - `/src/app/apresentacao/[codigo]/page.tsx` — active question
+   225→  - `/src/app/admin/page.tsx` — question preview
+   226→- Fixed standalone production build:
+   227→  - Created `/home/z/my-project/.next/standalone/public/` directory
+   228→  - Copied all public assets (logo.png, uploads, etc.) to standalone output
+   229→  - Copied Prisma client and schema to standalone output
+   230→- Lint passes clean with no errors
+   231→- API verification via curl:
+   232→  - GET /api/question-bank → 200, returns 30 questions with tags as string
+   233→  - POST /api/question-bank → 201, creates questions with tags as string
+   234→  - GET /api/question-bank/[id] → 200, returns full question with text
+   235→  - DELETE /api/question-bank?id=X → 200, deletes successfully
+   236→  - Home page → 200
+   237→  - Admin page → 200
+   238→  - logo.png → 200 (185KB)
+   239→- Agent-browser testing failed due to Chrome memory usage (~800MB) killing the Node.js server
+   240→
+   241→Stage Summary:
+   242→- Question Bank CRUD fully functional (tags type mismatch fixed)
+   243→- Logo.png properly served on all pages
+   244→- QuestionText formatting improved with transition blocks, better reference detection, text-justify
+   245→- All pages pass imageUrl to QuestionText for potential inline image rendering
+   246→- Production build works correctly with all assets
+   247→
+   248→Unresolved Issues:
+   249→- Agent-browser kills the server due to combined memory pressure (Chrome ~800MB + Node.js)
+   250→- Need to visually verify question text formatting matches PDF in a real browser
+   251→- Question Bank "Import to Session" needs to be tested end-to-end
+   252→- Edit functionality for bank questions not yet implemented
+   253→
+   254→Priority Recommendations for Next Phase:
+   255→1. Add edit question in bank feature
+   256→2. Test Question Bank UI with a real browser session
+   257→3. Improve question text formatting further based on user feedback
+   258→4. Add bulk import from bank when creating new sessions
+   259→5. Consider adding question preview in bank listing
+   260→
+   261→---
+   262→Task ID: 5-a
+   263→Agent: general-purpose (reveal-answer fix)
+   264→Task: Fix reveal-answer command reliability + harden all presenter commands
+   265→
+   266→Work Log:
+   267→- Read previous worklog (tasks 1–4) and inspected all relevant files:
+   268→  - `/mini-services/enade-quiz/index.ts` (socket service, 428 lines)
+   269→  - `/src/app/admin/page.tsx` (admin, 3163 lines)
+   270→  - `/src/app/apresentacao/[codigo]/page.tsx` (presentation, 887 lines)
+   271→  - `/src/app/votar/[codigo]/page.tsx` (student voting, 953 lines)
+   272→- Confirmed root cause: admin `socket?.emit(...)` calls were fire-and-forget
+   273→  with no ack, no retry, no connection-state check. A momentary socket
+   274→  disconnect silently lost the command.
+   275→- Rewrote socket service `mini-services/enade-quiz/index.ts`:
+   276→  - Added `PRESENTER_KEY` env var support (`process.env.PRESENTER_KEY || 'presenter-default-key-2025'`).
+   277→  - Added input validation helpers: `isValidSessionCode` (`/^[A-Z0-9]{6}$/i`),
+   278→    `isValidQuestionId`, `isValidChoice` (A/B/C/D/E).
+   279→  - Added `requirePresenter()` guard to ALL privileged events
+   280→    (`activate-question`, `next-question`, `reveal-answer`, `toggle-voting`,
+   281→    `end-session`, `show-qr`, `session-reset`). Non-presenters receive
+   282→    `{ ok: false, error: 'Not authorized as presenter' }` ack.
+   283→  - Added ack callbacks (`cb({ ok: true })`) to all presenter events so the
+   284→    admin can confirm receipt.
+   285→  - Added `presenterKey` check on `join-session` with `role: 'presenter'`:
+   286→    wrong/missing key → `presenter-rejected` event + treated as a listener
+   287→    (still joins the room but cannot emit privileged commands).
+   288→  - Added `MAX_PARTICIPANTS_PER_SESSION = 5000` cap: students joining beyond
+   289→    the cap receive `session-full` and are not added to the participant set.
+   290→  - Added per-socket rate-limit on `submit-vote`: max 1 vote per 500ms
+   291→    (`VOTE_RATE_LIMIT_MS = 500`). Violations get `vote-rejected` with
+   292→    reason 'Too many votes — please slow down'.
+   293→  - Added `submit-vote` choice validation: non-A/B/C/D/E choices get
+   294→    `vote-rejected` with reason 'Invalid choice'.
+   295→  - Added periodic janitor interval (every 5 min, `CLEANUP_INTERVAL_MS`) that
+   296→    purges all state for sessions with empty participant sets:
+   297→    `sessionParticipants`, `sessionTotalParticipants`, `sessionCurrentQuestion`,
+   298→    `sessionVotingPaused`, `sessionScores`, `sessionVoteCounts`. Logs
+   299→    `[janitor ...] sessions=N rss=Nmb` so memory usage is observable.
+   300→  - Cleanup on disconnect now also clears `socketLastVoteAt` and
+   301→    `socketIsPresenter` maps.
+   302→  - `session-reset` now also clears `socketLastVoteAt` for all sockets in
+   303→    the session.
+   304→- Updated admin page `/src/app/admin/page.tsx`:
+   305→  - Added `socketConnected` and `socketReconnecting` state variables.
+   306→  - Added `emitWithRetry` `useCallback` helper that:
+   307→    - Waits up to 3s for the socket to be connected.
+   308→    - Emits with a socket.io ack callback and a per-attempt 3s timeout.
+   309→    - Retries up to 3 times with exponential-ish backoff (400ms × attempt).
+   310→    - Shows a configurable toast on persistent failure (default:
+   311→      "Comando pode não ter sido recebido. Recarregue a página de apresentação.").
+   312→    - Returns `Promise<boolean>` for callers that need to know.
+   313→  - Updated ALL presenter handlers to use `emitWithRetry`:
+   314→    - `handleStartSession` → `activate-question`
+   315→    - `handleEndSession` → `end-session`
+   316→    - `handlePrevious` → `activate-question`
+   317→    - `handleNext` → `next-question`
+   318→    - `handleToggleVoting` → `toggle-voting` (fire-and-forget)
+   319→    - `handleRevealAnswer` → `reveal-answer` (CRITICAL: see below)
+   320→    - `handleShowQr` → `show-qr` (fire-and-forget)
+   321→    - `handleResetSession` → `session-reset`
+   322→    - `handleSelectQuestion` → `activate-question`
+   323→  - Hardened `handleRevealAnswer`:
+   324→    1. PUT `isRevealed: true` to DB; on failure, rollback `setRevealed(false)`
+   325→       and toast "Falha ao atualizar o banco de dados. Tente novamente."
+   326→    2. Re-fetch `/api/session/${code}` to confirm DB write actually persisted.
+   327→       If `isRevealed` is still false in the DB, retry the PUT once.
+   328→    3. Sync local `selectedSession` with the refreshed copy.
+   329→    4. Emit `reveal-answer` via `emitWithRetry`. If all retries fail, toast
+   330→       "Comando pode não ter sido recebido. Recarregue a página de apresentação."
+   331→  - Added `presenterKey: 'presenter-default-key-2025'` to the `join-session`
+   332→    emit so the server accepts the admin as a presenter.
+   333→  - Added `connect` handler that re-joins the session on EVERY successful
+   334→    (re)connection (not just first), keeping room membership alive across
+   335→    disconnects.
+   336→  - Added `disconnect`, `reconnect_attempt`, `reconnect_error`, `reconnect`,
+   337→    `connect_error` handlers updating `socketConnected`/`socketReconnecting`.
+   338→  - Added `presenter-rejected` listener that toasts an auth error.
+   339→  - Added visual feedback in the session-management header: a small badge
+   340→    next to the session title showing "Conectado" (green), "Reconectando..."
+   341→    (gold, pulsing) or "Desconectado" (red). Uses Tailwind classes only —
+   342→    no new CSS, no new colors outside the UEMS palette.
+   343→  - Reset `socketConnected`/`socketReconnecting` in cleanup and when leaving
+   344→    session management.
+   345→- Updated apresentacao page `/src/app/apresentacao/[codigo]/page.tsx`:
+   346→  - Added `socketConnected` and `socketReconnecting` state.
+   347→  - Added `socketDisconnectSinceRef` to track when the socket went down.
+   348→  - Refactored `fetchSession` into two callbacks:
+   349→    - `fetchSession` (initial load, may set `notFound`)
+   350→    - `pollSessionState` (lightweight polling fallback that only syncs
+   351→      `currentQuestionId` + `isRevealed`, never sets `notFound`)
+   352→  - `connect` handler now re-joins on every (re)connect and sends the
+   353→    `presenterKey` so the server treats the presentation screen as a
+   354→    proper presenter (and therefore doesn't count it as a participant).
+   355→  - Added `disconnect`, `reconnect_attempt`, `reconnect_error`,
+   356→    `connect_error` handlers updating state and tracking disconnect time.
+   357→  - Added polling fallback `useEffect`: if `socketDisconnectSinceRef` is
+   358→    more than 5 seconds old, calls `pollSessionState()` every 3 seconds.
+   359→    Stops polling once the socket reconnects.
+   360→  - Added visible "Reconectando..." / "Desconectado" indicator badge in
+   361→    the thin header bar (only shown when `!socketConnected`), using the
+   362→    existing `pulse` keyframe and UEMS palette (gold/red).
+   363→  - Reset all socket state in the cleanup function.
+   364→- Updated votar page `/src/app/votar/[codigo]/page.tsx`:
+   365→  - Added `reconnect_attempt` and `reconnect_error` handlers that set
+   366→    `isConnected=false` (the existing `connect` handler already re-joins
+   367→    on every (re)connect, so rejoin-on-reconnect was already in place).
+   368→  - The existing `reconnect` handler continues to re-join the session
+   369→    as a safety net.
+   370→- Restarted socket service: `cd /home/z/my-project/mini-services/enade-quiz
+   371→  && pkill -f "bun.*index.ts" 2>/dev/null; nohup bun --hot index.ts > log.txt 2>&1 &`
+   372→- Ran smoke tests against the new socket service (running server + test
+   373→  client in the same bash session). All 5 tests passed:
+   374→  1. Student join without key → receives `session-state` ✓
+   375→  2. Bad presenter (no key) → receives `presenter-rejected`, can still
+   376→     listen, but `activate-question` returns `{ ok: false, error:
+   377→     'Not authorized as presenter' }` ✓
+   378→  3. Good presenter (correct key) → `activate-question` returns
+   379→     `{ ok: true }` ✓
+   380→  4. Invalid session code (`INVALID!`) → `join-rejected: { reason:
+   381→     'Invalid session code' }` ✓
+   382→  5. Invalid vote choice (`'X'`) → `vote-rejected: { reason: 'Invalid
+   383→     choice' }` ✓
+   384→- Ran `bun run lint` — passed clean (no errors, no warnings).
+   385→- Ran `npx next build` — succeeded. All 21 routes built/compiled.
+   386→- Checked `/home/z/my-project/dev.log` — no errors related to my changes
+   387→  (only the pre-existing EADDRINUSE warning from a second dev-server
+   388→  startup attempt, plus successful Prisma queries and 200 responses).
+   389→
+   390→Stage Summary:
+   391→- Reveal-answer (and ALL presenter commands) now use `emitWithRetry`:
+   392→  waits for connection, sends with ack, retries 3× with backoff, toasts
+   393→  on persistent failure. Silent drops are eliminated.
+   394→- `handleRevealAnswer` is now a 3-step reliable flow: PUT → re-fetch to
+   395→  confirm DB write → emit with retry. If the socket path fails after
+   396→  retries, the admin sees a clear toast telling them to reload the
+   397→  presentation screen.
+   398→- Socket service hardened with input validation (session code, question
+   399→  ID, vote choice), presenter-key authentication, per-socket vote rate
+   400→  limit (500ms), 5000-participant session cap, and a 5-minute janitor
+   401→  interval that purges empty-session state to prevent memory leaks.
+   402→- Admin page shows live socket status ("Conectado" / "Reconectando..." /
+   403→  "Desconectado") in the header; apresentacao page shows a "Reconectando..."
+   404→  indicator when disconnected.
+   405→- Apresentacao page has a 3-second polling fallback that kicks in 5s
+   406→  after a socket disconnect, syncing `currentQuestionId` and `isRevealed`
+   407→  from `/api/session/${codigo}` — so even if the socket is permanently
+   408→  down, the presentation screen eventually reflects the admin's actions.
+   409→- Both admin and apresentacao re-join the session on every successful
+   410→  (re)connect, ensuring room membership survives disconnects.
+   411→- All code changes pass lint and build. No new packages added. No new
+   412→  colors added (only green/red for status, plus the existing gold #C8A84B
+   413→  and primary #00338C from the UEMS palette).
+   414→
+   415→Unresolved Issues / Notes for Next Agent:
+   416→- The sandbox kills background processes when the parent bash session
+   417→  exits, so the socket service (`bun --hot index.ts`) may die a few
+   418→  seconds after this task ends. If the user reports the presentation
+   419→  page can't connect, restart it manually:
+   420→  `cd /home/z/my-project/mini-services/enade-quiz && nohup bun --hot index.ts > log.txt 2>&1 &`
+   421→  (The dev server on port 3000 is unaffected — it persists.)
+   422→- The `presenterKey` is currently hardcoded as `'presenter-default-key-2025'`
+   423→  on both client pages (admin + apresentacao). This matches the server's
+   424→  default. To use a real secret, set `PRESENTER_KEY` in the env of the
+   425→  socket service and update both client pages accordingly. (Note: any
+   426→  browser client can read the key from the JS bundle, so this is a
+   427→  soft-auth check, not real security — but it does prevent random
+   428→  non-admin clients from spamming presenter commands.)
+   429→- The votar page was not given a polling fallback (only the rejoin-on-
+   430→  reconnect fix the task asked for). If students report stale state
+   431→  after long disconnects, consider adding a similar 5s/3s poll there.
+   432→- Did not browser-test the full admin→apresentacao round-trip end-to-end
+   433→  due to the sandbox's process-reaping behavior making it hard to keep
+   434→  the socket service alive across bash calls. The unit-level smoke
+   435→  tests above cover the socket protocol; the lint+build pass covers the
+   436→  client code. Recommend a manual browser test before relying on this
+   437→  in production.
+   438→
+   439→---
+   440→Task ID: 5-b
+   441→Agent: general-purpose (security hardening)
+   442→Task: Add rate limiting, admin auth, input validation across all API routes
+   443→
+   444→Work Log:
+   445→- Read previous worklog (tasks 1–5-a) for context. Task 5-a hardened
+   446→  the socket service (presenterKey, per-socket vote rate limit,
+   447→  participant cap, validation, janitor). This task hardens the HTTP
+   448→  API surface that 5-a did not touch.
+   449→- Audited every existing route under /src/app/api/ and the admin
+   450→  frontend (`/src/app/admin/page.tsx`, 3358+ lines) to map every
+   451→  fetch call and identify which were admin-only vs public.
+   452→- Created `/src/lib/rate-limit.ts` — in-memory sliding-window rate
+   453→  limiter:
+   454→  - `rateLimit(identifier, limit, windowMs)` returns
+   455→    `{ success, retryAfter, remaining, limit }`.
+   456→  - Per-IP+endpoint buckets stored on `globalThis.__RATE_LIMIT_STORE__`
+   457→    so the buckets survive Next.js dev-mode module re-evaluations
+   458→    (without this, every Turbopack hot-reload would reset the limiter
+   459→    and attackers could escape their quota by simply waiting for a
+   460→    reload). Same pattern as `@/lib/db.ts`.
+   461→  - 60s janitor interval purges expired buckets; `unref`'d so it
+   462→    never keeps the process alive.
+   463→  - `getClientIP(request)` honours `x-forwarded-for` (first hop) and
+   464→    `x-real-ip`.
+   465→  - Presets: general 60/min, adminAuth 5/min, vote 30/min,
+   466→    studentRegister 10/min, bulkImport 5/min.
+   467→- Created `/src/lib/security.ts` — input sanitisation + validation:
+   468→  - `sanitizeString(s, maxLen)` strips null bytes + C0/C1 control
+   469→    chars (except \t \n \r), collapses whitespace runs (incl. NBSP
+   470→    and Unicode space separators), trims, truncates. Returns '' for
+   471→    non-string inputs.
+   472→  - `validateSessionCode(code)` — `/^[A-Z0-9]{6}$/i`.
+   473→  - `validateChoice(c)` — `/^[A-E]$/`.
+   474→  - `validateQuestionId(id)` / `validateCuid(id)` — Prisma CUID shape
+   475→    `^c[a-z0-9]{20,}$`.
+   476→  - `isSafeJsonBody(req)` — enforces 1 MB body cap via Content-Length
+   477→    header AND via measuring the parsed body text (defends against
+   478→    missing/lying Content-Length), parses JSON safely, returns
+   479→    `{ ok, data?, error?, status? }`.
+   480→- Created `/src/lib/api-auth.ts` — admin auth helpers (zero deps,
+   481→  Node `crypto` only):
+   482→  - `ADMIN_TOKENS` Map stored on `globalThis.__ADMIN_TOKENS__` so it
+   483→    survives dev-mode module re-evaluations (same fix as the rate
+   484→    limiter — required for the limiter to actually work).
+   485→  - `generateAdminToken()` mints `<uuid>.<hmac>` where hmac is
+   486→    SHA-256(uuid, ADMIN_SECRET_KEY). Token stored with 24h expiry.
+   487→  - `verifyAdminAuth(request)` checks the `x-admin-token` header:
+   488→    parses shape, recomputes HMAC with `timingSafeEqual`, looks up
+   489→    the in-memory allow-list, lazily expires stale tokens. Returns
+   490→    false on any failure.
+   491→  - `verifyAdminPassword(candidate)` — constant-time compare against
+   492→    `process.env.ADMIN_SECRET_KEY || 'enade2024'`.
+   493→  - `revokeAdminToken(token)` — for logout (clears the in-memory
+   494→    record).
+   495→- Created `/src/middleware.ts` — security-headers proxy (Next.js 16
+   496→  still supports the `middleware.ts` convention; it just renames it
+   497→  to "Proxy" internally). Sets X-Content-Type-Options: nosniff,
+   498→  X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-
+   499→  origin, Permissions-Policy: geolocation=(), microphone=(),
+   500→  camera=() — only on /admin and /api/* paths so the public landing
+   501→  / votar / apresentacao pages are unaffected.
+   502→- Hardened `/api/admin/auth` POST:
+   503→  - 5 attempts/min/IP via rate limiter (returns 429 with Retry-After
+   504→    header when exceeded).
+   505→  - Constant-time password compare (verifyAdminPassword).
+   506→  - On failure: random 200–800 ms delay to flatten timing side
+   507→    channel; logs `[admin-auth] failed login attempt ip=... ts=...`
+   508→    to the server log so operators can spot brute-force attempts.
+   509→  - On success: returns `{ success: true, token }` where token is
+   510→    generated by generateAdminToken() (replaces the old
+   511→    `base64('admin:'+Date.now())` which was trivially forgeable).
+   512→- Hardened `/api/vote` POST:
+   513→  - 30 votes/min/IP.
+   514→  - Validates sessionCode (6-char A-Z0-9), questionId (cuid),
+   515→    choice (A-E). Returns 400 with a clear message on any failure.
+   516→  - Rejects votes on finished sessions (403).
+   517→  - Rejects votes on already-revealed questions (403) — closes a
+   518→    "vote after reveal" cheating path.
+   519→  - Verifies the question belongs to the session (404 otherwise).
+   520→  - 1 MB body cap. try/catch never leaks stack traces.
+   521→- Hardened `/api/student` POST:
+   522→  - 10 registrations/min/IP.
+   523→  - Validates name (1-100), rgm (1-50), session id OR code.
+   524→  - Sanitises name + rgm via sanitizeString (strips control chars,
+   525→    null bytes, collapses whitespace).
+   526→  - Accepts both `sessionCode` (legacy callers) and `sessionId`
+   527→    (cuid) for the session lookup.
+   528→  - 1 MB body cap.
+   529→- Hardened `/api/student/[sessionId]` GET — admin-only (this route
+   530→  accepts a raw Prisma sessionId rather than a code, so it should
+   531→  not be exposed to students). Validates the cuid shape.
+   532→- Hardened `/api/session/[code]` PATCH/DELETE — admin-only. GET
+   533→  stays public. PATCH now uses a strict whitelist of updatable
+   534→  fields (title/status/currentQuestionId) and validates each (e.g.
+   535→  status must be 'waiting'|'active'|'finished') — previously the
+   536→  body was passed almost verbatim to Prisma.
+   537→- Hardened `/api/session/[code]/questions`:
+   538→  - POST (single + bulk import) admin-only.
+   539→  - Bulk import: capped at 100 questions/request, 1 MB body cap,
+   540→    per-question validation (text 1-10000, alternatives 1-1000 each,
+   541→    correctAnswer A-E). Returns `Question N: <reason>` on the first
+   542→    invalid item so the operator can fix it.
+   543→  - Rejects if session not found OR status==='finished'.
+   544→  - PUT (reorder) admin-only, validates questionIds is an array of
+   545→    non-empty strings, caps at 1000.
+   546→- Hardened `/api/session/[code]/questions/[questionId]` PUT/DELETE —
+   547→  admin-only. PUT uses a strict whitelist + per-field validation
+   548→  (text 1-10000, alternatives 1-1000, correctAnswer A-E, year int,
+   549→  isRevealed boolean, orderIndex int). Validates both sessionCode
+   550→  and questionId shapes.
+   551→- Hardened `/api/session/[code]/reset` POST — admin-only.
+   552→- Hardened `/api/session/[code]/ranking` GET — stays PUBLIC (votar
+   553→  page consumes it), but sessionCode is now validated.
+   554→- Hardened `/api/stress-test` POST — admin-only. Validates
+   555→  sessionCode, questionId, correctAnswer (if provided); caps
+   556→  studentCount at 5000 to prevent abuse via the proxy.
+   557→- Hardened `/api/question-bank` POST/DELETE — admin-only. POST
+   558→  validates title (1-200), text (1-10000), alts A-D required (1-1000
+   559→  each), correctAnswer A-E. DELETE validates cuid shape.
+   560→- Hardened `/api/question-bank/[id]` PUT/DELETE — admin-only.
+   561→  CRITICAL FIX: the previous implementation passed `body` straight
+   562→  to `Prisma.update({ data: body })`, which let an attacker set
+   563→  arbitrary columns (e.g. `id`, `createdAt`). Now uses a strict
+   564→  whitelist + per-field validation, same as the questions PUT.
+   565→  GET stays public (preview).
+   566→- Hardened `/api/question-bank/import` POST — admin-only. Validates
+   567→  sessionCode, rejects imports to finished sessions, validates each
+   568→  questionId is a cuid, caps the import at 500 questions.
+   569→- Hardened `/api/question-bank/save-from-session` POST — admin-only.
+   570→  Same validation pattern.
+   571→- Updated admin frontend `/src/app/admin/page.tsx`:
+   572→  - Added module-level helpers: `getAdminToken`, `setAdminToken`,
+   573→    `clearAdminToken` (use `localStorage` with key
+   574→    `enade_admin_token` — replaces the previous `sessionStorage`
+   575→    approach so the token survives page reloads / new tabs).
+   576→  - Added `adminFetch(url, options)` — drop-in `fetch` replacement
+   577→    that reads the token from localStorage, sets the `x-admin-token`
+   578→    header, sets `Content-Type: application/json` when a body is
+   579→    present, and on a 401 response clears the token + dispatches a
+   580→    `window` `Event('enade-admin-logout')` so the main page can
+   581→    bounce back to login.
+   582→  - Replaced EVERY admin-only `fetch(...)` call with `adminFetch(...)`
+   583→    (20 call sites: create/update/delete session, create/update/
+   584→    delete question, reorder questions, reveal answer, reset session,
+   585→    bulk import, question-bank CRUD, question-bank import, /api/upload
+   586→    image upload, duplicate session).
+   587→  - Public GETs (`/api/session`, `/api/session/[code]`,
+   588→    `/api/question-bank`, `/api/admin/auth` POST login) still use
+   589→    plain `fetch` — no token needed.
+   590→  - `handleLogin` now stores the secure HMAC-bound token via
+   591→    `setAdminToken(data.token)` instead of `sessionStorage.setItem`.
+   592→  - `handleLogout` clears via `clearAdminToken()`.
+   593→  - Mount effect reads from `getAdminToken()` instead of
+   594→    `sessionStorage.getItem('admin_token')`.
+   595→  - Added a `useEffect` that listens for the `enade-admin-logout`
+   596→    window event and bounces back to the login screen with a
+   597→    "Sessão expirada" toast — so any 401 from any admin fetch
+   598→    (including those inside nested dialog components that don't have
+   599→    page-level state access) automatically logs the admin out.
+   600→- Final verification:
+   601→  - `bun run lint` — passes clean (0 errors, 0 warnings).
+   602→  - `npx next build` — succeeds; all 21 routes compiled.
+   603→  - Curl tests against the live dev server (port 3000):
+   604→    * Admin auth rate limit: 5 wrong passwords → 401, 6th → 429
+   605→      with Retry-After header. ✓
+   606→    * Failed logins log `[admin-auth] failed login attempt ip=...
+   607→      ts=...` to dev.log and take 200-800 ms (timing-flattening
+   608→      delay observed: 457, 354, 696, 767, 776 ms). ✓
+   609→    * Correct password returns `{ success: true, token: <uuid.hmac> }`
+   610→      (HTTP 200). ✓
+   611→    * POST /api/session without token → 401. ✓
+   612→    * POST /api/session with valid token → 201. ✓
+   613→    * POST /api/session with tampered token (right format, wrong
+   614→      HMAC) → 401 (timingSafeEqual rejects it). ✓
+   615→    * POST /api/session with bogus token → 401. ✓
+   616→    * POST /api/vote with choice='X' → 400 "Invalid choice". ✓
+   617→    * POST /api/vote with malformed sessionCode 'BAD!' → 400. ✓
+   618→    * POST /api/vote on non-existent session → 404. ✓
+   619→    * POST /api/vote on a revealed question → 403. ✓
+   620→    * POST /api/student rate limit: 10 registrations succeed, 11th
+   621→      and 12th → 429. ✓
+   622→    * POST /api/student with valid input → 201 (smoke test). ✓
+   623→    * POST /api/vote with valid input → 201 (smoke test). ✓
+   624→    * POST bulk import with 101 questions → 413. ✓
+   625→    * POST bulk import with empty question text → 400 "Question 1:
+   626→      Question text is required". ✓
+   627→    * POST /api/session with 2 MB body → 413 "Request body too
+   628→      large (max 1 MB)." ✓
+   629→    * PATCH /api/session/[code] without token → 401. ✓
+   630→    * PATCH /api/session/[code] with valid token → 200. ✓
+   631→    * PATCH with invalid status 'HACKED' → 400 (validated against
+   632→      the 'waiting'|'active'|'finished' whitelist). ✓
+   633→    * DELETE /api/session/[code] without token → 401. ✓
+   634→    * GET /api/session/[code]/ranking stays PUBLIC → 200. ✓
+   635→    * GET /api/session stays PUBLIC → 200 (62 KB JSON, full session
+   636→      list with questions). ✓
+   637→    * GET /api/student/[sessionId] without token → 401. ✓
+   638→    * GET /api/student/[sessionId] with token → 200. ✓
+   639→    * DELETE /api/question-bank?id=... without token → 401. ✓
+   640→    * All admin routes (POST /api/session, PATCH/DELETE /api/session/
+   641→      [code], POST/PUT/DELETE /api/session/[code]/questions[/...],
+   642→      POST /api/session/[code]/reset, POST/DELETE /api/question-bank,
+   643→      PUT/DELETE /api/question-bank/[id]) verified working with a
+   644→      fresh token immediately after minting (rules out any module
+   645→      re-evaluation issue — the globalThis fix is critical here). ✓
+   646→    * Security headers on /admin: X-Content-Type-Options: nosniff,
+   647→      X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-
+   648→      cross-origin, Permissions-Policy: geolocation=(),
+   649→      microphone=(), camera=() — all present. ✓
+   650→    * Security headers on /api/*: same set, all present. ✓
+   651→    * Admin page (`/admin`) loads HTTP 200, login screen renders. ✓
+   652→    * Votar page (`/votar/67QAFO`) loads HTTP 200. ✓
+   653→    * Apresentacao page (`/apresentacao/67QAFO`) loads HTTP 200. ✓
+   654→
+   655→Stage Summary:
+   656→- All admin-only HTTP routes now require a cryptographically-secure,
+   657→  HMAC-bound admin token (sent via `x-admin-token` header). The old
+   658→  `base64('admin:'+Date.now())` token — which was trivially forgeable
+   659→  by anyone who could read the JS bundle — is gone. Tokens are
+   660→  single-instance in-memory (revocable, 24h-expiring) and stored on
+   661→  globalThis so they survive Next.js dev-mode hot-reloads.
+   662→- Brute-force protection on admin login: 5 attempts/min/IP +
+   663→  constant-time password compare + 200-800 ms random delay on failure
+   664→  + IP/timestamp logging of every failed attempt.
+   665→- Rate limits on every abuse-prone endpoint: admin auth 5/min, vote
+   666→  30/min, student registration 10/min, bulk import 5/min (per IP).
+   667→  Each returns 429 with a `Retry-After` header when exceeded.
+   668→- Input validation everywhere: session codes, choice letters,
+   669→  question/student IDs (cuid), question text length, alternative
+   670→  text length, correctAnswer, name/RGM length. Null bytes and
+   671→  control characters stripped from every free-text field that lands
+   672→  in the DB. JSON body size capped at 1 MB on every POST/PUT/PATCH
+   673→  route via `isSafeJsonBody`.
+   674→- Critical fix on `/api/question-bank/[id]` PUT: the previous
+   675→  implementation passed `body` straight to `Prisma.update`,
+   676→  allowing arbitrary column writes (e.g. overwriting `id` or
+   677→  `createdAt`). Now uses a strict whitelist + per-field validation.
+   678→- Same fix applied to `/api/session/[code]` PATCH (now whitelists
+   679→  title/status/currentQuestionId) and to all other update routes.
+   680→- Anti-cheat on `/api/vote`: votes on finished sessions (403) and
+   681→  on already-revealed questions (403) are rejected. The question
+   682→  must belong to the session (404 otherwise).
+   683→- Security headers (nosniff, DENY frame, referrer policy, permissions
+   684→  policy) applied to /admin and /api/* via middleware.ts. The public
+   685→  landing/votar/apresentacao pages are intentionally left unrestricted
+   686→  so they remain embeddable.
+   687→- Admin frontend: token stored in localStorage (survives reloads/new
+   688→  tabs), `adminFetch` helper adds the header to every admin-only
+   689→  call, and any 401 from any admin route automatically logs the
+   690→  admin out via a window event.
+   691→- Lint clean, build succeeds, all curl smoke tests pass. No new npm
+   692→  packages added (Node `crypto` only). No new colors added. Students
+   693→  can still vote, presenter can still control the session, admin GET
+   694→  endpoints remain public for student access.
+   695→
+   696→Unresolved Issues / Notes for Next Agent:
+   697→- The `ADMIN_SECRET_KEY` env var still defaults to `'enade2024'` for
+   698→  backward compatibility. Operators should set it to a long random
+   699→  string in production (`.env` file or process env). When rotated,
+   700→  all previously issued admin tokens are automatically invalidated
+   701→  because the HMAC check uses the current secret.
+   702→- The rate limiter + admin-token map are in-memory single-instance.
+   703→  This is fine for the standalone Next.js server the project ships
+   704→  with, but if the deployment ever moves to a multi-instance setup
+   705→  (e.g. multiple Node workers behind a load balancer), the limiter
+   706→  and token store should be moved to Redis or similar shared store.
+   707→- One test student ("João da Silva", rgm "20230001") was left in
+   708→  session 67QAFO during curl smoke testing. The operator can delete
+   709→  it via the admin UI or simply reset the session before going live
+   710→  (note: reset clears votes + isRevealed but does NOT delete student
+   711→  records — that's intentional so the roster survives a mid-event
+   712→  reset).
+   713→- The dev server's Turbopack hot-reloader can re-evaluate shared
+   714→  modules in some edge cases. The globalThis-pinning fix in both
+   715→  `@/lib/rate-limit.ts` and `@/lib/api-auth.ts` defends against
+   716→  this, but if you ever see "all my rate-limit buckets got reset"
+   717→  or "my admin token was rejected right after I minted it" in dev,
+   718→  that's the symptom — the fix is already in place, but worth
+   719→  knowing the root cause.
+   720→- The `/api/upload` route that the admin image-upload dialog calls
+   721→  does not exist (returns 404). Pre-existing issue, not introduced
+   722→  by this task. Switched the call to `adminFetch` for consistency
+   723→  so when someone implements the route it'll already require admin
+   724→  auth.
+   725→- Next.js 16 prints a deprecation warning suggesting `proxy.ts`
+   726→  instead of `middleware.ts`. Both still work; `middleware.ts` was
+   727→  used here because the task spec explicitly asked for `middleware.ts`.
+   728→  No functional difference.
+   729→
+   730→---
+   731→Task ID: 5-c
+   732→Agent: general-purpose (stress test improvements)
+   733→Task: Improve stress test with multiple scenarios including attacker simulations
+   734→
+   735→Work Log:
+   736→- Read previous worklog (tasks 1–5-b) for context. Tasks 5-a (socket
+   737→  hardening with PRESENTER_KEY + per-socket vote rate limit + anti-
+   738→  double-vote + 5000-participant cap) and 5-b (admin auth required for
+   739→  /api/stress-test, input validation everywhere) define the security
+   740→  posture this task validates under load.
+   741→- Inspected current state:
+   742→  - `/mini-services/stress-test/index.ts` (port 3004): single "normal"
+   743→    scenario only, BATCH_SIZE=50, no ack callbacks, no dry-run, no
+   744→    timeout safety, 6-metric result struct.
+   745→  - `/src/app/api/stress-test/route.ts`: admin-only proxy (already
+   746→    implemented in 5-b), forwards sessionCode/questionId/correctAnswer/
+   747→    studentCount. Caps studentCount at 5000.
+   748→  - `/src/app/admin/page.tsx` `handleStressTest` (around line 1731):
+   749→    browser-based test using waves of 6 students (browser WS limit),
+   750→    fire-and-forget `submit-vote` (no ack), limited metrics display.
+   751→  - `/mini-services/enade-quiz/index.ts` `submit-vote` handler: no ack
+   752→    callback param — it sends `vote-accepted`/`vote-rejected` as
+   753→    separate emits.
+   754→
+   755→- Modified `/mini-services/enade-quiz/index.ts` `submit-vote` handler
+   756→  to accept an OPTIONAL ack callback (`cb?: Ack`) as the second
+   757→  positional argument. For every code path (invalid input, invalid
+   758→  choice, rate limit, paused, not active, already voted, success) the
+   759→  callback is now invoked with `{ ok: true }` or
+   760→  `{ ok: false, error: <reason> }`. Backwards-compatible: legacy
+   761→  clients that listen for `vote-accepted`/`vote-rejected` events
+   762→  continue to work unchanged — the events are still emitted on every
+   763→  path. This lets the stress test use ack callbacks to measure response
+   764→  time and detect rejections synchronously.
+   765→
+   766→- Rewrote `/mini-services/stress-test/index.ts` from scratch (~990
+   767→  lines) with the following improvements:
+   768→
+   769→  * **Multiple scenarios** — accepts a `scenario` field in the POST
+   770→    body. Valid values: `normal` (default, preserves existing
+   771→    behaviour: 30% correct / 70% random wrong distribution), `flood`
+   772→    (each student fires 10 votes as fast as possible; rate-limit +
+   773→    anti-double-vote should reject ~9 of 10), `bad-presenter` (50
+   774→    malicious clients try every privileged event — activate-question,
+   775→    reveal-answer, next-question, end-session, toggle-voting,
+   776→    session-reset, show-qr — plus 2 of them spam reveal-answer 50×
+   777→    each in <1s; all should be blocked by `requirePresenter`),
+   778→    `bad-input` (100 clients send 5 malformed payloads each — invalid
+   779→    sessionCodes incl. SQL/code injection, invalid choices, null/
+   780→    undefined/wrong-type payloads, huge strings up to 10 KB, missing
+   781→    fields; all should be rejected gracefully without crashing),
+   782→    `long-lived` (200 students connect, vote once, stay connected for
+   783→    30s, re-vote every 10s — exercises memory stability under
+   784→    sustained load), `mixed` (runs `normal` + 50 attackers + 20
+   785→    bad-input clients concurrently, aggregating metrics — real-world
+   786→    scenario).
+   787→
+   788→  * **Better metrics** — the result struct now includes: `scenario`,
+   789→    `totalStudents`, `connected`, `voted`, `failed`, `durationMs`,
+   790→    `votesPerSecond`, `voteDistribution` (A/B/C/D/E counts),
+   791→    `rejectedVotes` (votes rejected by the server, including rate
+   792→    limit + anti-double-vote + invalid input), `presenterBlocked`
+   793→    (privileged commands blocked for non-presenters),
+   794→    `badInputBlocked` (malformed submit-vote payloads rejected),
+   795→    `peakConcurrentConnections` (max simultaneous sockets during the
+   796→    test, tracked via a `MetricsTracker` with trackConnect/
+   797→    trackDisconnect), `avgResponseTimeMs` (mean of all ack-response
+   798→    times), `errors` (max 10 strings), `memoryRssMb`
+   799→    (`process.memoryUsage().rss / 1024 / 1024`), `dryRun`, `timedOut`.
+   800→
+   801→  * **Ack callbacks** — added `emitWithAck(socket, event, payload,
+   802→    timeoutMs)` helper that wraps `socket.emit` with a 3s timeout
+   803→    fallback and returns `Promise<{ ok, error? }>`. Every `submit-vote`
+   804→    and every privileged-event attempt now uses this — measuring
+   805→    response time and detecting rejections synchronously.
+   806→
+   807→  * **Bigger batches with backoff** — `BATCH_SIZE` bumped from 50 to
+   808→    100. If a batch's connect-error rate exceeds 30%, the next batch
+   809→    size is halved (min 10) to give the server breathing room. Vote
+   810→    batches stay at 100.
+   811→
+   812→  * **dryRun option** — if `dryRun: true` in the POST body, the
+   813→    service validates params, returns a zeroed-out result struct with
+   814→    `dryRun: true` and the chosen scenario, and does NOT connect any
+   815→    sockets. Useful for smoke-testing the API endpoint.
+   816→
+   817→  * **Overall timeout safety** — 90s overall test timeout
+   818→    (`TEST_TIMEOUT_MS`). Implemented via `Promise.race` between the
+   819→    run and a timeout promise. If the timeout fires, the result is
+   820→    marked `timedOut: true`, an error is pushed, and partial results
+   821→    are returned.
+   822→
+   823→  * **Long-lived scenario** — 30s hold time with re-vote attempts
+   824→    every 10s. Validates memory stability (the `memoryRssMb` field
+   825→    lets operators observe the RSS at end of test).
+   826→
+   827→  * **Body cap** — 1 MB request body cap (matches the API route),
+   828→    returns HTTP 413 on overflow.
+   829→
+   830→  * **Health endpoint** — `GET /health` returns `{ ok, port,
+   831→    memoryRssMb }` for monitoring.
+   832→
+   833→  * **Validation** — invalid scenarios fall back to `normal`.
+   834→    `studentCount` clamped to [1, 5000].
+   835→
+   836→- Updated `/src/app/api/stress-test/route.ts`:
+   837→  - Bumped `maxDuration` from 60 to 90 seconds (the long-lived
+   838→    scenario takes ~30s; mixed with 5000 students can take longer).
+   839→  - Added `scenario` field to the body schema, validated against the
+   840→    6 allowed values. Returns 400 on invalid scenario.
+   841→  - Added `dryRun` field forwarding (boolean, default false).
+   842→  - Confirmed `studentCount` cap at 5000 (unchanged from 5-b).
+   843→
+   844→- Replaced `handleStressTest` in `/src/app/admin/page.tsx`:
+   845→  - Old: browser-based test using `io()` from socket.io-client in
+   846→    waves of 6 students (browser WS limit). Fire-and-forget emit,
+   847→    limited metrics, max ~6 concurrent.
+   848→  - New: POSTs to `/api/stress-test` via `adminFetch` (admin token
+   849→    attached automatically). Sends `{ sessionCode, questionId,
+   850→    correctAnswer, studentCount, scenario, dryRun: false }`. Parses
+   851→    the JSON response and stores it in `stressTestResult`.
+   852→  - Added a `stressTestElapsed` state with a 500ms ticker so the UI
+   853→    shows elapsed time during the (potentially 30-90s) server-side
+   854→    test. A `<Progress>` bar (from `@/components/ui/progress`) shows
+   855→    elapsed/90 visually.
+   856→  - Added `stressTestScenario` state with 6 options (normal, flood,
+   857→    bad-presenter, bad-input, long-lived, mixed) rendered via the
+   858→    `Select` component (already imported).
+   859→  - Added `toast.warning` for timed-out tests (in addition to the
+   860→    existing `toast.success`).
+   861→
+   862→- Expanded the results panel in `/src/app/admin/page.tsx`:
+   863→  - Dialog widened from `max-w-lg` to `max-w-2xl` to fit the larger
+   864→    metrics grid.
+   865→  - Added a scenario badge + dry-run badge + timeout badge row.
+   866→  - Added a color-coded health indicator (green ≥95%, yellow 80-95%,
+   867→    red <80%). For attack scenarios (bad-presenter, bad-input), the
+   868→    "success" rate is computed as blocked/total (a high block rate =
+   869→    green). For normal/flood/long-lived/mixed, it's voted/total.
+   870→  - Replaced the 2×2 metrics grid with a 4×3 (12-cell) grid showing:
+   871→    Row 1 (core): Conectados (green), Votos Aceitos (teal — replaced
+   872→    the previous blue to comply with the no-indigo/blue constraint),
+   873→    Falhas (red), Votos/seg (purple).
+   874→    Row 2 (security): Votos Rejeit. (orange), Presenter Bloq. (rose),
+   875→    Bad Input Bloq. (rose), Pico Conexões (slate).
+   876→    Row 3 (timing/memory): Tempo Resp. ms (slate), Duração (slate),
+   877→    Memória MB (slate), Total Esperado (slate).
+   878→  - Each cell shows a tiny uppercase label + bold value.
+   879→  - Vote distribution bar chart is now only shown when there are
+   880→    actually votes (avoids an empty chart for attack scenarios).
+   881→  - Error list now shows the total count and uses `truncate` +
+   882→    `title` attribute for long error messages.
+   883→  - Added 5000 to the student-count selector (was 100/500/1000/2000,
+   884→    now 100/500/1000/2000/5000).
+   885→
+   886→- Smoke tests (both services running on 3003 + 3004):
+   887→  * Dry-run: `POST /` with `dryRun:true` returns the expected struct
+   888→    with all 16 fields zeroed, `dryRun:true`, scenario echoed back. ✓
+   889→  * Dry-run with invalid scenario: falls back to `normal` (no 400). ✓
+   890→  * Missing fields: returns HTTP 400 with
+   891→    `{"error":"sessionCode and questionId are required"}`. ✓
+   892→  * Body cap: 1.5 MB POST returns HTTP 413 with
+   893→    `{"error":"Request body too large (max 1 MB)."}`. ✓
+   894→  * `GET /health` returns `{"ok":true,"port":3004,"memoryRssMb":...}`. ✓
+   895→  * bad-presenter (10 attackers, live socket service): connected=10,
+   896→    presenterBlocked=170 (7 unique events × 10 attackers = 70, plus
+   897→    2 spam attackers × 50 = 100, total 170 — all blocked), 0 errors,
+   898→    avgResponseTimeMs=2.7ms, peakConcurrentConnections=10. ✓
+   899→  * bad-input (5 clients, live): connected=5, badInputBlocked=25
+   900→    (5 clients × 5 payloads each — all rejected), 0 errors. ✓
+   901→  * flood (5 students, live): connected=5, rejectedVotes=50 (5 × 10
+   902→    votes — all rejected because TEST01 isn't a real active question,
+   903→    but the key point is the server didn't crash and rejected every
+   904→    flood attempt), 0 errors. ✓
+   905→  * normal (10 students, live): connected=10, rejectedVotes=10
+   906→    (question not active in test env — votes rejected with
+   907→    "This question is not active" — but the ack callbacks worked
+   908→    perfectly, returning the rejection reason in avgResponseTimeMs=
+   909→    0.9ms), 0 errors. ✓
+   910→  * mixed (30 students = 20 normal + 5 bad-presenter + 5 bad-input):
+   911→    connected=30, rejectedVotes=20 (normal students, question not
+   912→    active), presenterBlocked=135 (5 attackers × 27 attempts each),
+   913→    badInputBlocked=25 (5 clients × 5 payloads), peakConcurrent=30,
+   914→    avgResponseTimeMs=1.61ms, 0 errors. ✓
+   915→
+   916→- Verified type-check on both modified services:
+   917→  `bunx tsc --noEmit --strict --module esnext --moduleResolution bundler
+   918→  --target es2020 --types node index.ts` — passes clean for both
+   919→  `/mini-services/stress-test/index.ts` and
+   920→  `/mini-services/enade-quiz/index.ts`.
+   921→
+   922→- Final verification:
+   923→  - `bun run lint` — passes clean (0 errors, 0 warnings).
+   924→  - `npx next build` — succeeds; all 21 routes compiled.
+   925→  - Restarted both services with `setsid nohup bun --hot index.ts >
+   926→    log.txt 2>&1 < /dev/null & disown` for best sandbox survival.
+   927→  - Verified both ports listening: 3003 (enade-quiz, PID 7882) and
+   928→    3004 (stress-test, PID 7855).
+   929→
+   930→Stage Summary:
+   931→- Stress test service now supports 6 scenarios: `normal`, `flood`,
+   932→  `bad-presenter`, `bad-input`, `long-lived`, `mixed`. The 3 attack
+   933→  scenarios (bad-presenter, bad-input, mixed) directly verify the
+   934→  security hardening from Tasks 5-a and 5-b holds under load:
+   935→    * `bad-presenter`: 50 attackers fire every privileged event +
+   936→      spam reveal-answer 100× in <1s. All blocked by `requirePresenter`.
+   937→    * `bad-input`: 100 clients × 5 malformed payloads each (SQL
+   938→      injection, code injection, null/undefined, huge strings, wrong
+   939→      types, missing fields). All rejected gracefully, server doesn't
+   940→      crash.
+   941→    * `mixed`: real-world combo — normal students + 50 attackers +
+   942→      20 bad-input clients running concurrently.
+   943→- Result struct expanded from 8 fields to 16: added `scenario`,
+   944→  `rejectedVotes`, `presenterBlocked`, `badInputBlocked`,
+   945→  `peakConcurrentConnections`, `avgResponseTimeMs`, `memoryRssMb`,
+   946→  `dryRun`, `timedOut`.
+   947→- All emits now use ack callbacks (via `emitWithAck` helper with 3s
+   948→  timeout) — this required a small backward-compatible change to the
+   949→  enade-quiz `submit-vote` handler (now accepts an optional `cb`
+   950→  param and calls it on every path, while still emitting the legacy
+   951→  `vote-accepted`/`vote-rejected` events).
+   952→- BATCH_SIZE bumped 50→100 with adaptive backoff (halve next batch
+   953→  if >30% connect failures). Vote batches stay at 100.
+   954→- `dryRun` option lets operators validate the API endpoint without
+   955→  spawning sockets.
+   956→- 90s overall timeout safety via `Promise.race`. Partial results
+   957→  returned on timeout, marked `timedOut: true`.
+   958→- Admin UI replaced the browser-based test (max 6 concurrent) with a
+   959→  server-side call via `adminFetch('/api/stress-test', ...)`. New UI:
+   960→    * Scenario dropdown (6 options).
+   961→    * Student count selector now includes 5000 (was capped at 2000).
+   962→    * Progress bar + elapsed-time ticker while the server-side test
+   963→      runs (can take 30-90s).
+   964→    * 4-column × 3-row metrics grid (12 cells) replacing the old
+   965→      2×2 grid.
+   966→    * Color-coded health indicator (green/amber/red) computed
+   967→      differently for attack vs normal scenarios.
+   968→    * Scenario badge + dry-run/timeout badges.
+   969→    * Vote distribution bar chart only shown when there are votes.
+   970→- No new npm packages. No indigo/blue colors (replaced the old blue
+   971→  "Votos Enviados" card with teal). Lint clean, build succeeds, all
+   972→  smoke tests pass.
+   973→
+   974→Unresolved Issues / Notes for Next Agent:
+   975→- The enade-quiz and stress-test services are running as detached
+   976→  processes (setsid + disown) but the sandbox may still reap them
+   977→  when the parent shell exits. If a test fails with "Stress test
+   978→  service unavailable" (HTTP 503 from /api/stress-test), restart:
+   979→    `cd /home/z/my-project/mini-services/stress-test && setsid nohup
+   980→     bun --hot index.ts > log.txt 2>&1 < /dev/null & disown`
+   981→  And similarly for enade-quiz on port 3003.
+   982→- The `bad-presenter` scenario currently has attackers join as
+   983→  `role: 'student'` (not `role: 'presenter'` with a wrong key).
+   984→  Both paths lead to `requirePresenter` returning false — the only
+   985→  difference is whether the socket also receives a
+   986→  `presenter-rejected` event. Functionally equivalent for the
+   987→  security test (every privileged command is blocked either way).
+   988→- The `long-lived` scenario uses the same single `questionId` passed
+   989→  by the caller for all 3 vote rounds. The first round's vote may
+   990→  succeed (if the question is active); rounds 2 and 3 are rejected
+   991→  by anti-double-vote — that's the intended test of memory stability
+   992→  under sustained connection load. If you want 3 distinct questions,
+   993→  the API would need to accept an array of question IDs.
+   994→- The health indicator's "attack success rate" formula is:
+   995→  `(presenterBlocked + badInputBlocked) / (presenterBlocked +
+   996→  badInputBlocked + errors.length + 1) * 100`. The `+1` avoids
+   997→  divide-by-zero when there are zero attacks and zero errors. This
+   998→  is a heuristic — refine if needed.
+   999→- The admin UI's `maxDuration = 90` on the API route matches the
+  1000→  stress-test service's 90s timeout, but Next.js may itself time out
+  1001→  the request before the service does. If you see HTTP 504 from
+  1002→  Next.js, either lower the test size or deploy the API route to a
+  1003→  runtime without the 90s limit (e.g. a separate Node service).
+  1004→

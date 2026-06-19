@@ -1,20 +1,30 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { validateSessionCode } from '@/lib/security'
 
-// GET /api/session/[code]/ranking - Get student ranking for a session
+// GET /api/session/[code]/ranking — Get student ranking for a session (PUBLIC).
+//
+// Public so the votar page can show "top 3" after a session ends.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
     const { code } = await params
+    if (!validateSessionCode(code)) {
+      return NextResponse.json(
+        { error: 'Invalid session code' },
+        { status: 400 }
+      )
+    }
     const session = await db.session.findUnique({
       where: { code: code.toUpperCase() },
       include: {
         questions: {
-          orderBy: { orderIndex: 'asc' }
-        }
-      }
+          orderBy: { orderIndex: 'asc' },
+          select: { id: true },
+        },
+      },
     })
 
     if (!session) {
@@ -23,14 +33,13 @@ export async function GET(
 
     const totalQuestions = session.questions.length
 
-    // Get all students for this session, ordered by score desc then corrects desc
     const students = await db.student.findMany({
       where: { sessionId: session.id },
       orderBy: [
         { corrects: 'desc' },
-        { answers: 'asc' }, // fewer answers with same corrects = better
+        { answers: 'asc' },
       ],
-      take: 10, // Top 10 max, but we'll show top 3
+      take: 10,
     })
 
     const ranking = students.map((student, index) => ({

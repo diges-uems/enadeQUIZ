@@ -1,18 +1,32 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminAuth } from '@/lib/api-auth'
+import { validateSessionCode } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/session/[code]/reset - Reset session to waiting, clear votes, unreveal questions
+// POST /api/session/[code]/reset — Reset session to waiting, clear votes,
+// unreveal questions (ADMIN ONLY).
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { code } = await params
+    if (!validateSessionCode(code)) {
+      return NextResponse.json(
+        { error: 'Invalid session code' },
+        { status: 400 }
+      )
+    }
+
     const session = await db.session.findUnique({
       where: { code: code.toUpperCase() },
-      include: { questions: true },
+      include: { questions: { select: { id: true } } },
     })
 
     if (!session) {

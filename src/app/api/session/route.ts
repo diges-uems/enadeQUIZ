@@ -1,17 +1,23 @@
 import { db } from '@/lib/db'
 import { generateSessionCode } from '@/lib/session'
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminAuth } from '@/lib/api-auth'
+import { isSafeJsonBody, sanitizeString } from '@/lib/security'
 
-// GET /api/session - List all sessions
+// GET /api/session — List all sessions (PUBLIC).
+//
+// Students / presentation screen / votar page all read this to populate
+// their UI, so it must remain open. Question text is included because
+// students need to render the active question.
 export async function GET() {
   try {
     const sessions = await db.session.findMany({
       include: {
         questions: {
-          orderBy: { orderIndex: 'asc' }
-        }
+          orderBy: { orderIndex: 'asc' },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(sessions)
   } catch (error) {
@@ -20,14 +26,28 @@ export async function GET() {
   }
 }
 
-// POST /api/session - Create a new session
+// POST /api/session — Create a new session (ADMIN ONLY).
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { title } = body
+    if (!verifyAdminAuth(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+    const bodyResult = await isSafeJsonBody(request)
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.error || 'Invalid request.' },
+        { status: bodyResult.status || 400 }
+      )
+    }
+    const body = (bodyResult.data || {}) as { title?: unknown }
+
+    const title = sanitizeString(body.title, 200)
+    if (title.length < 1) {
+      return NextResponse.json(
+        { error: 'Title is required (1-200 characters).' },
+        { status: 400 }
+      )
     }
 
     // Generate unique code
@@ -41,14 +61,14 @@ export async function POST(request: NextRequest) {
     const session = await db.session.create({
       data: {
         code,
-        title: title.trim(),
+        title,
         status: 'waiting',
       },
       include: {
         questions: {
-          orderBy: { orderIndex: 'asc' }
-        }
-      }
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
     })
 
     return NextResponse.json(session, { status: 201 })

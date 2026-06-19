@@ -1,0 +1,126 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# UEMS Votação — Production Caddyfile
+# --------------------------------------------------------------------------
+# Replace `uems-votacao.example.edu.br` with your real domain (line ~10).
+#
+#   sudo cp deploy/Caddyfile.production /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Caddy automatically provisions + renews Let's Encrypt TLS certs.
+# Make sure DNS A/AAAA records for your domain point at this VM BEFORE
+# starting Caddy, otherwise the ACME challenge will fail.
+#
+# Routing map (this is what the current client code expects):
+#   ┌────────────────────────────────────────┬──────────────────────────┐
+#   │ Request                                │ Upstream                 │
+#   ├────────────────────────────────────────┼──────────────────────────┤
+#   │ /?XTransformPort=3003&*   (socket.io)  │ 127.0.0.1:3003  (bun)    │
+#   │ /socket.io/*  (conventional path)      │ 127.0.0.1:3003  (bun)    │
+#   │ /?XTransformPort=3004&*   (stress)     │ 127.0.0.1:3004  (bun)    │
+#   │ everything else                        │ 127.0.0.1:3000  (next)   │
+#   └────────────────────────────────────────┴──────────────────────────┘
+#
+# The XTransformPort query-param routing mirrors the dev sandbox Caddyfile
+# and matches the io('/?XTransformPort=3003', …) calls baked into the
+# admin / apresentação / votar client pages.
+# ─────────────────────────────────────────────────────────────────────────────
+
+{
+	# Email Let's Encrypt uses for expiry notices (optional but recommended).
+	email admin@example.edu.br
+	# Default is 12h — bump to 24h to reduce ACME load on the staging endpoint.
+	# admin off   # uncomment on a server without a public ACME endpoint
+}
+
+uems-votacao.example.edu.br {
+	# ── Security headers ───────────────────────────────────────────────────
+	header {
+		# HSTS — keep for 1 year, include subdomains, preload list eligible.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# Block MIME-type sniffing + clickjacking.
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# Strip the Server header (Caddy version disclosure).
+		-Server
+		# Cache-Control for static assets is set in next.config.ts.
+	}
+
+	# ── Gzip compression ───────────────────────────────────────────────────
+	encode zstd gzip
+
+	# ── Route 1: socket.io (via XTransformPort=3003 query param) ──────────
+	# This is the path the current client code uses:
+	#   io('/?XTransformPort=3003', {...})
+	@socket_query {
+		query XTransformPort=3003
+	}
+	reverse_proxy @socket_query 127.0.0.1:3003 {
+		# WebSocket upgrade support is automatic in Caddy 2.x.
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		# Long timeouts for socket.io long-polling fallback + slow clients.
+		transport http {
+			read_timeout 5m
+			write_timeout 5m
+			dial_timeout 10s
+		}
+	}
+
+	# ── Route 2: /socket.io/* (conventional path, future-proof) ───────────
+	# The current Bun socket service sets path: '/' so this route only
+	# triggers if you later reconfigure the service to use /socket.io/.
+	@socket_io_path path /socket.io /socket.io/*
+	reverse_proxy @socket_io_path 127.0.0.1:3003 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			read_timeout 5m
+			write_timeout 5m
+		}
+	}
+
+	# ── Route 3: stress-test service (via XTransformPort=3004) ────────────
+	# Only the admin uses this — proxied for convenience.
+	@stress_query {
+		query XTransformPort=3004
+	}
+	reverse_proxy @stress_query 127.0.0.1:3004 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		# Stress tests can run up to 90s — extend timeouts accordingly.
+		transport http {
+			read_timeout 2m
+			write_timeout 2m
+		}
+	}
+
+	# ── Route 4: Next.js app (everything else) ────────────────────────────
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		transport http {
+			read_timeout 60s
+			write_timeout 60s
+		}
+	}
+
+	# ── Access log (JSON, daily rotation via logrotate) ───────────────────
+	log {
+		output file /var/log/caddy/uems-votacao.access.log {
+			roll_size 100MiB
+			roll_keep 14
+			roll_keep_for 30d
+		}
+		format json
+	}
+}

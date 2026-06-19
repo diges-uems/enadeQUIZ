@@ -60,6 +60,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Progress } from '@/components/ui/progress'
 import {
   Lock,
   Plus,
@@ -114,6 +115,91 @@ interface RankingEntry {
 }
 
 const ALT_LABELS = ['A', 'B', 'C', 'D', 'E'] as const
+
+// ─── Admin auth token storage ───────────────────────────────────────
+// Stored in localStorage (per the security hardening spec) so the token
+// survives page reloads / new tabs during a long presentation. The
+// previous sessionStorage-based approach required re-login on every
+// tab open, which was annoying for operators.
+const ADMIN_TOKEN_KEY = 'enade_admin_token'
+
+/** Read the stored admin token (or null). */
+export function getAdminToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage.getItem(ADMIN_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+/** Persist the admin token. */
+function setAdminToken(token: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(ADMIN_TOKEN_KEY, token)
+  } catch {
+    /* storage may be disabled — best-effort */
+  }
+}
+
+/** Clear the admin token. */
+function clearAdminToken(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(ADMIN_TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Event dispatched on window when an admin fetch returns 401. The main
+ * AdminPage component listens for this and bounces back to the login
+ * screen. This indirection is needed because nested dialog components
+ * (QuestionForm, ImportJsonDialog, ...) also call adminFetch but don't
+ * have direct access to the page-level setIsAuthenticated state.
+ */
+export const ADMIN_LOGOUT_EVENT = 'enade-admin-logout'
+
+/**
+ * Authenticated fetch helper.
+ *
+ * Adds the `x-admin-token` header from localStorage and, on a 401
+ * response, clears the token + dispatches the ADMIN_LOGOUT_EVENT so
+ * the main page can redirect to the login screen.
+ *
+ * Signature matches `fetch` — drop-in replacement.
+ */
+export async function adminFetch(
+  input: string | URL | Request,
+  init: RequestInit = {}
+): Promise<Response> {
+  const token = getAdminToken()
+  const headers = new Headers(init.headers || {})
+  if (token) {
+    headers.set('x-admin-token', token)
+  }
+  // Ensure JSON content-type is set for requests with a body but no
+  // explicit content-type (most callers forget this — the server needs
+  // it to parse the body via isSafeJsonBody, though NextRequest.json
+  // is forgiving, our isSafeJsonBody reads Content-Length so the body
+  // is parsed regardless).
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const res = await fetch(input, { ...init, headers })
+
+  if (res.status === 401) {
+    // Token is missing or invalid — clear it and notify the page.
+    clearAdminToken()
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(ADMIN_LOGOUT_EVENT))
+    }
+  }
+  return res
+}
 
 // ─── Bank Question Type ─────────────────────────────────────────────
 interface BankQuestion {
@@ -340,7 +426,7 @@ function QuestionFormDialog({
         reader.readAsDataURL(file)
       })
 
-      const res = await fetch('/api/upload', {
+      const res = await adminFetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataUrl, filename: file.name }),
@@ -378,7 +464,7 @@ function QuestionFormDialog({
     setSaving(true)
     try {
       if (isEditing && question) {
-        const res = await fetch(
+        const res = await adminFetch(
           `/api/session/${sessionCode}/questions/${question.id}`,
           {
             method: 'PUT',
@@ -400,7 +486,7 @@ function QuestionFormDialog({
         if (!res.ok) throw new Error('Erro ao atualizar questão')
         toast.success('Questão atualizada com sucesso!')
       } else {
-        const res = await fetch(`/api/session/${sessionCode}/questions`, {
+        const res = await adminFetch(`/api/session/${sessionCode}/questions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -638,7 +724,7 @@ function ImportJsonDialog({
 
     setImporting(true)
     try {
-      const res = await fetch(`/api/session/${sessionCode}/questions`, {
+      const res = await adminFetch(`/api/session/${sessionCode}/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed),
@@ -800,6 +886,8 @@ export default function AdminPage() {
 
   // ── Presenter / Socket state ──
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [socketConnected, setSocketConnected] = useState(false)
+  const [socketReconnecting, setSocketReconnecting] = useState(false)
   const [participantCount, setParticipantCount] = useState(0)
   const [totalParticipants, setTotalParticipants] = useState(0)
   const [votingPaused, setVotingPaused] = useState(false)
@@ -841,7 +929,12 @@ export default function AdminPage() {
   const [stressTestOpen, setStressTestOpen] = useState(false)
   const [stressTestRunning, setStressTestRunning] = useState(false)
   const [stressTestCount, setStressTestCount] = useState(1000)
+  const [stressTestScenario, setStressTestScenario] = useState<
+    'normal' | 'flood' | 'bad-presenter' | 'bad-input' | 'long-lived' | 'mixed'
+  >('normal')
+  const [stressTestElapsed, setStressTestElapsed] = useState(0)
   const [stressTestResult, setStressTestResult] = useState<{
+    scenario?: string
     totalStudents: number
     connected: number
     voted: number
@@ -849,6 +942,14 @@ export default function AdminPage() {
     durationMs: number
     votesPerSecond: number
     voteDistribution: { A: number; B: number; C: number; D: number; E: number }
+    rejectedVotes?: number
+    presenterBlocked?: number
+    badInputBlocked?: number
+    peakConcurrentConnections?: number
+    avgResponseTimeMs?: number
+    memoryRssMb?: number
+    dryRun?: boolean
+    timedOut?: boolean
     errors: string[]
   } | null>(null)
 
@@ -869,10 +970,27 @@ export default function AdminPage() {
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < totalQuestions - 1 && totalQuestions > 0
 
-  // Check auth on mount
+  // Check auth on mount — read from localStorage so the session
+  // survives page reloads / new tabs during a long presentation.
   useEffect(() => {
-    const token = sessionStorage.getItem('admin_token')
+    const token = getAdminToken()
     if (token) setIsAuthenticated(true)
+  }, [])
+
+  // Listen for forced-logout events from adminFetch (any admin-only
+  // route returning 401 will dispatch this). Bounces back to login.
+  useEffect(() => {
+    const handler = () => {
+      clearAdminToken()
+      setIsAuthenticated(false)
+      setSelectedSession(null)
+      setManagingSession(false)
+      setPassword('')
+      setAuthError('Sessão expirada. Faça login novamente.')
+      toast.error('Sessão expirada. Faça login novamente.')
+    }
+    window.addEventListener(ADMIN_LOGOUT_EVENT, handler)
+    return () => window.removeEventListener(ADMIN_LOGOUT_EVENT, handler)
   }, [])
 
   // Fetch question bank when banco tab is active
@@ -931,6 +1049,8 @@ export default function AdminPage() {
       if (socket) {
         socket.disconnect()
         setSocket(null)
+        setSocketConnected(false)
+        setSocketReconnecting(false)
       }
       return
     }
@@ -947,10 +1067,43 @@ export default function AdminPage() {
     })
 
     socketInstance.on('connect', () => {
+      setSocketConnected(true)
+      setSocketReconnecting(false)
+      // Re-join session on every connect/reconnect (not just the first one).
+      // The socket server may have lost our room membership after a disconnect.
       socketInstance.emit('join-session', {
         sessionCode,
         role: 'presenter',
+        presenterKey: 'presenter-default-key-2025',
       })
+    })
+
+    socketInstance.on('disconnect', () => {
+      setSocketConnected(false)
+      // We'll only show "Reconnecting..." once a reconnect attempt begins.
+    })
+
+    socketInstance.on('reconnect_attempt', () => {
+      setSocketReconnecting(true)
+    })
+
+    socketInstance.on('reconnect_error', () => {
+      setSocketReconnecting(true)
+    })
+
+    socketInstance.on('reconnect', () => {
+      setSocketReconnecting(false)
+      setSocketConnected(true)
+    })
+
+    socketInstance.on('connect_error', () => {
+      setSocketConnected(false)
+      setSocketReconnecting(true)
+    })
+
+    socketInstance.on('presenter-rejected', (data: { reason?: string }) => {
+      console.warn('Presenter rejected:', data?.reason)
+      toast.error('Falha de autenticação do apresentador. Recarregue a página.')
     })
 
     socketInstance.on('vote-results', (data: VoteResults) => {
@@ -1000,6 +1153,8 @@ export default function AdminPage() {
     return () => {
       socketInstance.disconnect()
       setSocket(null)
+      setSocketConnected(false)
+      setSocketReconnecting(false)
     }
   }, [managingSession, selectedSession?.code])
 
@@ -1016,7 +1171,9 @@ export default function AdminPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        sessionStorage.setItem('admin_token', data.token)
+        // Persist the secure HMAC-bound token in localStorage so all
+        // subsequent admin-only fetches can send it via x-admin-token.
+        setAdminToken(data.token)
         setIsAuthenticated(true)
         toast.success('Autenticado com sucesso!')
       } else {
@@ -1030,7 +1187,7 @@ export default function AdminPage() {
   }
 
   const handleLogout = () => {
-    sessionStorage.removeItem('admin_token')
+    clearAdminToken()
     setIsAuthenticated(false)
     setSelectedSession(null)
     setManagingSession(false)
@@ -1045,7 +1202,7 @@ export default function AdminPage() {
     }
     setCreatingSession(true)
     try {
-      const res = await fetch('/api/session', {
+      const res = await adminFetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle.trim() }),
@@ -1067,7 +1224,7 @@ export default function AdminPage() {
     if (!deleteSessionCode) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/session/${deleteSessionCode}`, {
+      const res = await adminFetch(`/api/session/${deleteSessionCode}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error()
@@ -1093,7 +1250,7 @@ export default function AdminPage() {
       const source: Session = await res.json()
 
       // Create a new session with "- Cópia" suffix
-      const createRes = await fetch('/api/session', {
+      const createRes = await adminFetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1105,7 +1262,7 @@ export default function AdminPage() {
 
       // Copy all questions to the new session
       for (const q of source.questions) {
-        await fetch(`/api/session/${newSession.code}/questions`, {
+        await adminFetch(`/api/session/${newSession.code}/questions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1134,7 +1291,7 @@ export default function AdminPage() {
     if (!deleteQuestionId || !selectedSession) return
     setDeleting(true)
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         `/api/session/${selectedSession.code}/questions/${deleteQuestionId}`,
         { method: 'DELETE' }
       )
@@ -1172,7 +1329,7 @@ export default function AdminPage() {
         tags: bankForm.tags ? bankForm.tags.split(',').map((t) => t.trim()).filter(Boolean).join(', ') : '',
         imageUrl: bankForm.imageUrl || null,
       }
-      const res = await fetch('/api/question-bank', {
+      const res = await adminFetch('/api/question-bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -1196,7 +1353,7 @@ export default function AdminPage() {
     if (!deleteBankQuestionId) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/question-bank?id=${deleteBankQuestionId}`, {
+      const res = await adminFetch(`/api/question-bank?id=${deleteBankQuestionId}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error()
@@ -1226,7 +1383,7 @@ export default function AdminPage() {
     }
     setImportingBank(true)
     try {
-      const res = await fetch('/api/question-bank/import', {
+      const res = await adminFetch('/api/question-bank/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1328,7 +1485,7 @@ export default function AdminPage() {
     setSelectedSession({ ...selectedSession, questions: reordered })
 
     try {
-      await fetch(`/api/session/${selectedSession.code}/questions`, {
+      await adminFetch(`/api/session/${selectedSession.code}/questions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questionIds: reordered.map((q) => q.id) }),
@@ -1346,7 +1503,7 @@ export default function AdminPage() {
   }) => {
     if (!selectedSession) return
     try {
-      await fetch(`/api/session/${selectedSession.code}`, {
+      await adminFetch(`/api/session/${selectedSession.code}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -1356,14 +1513,86 @@ export default function AdminPage() {
     }
   }
 
+  // ── emitWithRetry: reliable socket emit with ack + retry ────────────────
+  // - Waits up to 3s for the socket to be connected before attempting.
+  // - Emits with a socket.io ack callback so the server can confirm receipt.
+  // - Retries up to 3 times on failure (timeout or ok:false).
+  // - Shows a toast on persistent failure (toggleable via options.showError).
+  // Returns true on success, false on persistent failure.
+  const emitWithRetry = useCallback(
+    async (
+      event: string,
+      data: Record<string, unknown>,
+      options: { maxRetries?: number; waitConnectionMs?: number; showError?: boolean; failureToast?: string } = {}
+    ): Promise<boolean> => {
+      const {
+        maxRetries = 3,
+        waitConnectionMs = 3000,
+        showError = true,
+        failureToast = 'Comando pode não ter sido recebido. Recarregue a página de apresentação.',
+      } = options
+      if (!socket) {
+        if (showError) toast.error(failureToast)
+        return false
+      }
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        // Wait for socket to be connected (bounded by waitConnectionMs)
+        const waitStart = Date.now()
+        while (!socket.connected && Date.now() - waitStart < waitConnectionMs) {
+          await new Promise((r) => setTimeout(r, 100))
+        }
+        if (!socket.connected) {
+          if (attempt < maxRetries) {
+            await new Promise((r) => setTimeout(r, 400 * attempt))
+            continue
+          }
+          if (showError) toast.error(failureToast)
+          return false
+        }
+        // Emit with ack callback, with a per-attempt timeout
+        const ok = await new Promise<boolean>((resolve) => {
+          let settled = false
+          const ackTimer = setTimeout(() => {
+            if (!settled) {
+              settled = true
+              resolve(false)
+            }
+          }, waitConnectionMs)
+          try {
+            socket.emit(event, data, (ack: { ok?: boolean; error?: string } | undefined) => {
+              if (!settled) {
+                settled = true
+                clearTimeout(ackTimer)
+                resolve(!!ack?.ok)
+              }
+            })
+          } catch {
+            if (!settled) {
+              settled = true
+              clearTimeout(ackTimer)
+              resolve(false)
+            }
+          }
+        })
+        if (ok) return true
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 400 * attempt))
+        }
+      }
+      if (showError) toast.error(failureToast)
+      return false
+    },
+    [socket]
+  )
+
   const handleStartSession = async () => {
     if (!selectedSession) return
     await updateSession({ status: 'active' })
     setSelectedSession({ ...selectedSession, status: 'active' })
-    socket?.emit('activate-question', {
+    await emitWithRetry('activate-question', {
       sessionCode: selectedSession.code,
       questionId: selectedSession.questions[0]?.id,
-    })
+    }, { failureToast: 'Sessão iniciada no banco, mas a tela de apresentação pode não ter sido notificada. Recarregue a apresentação.' })
     toast.success('Sessão iniciada!')
   }
 
@@ -1371,9 +1600,9 @@ export default function AdminPage() {
     if (!selectedSession) return
     await updateSession({ status: 'finished' })
     setSelectedSession({ ...selectedSession, status: 'finished' })
-    socket?.emit('end-session', {
+    await emitWithRetry('end-session', {
       sessionCode: selectedSession.code,
-    })
+    }, { failureToast: 'Sessão encerrada no banco, mas a tela de apresentação pode não ter sido notificada. Recarregue a apresentação.' })
     toast.success('Sessão encerrada!')
   }
 
@@ -1385,7 +1614,7 @@ export default function AdminPage() {
     setRevealed(prevQuestion.isRevealed)
     setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
     await updateSession({ currentQuestionId: prevQuestion.id })
-    socket?.emit('activate-question', {
+    await emitWithRetry('activate-question', {
       sessionCode: selectedSession.code,
       questionId: prevQuestion.id,
     })
@@ -1400,7 +1629,7 @@ export default function AdminPage() {
     setRevealed(nextQuestion.isRevealed)
     setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
     await updateSession({ currentQuestionId: nextQuestion.id })
-    socket?.emit('next-question', {
+    await emitWithRetry('next-question', {
       sessionCode: selectedSession.code,
       questionId: nextQuestion.id,
     })
@@ -1410,7 +1639,8 @@ export default function AdminPage() {
   const handleToggleVoting = () => {
     const newPaused = !votingPaused
     setVotingPaused(newPaused)
-    socket?.emit('toggle-voting', {
+    // Fire-and-forget — but still retried for reliability.
+    emitWithRetry('toggle-voting', {
       sessionCode: selectedSession?.code,
       paused: newPaused,
     })
@@ -1419,30 +1649,80 @@ export default function AdminPage() {
   const handleRevealAnswer = async () => {
     if (!currentQuestion || !selectedSession) return
     setRevealed(true)
-    await fetch(
-      `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isRevealed: true }),
+
+    // 1) PUT isRevealed: true in the database first.
+    try {
+      const putRes = await adminFetch(
+        `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isRevealed: true }),
+        }
+      )
+      if (!putRes.ok) {
+        toast.error('Falha ao atualizar o banco de dados. Tente novamente.')
+        setRevealed(false)
+        return
       }
-    )
-    socket?.emit('reveal-answer', {
+    } catch (err) {
+      console.error('Failed to PUT isRevealed:', err)
+      toast.error('Falha ao atualizar o banco de dados. Tente novamente.')
+      setRevealed(false)
+      return
+    }
+
+    // 2) Re-fetch the session to confirm the DB write actually persisted.
+    try {
+      const refreshRes = await fetch(`/api/session/${selectedSession.code}`)
+      if (refreshRes.ok) {
+        const fresh: Session = await refreshRes.json()
+        const freshQ = fresh.questions?.find((q) => q.id === currentQuestion.id)
+        if (freshQ && !freshQ.isRevealed) {
+          // DB didn't reflect the change — retry the PUT once.
+          console.warn('DB did not reflect isRevealed=true; retrying PUT')
+          await adminFetch(
+            `/api/session/${selectedSession.code}/questions/${currentQuestion.id}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ isRevealed: true }),
+            }
+          )
+        }
+        // Sync local session state with the refreshed copy
+        setSelectedSession(fresh)
+      }
+    } catch (err) {
+      console.error('Failed to re-fetch session after reveal:', err)
+    }
+
+    // 3) Emit reveal-answer via socket with ack + retry. If all retries fail,
+    //    warn the user that the presentation screen may need a reload.
+    const ok = await emitWithRetry('reveal-answer', {
       sessionCode: selectedSession.code,
       questionId: currentQuestion.id,
       correctAnswer: currentQuestion.correctAnswer,
     })
+    if (!ok) {
+      toast.error('Comando pode não ter sido recebido. Recarregue a página de apresentação.')
+    }
   }
 
   const handleGetRanking = () => {
-    socket?.emit('get-ranking', { sessionCode: selectedSession?.code })
+    // get-ranking returns data via the 'ranking-data' event (no ack needed).
+    if (socket?.connected) {
+      socket.emit('get-ranking', { sessionCode: selectedSession?.code })
+    } else {
+      toast.error('Sem conexão com o servidor. Tente novamente.')
+    }
     setShowRanking(true)
   }
 
   const handleResetSession = async () => {
     if (!selectedSession) return
     try {
-      const res = await fetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
+      const res = await adminFetch(`/api/session/${selectedSession.code}/reset`, { method: 'POST' })
       if (!res.ok) throw new Error()
       const data = await res.json()
       setSelectedSession(data)
@@ -1452,7 +1732,9 @@ export default function AdminPage() {
       setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
       setRanking([])
       setShowQrOnPresentation(false)
-      socket?.emit('session-reset', { sessionCode: selectedSession.code })
+      await emitWithRetry('session-reset', { sessionCode: selectedSession.code }, {
+        failureToast: 'Sessão resetada no banco, mas a tela de apresentação pode não ter sido notificada. Recarregue a apresentação.',
+      })
       toast.success('Sessão resetada com sucesso!')
     } catch {
       toast.error('Erro ao resetar sessão.')
@@ -1468,121 +1750,73 @@ export default function AdminPage() {
     setStressTestRunning(true)
     setStressTestResult(null)
 
-    const startTime = Date.now()
-    const result = {
-      totalStudents: stressTestCount,
-      connected: 0,
-      voted: 0,
-      failed: 0,
-      durationMs: 0,
-      votesPerSecond: 0,
-      voteDistribution: { A: 0, B: 0, C: 0, D: 0, E: 0 },
-      errors: [] as string[],
-    }
-
-    const altLabels = ['A', 'B', 'C', 'D', 'E'] as const
-    // Browser limits ~6 concurrent WebSocket connections to same origin
-    // Use waves: connect small batch -> join -> vote -> disconnect -> next batch
-    const WAVE_SIZE = 6
-
-    const simulateStudent = (idx: number): Promise<void> => {
-      return new Promise<void>((resolve) => {
-        try {
-          const s = io('/?XTransformPort=3003', {
-            transports: ['websocket'],
-            forceNew: true,
-            reconnection: false,
-            timeout: 5000,
-          })
-
-          const timeout = setTimeout(() => {
-            result.failed++
-            if (result.errors.length < 10) {
-              result.errors.push(`Aluno ${idx + 1}: timeout`)
-            }
-            try { s.disconnect() } catch { /* */ }
-            resolve()
-          }, 8000)
-
-          s.on('connect', () => {
-            result.connected++
-            s.emit('join-session', {
-              sessionCode: selectedSession.code,
-              role: 'student',
-              name: `Aluno Stress ${idx + 1}`,
-              rgm: `STRESS-${String(idx + 1).padStart(5, '0')}`,
-            })
-
-            // Vote immediately after joining
-            const correctAnswer = currentQuestion?.correctAnswer
-            let choice: string
-            const rand = Math.random()
-            if (correctAnswer && rand < 0.30) {
-              choice = correctAnswer
-            } else {
-              const wrong = altLabels.filter((a) => a !== correctAnswer)
-              choice = wrong[Math.floor(Math.random() * wrong.length)]
-            }
-
-            s.emit('submit-vote', {
-              sessionCode: selectedSession.code,
-              questionId: currentQuestionId,
-              choice,
-              correctAnswer: correctAnswer || undefined,
-              studentId: `STRESS-${String(idx + 1).padStart(5, '0')}`,
-            })
-
-            result.voted++
-            result.voteDistribution[choice as keyof typeof result.voteDistribution]++
-
-            // Disconnect right away to free the connection slot
-            clearTimeout(timeout)
-            setTimeout(() => {
-              try { s.disconnect() } catch { /* */ }
-              resolve()
-            }, 50)
-          })
-
-          s.on('connect_error', (err: Error) => {
-            clearTimeout(timeout)
-            result.failed++
-            if (result.errors.length < 10) {
-              result.errors.push(`Aluno ${idx + 1}: ${err.message}`)
-            }
-            try { s.disconnect() } catch { /* */ }
-            resolve()
-          })
-        } catch {
-          result.failed++
-          resolve()
-        }
-      })
-    }
+    // Elapsed-time ticker so the user sees the test is making progress
+    // even though the server-side test is a single blocking HTTP request.
+    const startedAt = Date.now()
+    const ticker = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+      setStressTestElapsed(elapsed)
+    }, 500)
+    setStressTestElapsed(0)
 
     try {
-      // Process in waves of WAVE_SIZE concurrent connections
-      for (let i = 0; i < stressTestCount; i += WAVE_SIZE) {
-        const wavePromises: Promise<void>[] = []
-        const waveEnd = Math.min(i + WAVE_SIZE, stressTestCount)
+      const correctAnswer = currentQuestion?.correctAnswer
+      const res = await adminFetch('/api/stress-test', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionCode: selectedSession.code,
+          questionId: currentQuestionId,
+          correctAnswer: correctAnswer || undefined,
+          studentCount: stressTestCount,
+          scenario: stressTestScenario,
+          dryRun: false,
+        }),
+      })
 
-        for (let j = i; j < waveEnd; j++) {
-          wavePromises.push(simulateStudent(j))
-        }
+      const data = await res.json().catch(() => ({}))
 
-        await Promise.all(wavePromises)
+      if (!res.ok) {
+        toast.error(data?.error || `Erro ${res.status} ao executar stress test.`)
+        setStressTestResult(null)
+        return
       }
 
-      result.durationMs = Date.now() - startTime
-      result.votesPerSecond = result.durationMs > 0 ? Math.round((result.voted / result.durationMs) * 1000) : 0
+      const result = {
+        scenario: data.scenario,
+        totalStudents: data.totalStudents ?? stressTestCount,
+        connected: data.connected ?? 0,
+        voted: data.voted ?? 0,
+        failed: data.failed ?? 0,
+        durationMs: data.durationMs ?? 0,
+        votesPerSecond: data.votesPerSecond ?? 0,
+        voteDistribution: data.voteDistribution ?? { A: 0, B: 0, C: 0, D: 0, E: 0 },
+        rejectedVotes: data.rejectedVotes ?? 0,
+        presenterBlocked: data.presenterBlocked ?? 0,
+        badInputBlocked: data.badInputBlocked ?? 0,
+        peakConcurrentConnections: data.peakConcurrentConnections ?? 0,
+        avgResponseTimeMs: data.avgResponseTimeMs ?? 0,
+        memoryRssMb: data.memoryRssMb ?? 0,
+        dryRun: data.dryRun ?? false,
+        timedOut: data.timedOut ?? false,
+        errors: data.errors ?? [],
+      }
+      setStressTestResult(result)
 
-      setStressTestResult(result)
-      toast.success(`Stress test concluido! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s`)
+      if (result.timedOut) {
+        toast.warning(
+          `Stress test atingiu o tempo limite. Resultados parciais: ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s.`
+        )
+      } else {
+        toast.success(
+          `Stress test concluído! ${result.voted} votos em ${(result.durationMs / 1000).toFixed(1)}s.`
+        )
+      }
     } catch (err) {
-      result.durationMs = Date.now() - startTime
-      result.errors.push(`Erro fatal: ${err instanceof Error ? err.message : 'Desconhecido'}`)
-      setStressTestResult(result)
-      toast.error('Erro durante o stress test.')
+      toast.error(
+        `Erro ao chamar o serviço de stress test: ${err instanceof Error ? err.message : 'Desconhecido'}`
+      )
     } finally {
+      clearInterval(ticker)
       setStressTestRunning(false)
     }
   }
@@ -1590,7 +1824,8 @@ export default function AdminPage() {
   const handleShowQr = () => {
     const newVisible = !showQrOnPresentation
     setShowQrOnPresentation(newVisible)
-    socket?.emit('show-qr', {
+    // Fire-and-forget — but still retried for reliability.
+    emitWithRetry('show-qr', {
       sessionCode: selectedSession?.code,
       visible: newVisible,
     })
@@ -1604,7 +1839,7 @@ export default function AdminPage() {
     setRevealed(q?.isRevealed ?? false)
     setVoteResults({ A: 0, B: 0, C: 0, D: 0, E: 0, total: 0 })
     await updateSession({ currentQuestionId: questionId })
-    socket?.emit('activate-question', {
+    await emitWithRetry('activate-question', {
       sessionCode: selectedSession.code,
       questionId,
     })
@@ -1702,9 +1937,39 @@ export default function AdminPage() {
               Voltar
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="truncate text-sm font-semibold text-foreground">
-                {selectedSession.title}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-sm font-semibold text-foreground">
+                  {selectedSession.title}
+                </h1>
+                {/* Socket connection status badge */}
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border whitespace-nowrap ${
+                    socketConnected
+                      ? 'border-green-500/40 text-green-600 dark:text-green-400 bg-green-500/10'
+                      : socketReconnecting
+                      ? 'border-[#C8A84B]/50 text-[#C8A84B] bg-[#C8A84B]/10'
+                      : 'border-red-500/40 text-red-600 dark:text-red-400 bg-red-500/10'
+                  }`}
+                  title={
+                    socketConnected
+                      ? 'Conectado ao servidor de tempo real'
+                      : socketReconnecting
+                      ? 'Tentando reconectar ao servidor...'
+                      : 'Desconectado do servidor'
+                  }
+                >
+                  <span
+                    className={`inline-block w-1.5 h-1.5 rounded-full ${
+                      socketConnected
+                        ? 'bg-green-500'
+                        : socketReconnecting
+                        ? 'bg-[#C8A84B] animate-pulse'
+                        : 'bg-red-500'
+                    }`}
+                  />
+                  {socketConnected ? 'Conectado' : socketReconnecting ? 'Reconectando...' : 'Desconectado'}
+                </span>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Código: {selectedSession.code}
               </p>
@@ -2779,55 +3044,99 @@ export default function AdminPage() {
 
         {/* Stress Test Dialog */}
         <Dialog open={stressTestOpen} onOpenChange={setStressTestOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Zap className="size-5 text-red-500" />
                 Stress Test — Simulação de Acesso
               </DialogTitle>
               <DialogDescription>
-                Simule o acesso simultâneo de múltiplos alunos respondendo à questão atual.
-                Isso enviará votos reais via Socket.io para testar a capacidade do servidor.
+                Simule o acesso simultâneo de múltiplos alunos (até 5000) respondendo à questão atual,
+                incluindo cenários de ataque que validam a segurança do servidor.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               {/* Config */}
               <div className="grid gap-3">
-                <div className="grid gap-2">
-                  <Label>Número de Alunos Simulados</Label>
-                  <div className="flex gap-2">
-                    {[100, 500, 1000, 2000].map((count) => (
-                      <Button
-                        key={count}
-                        size="sm"
-                        variant={stressTestCount === count ? 'default' : 'outline'}
-                        onClick={() => setStressTestCount(count)}
-                        className={stressTestCount === count ? 'bg-red-600 hover:bg-red-700 text-white' : ''}
-                      >
-                        {count}
-                      </Button>
-                    ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label>Cenário</Label>
+                    <Select
+                      value={stressTestScenario}
+                      onValueChange={(v) =>
+                        setStressTestScenario(
+                          v as 'normal' | 'flood' | 'bad-presenter' | 'bad-input' | 'long-lived' | 'mixed'
+                        )
+                      }
+                      disabled={stressTestRunning}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione um cenário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal (1000 alunos, 1 voto)</SelectItem>
+                        <SelectItem value="flood">Flood (10 votos rápidos/aluno)</SelectItem>
+                        <SelectItem value="bad-presenter">Ataque: Bad Presenter</SelectItem>
+                        <SelectItem value="bad-input">Ataque: Bad Input</SelectItem>
+                        <SelectItem value="long-lived">Long-Lived (200 alunos, 30s)</SelectItem>
+                        <SelectItem value="mixed">Misto (alunos + atacantes)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Número de Alunos</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[100, 500, 1000, 2000, 5000].map((count) => (
+                        <Button
+                          key={count}
+                          size="sm"
+                          variant={stressTestCount === count ? 'default' : 'outline'}
+                          onClick={() => setStressTestCount(count)}
+                          disabled={stressTestRunning}
+                          className={stressTestCount === count ? 'bg-red-600 hover:bg-red-700 text-white' : ''}
+                        >
+                          {count}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                  <Activity className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    <strong>Questão ativa:</strong> {currentQuestion ? `Q${currentIndex + 1} — ${currentQuestion.text.slice(0, 80)}...` : 'Nenhuma questão selecionada'}
-                  </p>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <Activity className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                    <p>
+                      <strong>Questão ativa:</strong>{' '}
+                      {currentQuestion
+                        ? `Q${currentIndex + 1} — ${currentQuestion.text.slice(0, 80)}...`
+                        : 'Nenhuma questão selecionada'}
+                    </p>
+                    <p className="opacity-80">
+                      O teste roda no servidor (porta 3004), não no navegador. Pode levar de 30s a 90s
+                      dependendo do cenário e do número de alunos.
+                    </p>
+                  </div>
                 </div>
               </div>
 
               {/* Running indicator */}
               {stressTestRunning && (
-                <div className="flex flex-col items-center gap-3 py-6">
+                <div className="flex flex-col items-center gap-4 py-6">
                   <div className="relative">
                     <div className="size-16 rounded-full border-4 border-red-200 dark:border-red-900" />
                     <div className="absolute inset-0 size-16 rounded-full border-4 border-red-500 border-t-transparent animate-spin" />
                     <Zap className="absolute inset-0 m-auto size-6 text-red-500" />
                   </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-lg">Simulando {stressTestCount} alunos...</p>
-                    <p className="text-sm text-muted-foreground">Conectando e enviando votos</p>
+                  <div className="text-center space-y-1">
+                    <p className="font-semibold text-lg">
+                      Simulando {stressTestCount} alunos — cenário {stressTestScenario}...
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Tempo decorrido: {stressTestElapsed}s (limite: 90s)
+                    </p>
+                  </div>
+                  {/* Visual progress bar — shows elapsed time vs 90s timeout */}
+                  <div className="w-full px-4">
+                    <Progress value={Math.min((stressTestElapsed / 90) * 100, 100)} className="h-2" />
                   </div>
                 </div>
               )}
@@ -2835,71 +3144,170 @@ export default function AdminPage() {
               {/* Results */}
               {stressTestResult && !stressTestRunning && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                      <p className="text-xs text-green-600 dark:text-green-400">Conectados</p>
-                      <p className="text-2xl font-bold text-green-700 dark:text-green-300">{stressTestResult.connected}</p>
+                  {/* Scenario badge + health indicator */}
+                  <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/50 border">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {stressTestResult.scenario ?? stressTestScenario}
+                      </Badge>
+                      {stressTestResult.dryRun && (
+                        <Badge variant="outline" className="text-xs text-amber-600">
+                          Dry Run
+                        </Badge>
+                      )}
+                      {stressTestResult.timedOut && (
+                        <Badge variant="outline" className="text-xs text-red-600">
+                          Timeout (parcial)
+                        </Badge>
+                      )}
                     </div>
-                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs text-blue-600 dark:text-blue-400">Votos Enviados</p>
-                      <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stressTestResult.voted}</p>
+                    {/* Health indicator: green ≥95%, yellow 80-95%, red <80% */}
+                    {(() => {
+                      const total = stressTestResult.voted + stressTestResult.failed + (stressTestResult.rejectedVotes ?? 0)
+                      const successRate = total > 0 ? (stressTestResult.voted / total) * 100 : 0
+                      const isAttackScenario =
+                        stressTestResult.scenario === 'bad-presenter' ||
+                        stressTestResult.scenario === 'bad-input'
+                      // For attack scenarios, success = votes REJECTED (presenterBlocked + badInputBlocked)
+                      const attackTotal =
+                        (stressTestResult.presenterBlocked ?? 0) +
+                        (stressTestResult.badInputBlocked ?? 0) +
+                        (stressTestResult.errors?.length ?? 0) > 0
+                          ? (stressTestResult.presenterBlocked ?? 0) +
+                            (stressTestResult.badInputBlocked ?? 0) + 1
+                          : 1
+                      const attackBlocked =
+                        (stressTestResult.presenterBlocked ?? 0) +
+                        (stressTestResult.badInputBlocked ?? 0)
+                      const attackRate = attackTotal > 0 ? (attackBlocked / attackTotal) * 100 : 0
+                      const rate = isAttackScenario ? attackRate : successRate
+                      const color =
+                        rate >= 95
+                          ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700'
+                          : rate >= 80
+                            ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700'
+                            : 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700'
+                      const label =
+                        rate >= 95 ? 'Saudável' : rate >= 80 ? 'Atenção' : 'Crítico'
+                      return (
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-full border ${color}`}
+                        >
+                          {label} ({rate.toFixed(0)}%)
+                        </span>
+                      )
+                    })()}
+                  </div>
+
+                  {/* 4-column metrics grid — Row 1: core results */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                      <p className="text-[10px] text-green-600 dark:text-green-400 uppercase tracking-wide">Conectados</p>
+                      <p className="text-xl font-bold text-green-700 dark:text-green-300">{stressTestResult.connected}</p>
                     </div>
-                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                      <p className="text-xs text-red-600 dark:text-red-400">Falhas</p>
-                      <p className="text-2xl font-bold text-red-700 dark:text-red-300">{stressTestResult.failed}</p>
+                    <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800">
+                      <p className="text-[10px] text-teal-600 dark:text-teal-400 uppercase tracking-wide">Votos Aceitos</p>
+                      <p className="text-xl font-bold text-teal-700 dark:text-teal-300">{stressTestResult.voted}</p>
                     </div>
-                    <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                      <p className="text-xs text-purple-600 dark:text-purple-400">Votos/segundo</p>
-                      <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stressTestResult.votesPerSecond}</p>
+                    <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-[10px] text-red-600 dark:text-red-400 uppercase tracking-wide">Falhas</p>
+                      <p className="text-xl font-bold text-red-700 dark:text-red-300">{stressTestResult.failed}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                      <p className="text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-wide">Votos/seg</p>
+                      <p className="text-xl font-bold text-purple-700 dark:text-purple-300">{stressTestResult.votesPerSecond}</p>
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-muted/50 border">
-                    <p className="text-xs text-muted-foreground mb-1">Tempo total</p>
-                    <p className="font-semibold">{(stressTestResult.durationMs / 1000).toFixed(2)}s</p>
+                  {/* Row 2: rejection / security metrics */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+                      <p className="text-[10px] text-orange-600 dark:text-orange-400 uppercase tracking-wide">Votos Rejeit.</p>
+                      <p className="text-xl font-bold text-orange-700 dark:text-orange-300">{stressTestResult.rejectedVotes ?? 0}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                      <p className="text-[10px] text-rose-600 dark:text-rose-400 uppercase tracking-wide">Presenter Bloq.</p>
+                      <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{stressTestResult.presenterBlocked ?? 0}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                      <p className="text-[10px] text-rose-600 dark:text-rose-400 uppercase tracking-wide">Bad Input Bloq.</p>
+                      <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{stressTestResult.badInputBlocked ?? 0}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wide">Pico Conexões</p>
+                      <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{stressTestResult.peakConcurrentConnections ?? 0}</p>
+                    </div>
+                  </div>
+
+                  {/* Row 3: timing / memory */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wide">Tempo Resp. (ms)</p>
+                      <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{stressTestResult.avgResponseTimeMs ?? 0}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wide">Duração</p>
+                      <p className="text-xl font-bold text-slate-700 dark:text-slate-300">
+                        {(stressTestResult.durationMs / 1000).toFixed(1)}s
+                      </p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wide">Memória (MB)</p>
+                      <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{stressTestResult.memoryRssMb ?? 0}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wide">Total Esperado</p>
+                      <p className="text-xl font-bold text-slate-700 dark:text-slate-300">{stressTestResult.totalStudents}</p>
+                    </div>
                   </div>
 
                   {/* Vote distribution */}
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground">Distribuição dos Votos</p>
-                    {ALT_LABELS.map((alt) => {
-                      const votes = stressTestResult.voteDistribution[alt] ?? 0
-                      const maxVotes = Math.max(...ALT_LABELS.map((a) => stressTestResult.voteDistribution[a] ?? 0), 1)
-                      const pct = (votes / maxVotes) * 100
-                      const isCorrect = currentQuestion?.correctAnswer === alt
-                      return (
-                        <div key={alt} className={`flex items-center gap-2 ${isCorrect ? '' : 'opacity-60'}`}>
-                          <span
-                            className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                            style={{ backgroundColor: CHART_COLORS[alt] }}
-                          >
-                            {alt}
-                          </span>
-                          <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${pct}%`,
-                                backgroundColor: CHART_COLORS[alt],
-                              }}
-                            />
+                  {Object.values(stressTestResult.voteDistribution).some((v) => v > 0) && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Distribuição dos Votos</p>
+                      {ALT_LABELS.map((alt) => {
+                        const votes = stressTestResult.voteDistribution[alt] ?? 0
+                        const maxVotes = Math.max(...ALT_LABELS.map((a) => stressTestResult.voteDistribution[a] ?? 0), 1)
+                        const pct = (votes / maxVotes) * 100
+                        const isCorrect = currentQuestion?.correctAnswer === alt
+                        return (
+                          <div key={alt} className={`flex items-center gap-2 ${isCorrect ? '' : 'opacity-60'}`}>
+                            <span
+                              className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                              style={{ backgroundColor: CHART_COLORS[alt] }}
+                            >
+                              {alt}
+                            </span>
+                            <div className="flex-1 h-5 bg-muted/50 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${pct}%`,
+                                  backgroundColor: CHART_COLORS[alt],
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium w-14 text-right shrink-0">
+                              {votes} votos
+                            </span>
+                            {isCorrect && (
+                              <span className="text-[10px] font-bold text-[#C8A84B] shrink-0">✓</span>
+                            )}
                           </div>
-                          <span className="text-xs font-medium w-14 text-right shrink-0">
-                            {votes} votos
-                          </span>
-                          {isCorrect && (
-                            <span className="text-[10px] font-bold text-[#C8A84B] shrink-0">✓</span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   {stressTestResult.errors.length > 0 && (
                     <div className="p-2 rounded bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
-                      <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Erros:</p>
+                      <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">
+                        Erros ({stressTestResult.errors.length}):
+                      </p>
                       {stressTestResult.errors.slice(0, 5).map((err, i) => (
-                        <p key={i} className="text-xs text-red-500 dark:text-red-300">{err}</p>
+                        <p key={i} className="text-xs text-red-500 dark:text-red-300 truncate" title={err}>
+                          {err}
+                        </p>
                       ))}
                       {stressTestResult.errors.length > 5 && (
                         <p className="text-xs text-red-400">...e mais {stressTestResult.errors.length - 5} erros</p>

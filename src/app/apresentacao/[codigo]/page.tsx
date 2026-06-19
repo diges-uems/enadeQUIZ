@@ -144,6 +144,8 @@ export default function ApresentacaoPage({
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [socketConnected, setSocketConnected] = useState(false)
+  const [socketReconnecting, setSocketReconnecting] = useState(false)
   const [participantCount, setParticipantCount] = useState(0)
   const [totalParticipants, setTotalParticipants] = useState(0)
   const [voteResults, setVoteResults] = useState<VoteResults>({
@@ -155,6 +157,7 @@ export default function ApresentacaoPage({
   const [sessionFinished, setSessionFinished] = useState(false)
   const [showQrOverlay, setShowQrOverlay] = useState(false)
   const prevTotalVotes = useRef(0)
+  const socketDisconnectSinceRef = useRef<number | null>(null)
 
   // ── Derived ──
   const currentQuestion = session?.questions.find(
@@ -190,7 +193,38 @@ export default function ApresentacaoPage({
     }
   }, [codigo])
 
-  // ── Socket connection ──
+  // ── Lightweight polling sync used as a socket disconnect fallback ──
+  // Only syncs currentQuestionId and isRevealed — never overwrites loading
+  // or notFound state. Safe to call repeatedly.
+  const pollSessionState = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/session/${codigo}`)
+      if (!res.ok) return
+      const data: SessionData = await res.json()
+      setSession(data)
+      if (data.status === 'finished') {
+        setSessionFinished(true)
+      } else if (data.status !== 'finished' && sessionFinished) {
+        // Session was restarted by presenter — clear the finished flag.
+        setSessionFinished(false)
+      }
+      // Only update currentQuestionId / revealed if they actually changed
+      // (avoid clobbering optimistic state from socket events).
+      setCurrentQuestionId((prev) => {
+        if (prev === data.currentQuestionId) return prev
+        // Look up the question to sync revealed status.
+        const q = data.currentQuestionId
+          ? data.questions.find((q) => q.id === data.currentQuestionId)
+          : null
+        setRevealed(q ? q.isRevealed : false)
+        return data.currentQuestionId
+      })
+    } catch {
+      // Ignore transient errors — polling will retry.
+    }
+  }, [codigo, sessionFinished])
+
+  // ── Initial session fetch ──
   useEffect(() => {
     fetchSession()
   }, [fetchSession])
@@ -202,16 +236,44 @@ export default function ApresentacaoPage({
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       timeout: 10000,
     })
 
     socketInstance.on('connect', () => {
+      setSocketConnected(true)
+      setSocketReconnecting(false)
+      socketDisconnectSinceRef.current = null
+      // Re-join session on every connect/reconnect (not just the first one).
+      // The socket server may have lost our room membership after a disconnect.
       socketInstance.emit('join-session', {
         sessionCode: codigo,
         role: 'presenter',
+        presenterKey: 'presenter-default-key-2025',
       })
+    })
+
+    socketInstance.on('disconnect', () => {
+      setSocketConnected(false)
+      socketDisconnectSinceRef.current = Date.now()
+    })
+
+    socketInstance.on('reconnect_attempt', () => {
+      setSocketReconnecting(true)
+    })
+
+    socketInstance.on('reconnect_error', () => {
+      setSocketReconnecting(true)
+    })
+
+    socketInstance.on('connect_error', () => {
+      setSocketConnected(false)
+      if (socketDisconnectSinceRef.current === null) {
+        socketDisconnectSinceRef.current = Date.now()
+      }
+      setSocketReconnecting(true)
     })
 
     socketInstance.on('vote-results', (data: VoteResults) => {
@@ -282,8 +344,25 @@ export default function ApresentacaoPage({
 
     return () => {
       socketInstance.disconnect()
+      setSocketConnected(false)
+      setSocketReconnecting(false)
+      socketDisconnectSinceRef.current = null
     }
-  }, [session, codigo, fetchSession])
+  }, [session, codigo, fetchSession, currentQuestionId])
+
+  // ── Polling fallback: if the socket has been disconnected for more than
+  //    5 seconds, fetch /api/session/${codigo} every 3 seconds to sync state
+  //    (currentQuestionId, isRevealed). Stops polling once the socket reconnects.
+  useEffect(() => {
+    if (!session) return
+    const interval = setInterval(() => {
+      const since = socketDisconnectSinceRef.current
+      if (since !== null && Date.now() - since > 5000) {
+        pollSessionState()
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [session, pollSessionState])
 
   const totalVotes = voteResults.total || ALT_LABELS.reduce((sum, alt) => sum + (voteResults[alt] ?? 0), 0)
 
@@ -573,6 +652,25 @@ export default function ApresentacaoPage({
           <span className="text-[#8899CC] text-base">{session.title}</span>
         </div>
         <div className="flex items-center gap-4">
+          {/* Socket connection status indicator */}
+          {!socketConnected && (
+            <span
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium border whitespace-nowrap"
+              style={{
+                borderColor: socketReconnecting ? 'rgba(200,168,75,0.5)' : 'rgba(244,67,54,0.5)',
+                color: socketReconnecting ? '#C8A84B' : '#F44336',
+                backgroundColor: socketReconnecting ? 'rgba(200,168,75,0.1)' : 'rgba(244,67,54,0.1)',
+                animation: socketReconnecting ? 'pulse 1.5s ease-in-out infinite' : undefined,
+              }}
+              title={socketReconnecting ? 'Tentando reconectar...' : 'Desconectado do servidor'}
+            >
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: socketReconnecting ? '#C8A84B' : '#F44336' }}
+              />
+              {socketReconnecting ? 'Reconectando...' : 'Desconectado'}
+            </span>
+          )}
           <div
             className="flex items-center gap-1.5"
             key={participantCount}

@@ -368,9 +368,19 @@ export default function StudentVotingPage({
           setIsConnected(false)
         })
 
+        socket.on('reconnect_attempt', () => {
+          setIsConnected(false)
+        })
+
+        socket.on('reconnect_error', () => {
+          setIsConnected(false)
+        })
+
         socket.on('reconnect', () => {
           setIsConnected(true)
-          // Re-join session on reconnect so participant count stays accurate
+          // Re-join session on reconnect so participant count stays accurate.
+          // The `connect` handler above also re-joins (and fires on every
+          // successful reconnection) — this is kept for safety.
           socket.emit('join-session', { sessionCode: codigo, role: 'student' })
         })
       } catch {
