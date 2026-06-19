@@ -29,3 +29,30 @@ jobs:
           PRESENTER_KEY: presenter-default-key-2025
           NEXT_TELEMETRY_DISABLED: "1"
         run: bun run build
+      - name: Smoke test production server
+        env:
+          DATABASE_URL: file:./db/custom.db
+          ADMIN_SECRET_KEY: enade2024
+          PRESENTER_KEY: presenter-default-key-2025
+          PORT: "3000"
+        run: |
+          bun run start &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then
+              echo "Server is ready"
+              break
+            fi
+            sleep 1
+          done
+          echo "-- GET / --"
+          curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/
+          echo "-- GET /api/health --"
+          curl -sS http://localhost:3000/api/health
+          echo ""
+          echo "-- GET /api/session --"
+          curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/api/session
+          echo "-- GET /admin --"
+          curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/admin
+          kill $SERVER_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
