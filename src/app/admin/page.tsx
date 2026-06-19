@@ -887,6 +887,10 @@ export default function AdminPage() {
   const [deleteQuestionId, setDeleteQuestionId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // CSV export — tracks the session code currently being exported so we
+  // can show a spinner on the corresponding button and disable re-clicks.
+  const [exportingCsvCode, setExportingCsvCode] = useState<string | null>(null)
+
   // ── Presenter / Socket state ──
   const [socket, setSocket] = useState<Socket | null>(null)
   const [socketConnected, setSocketConnected] = useState(false)
@@ -1300,6 +1304,57 @@ export default function AdminPage() {
       fetchSessions()
     } catch {
       toast.error('Erro ao duplicar sessão.')
+    }
+  }
+
+  // Trigger a CSV export download for the given session.
+  //
+  // Uses adminFetch so the x-admin-token header is attached; the server
+  // validates it and returns 401 if the token expired (adminFetch then
+  // dispatches ADMIN_LOGOUT_EVENT, bouncing the user back to login).
+  //
+  // The response is a binary CSV blob (UTF-8 with BOM) — we read it as
+  // a Blob, create an object URL, and click a temporary <a> element to
+  // trigger the browser download. The object URL is revoked immediately
+  // afterwards to avoid leaking memory.
+  const handleExportCsv = async (sessionCode: string) => {
+    setExportingCsvCode(sessionCode)
+    try {
+      const res = await adminFetch(
+        `/api/session/${sessionCode}/export?format=csv`
+      )
+      if (!res.ok) {
+        // Surface a useful error — 401 is already handled by adminFetch
+        // (it dispatches the logout event), so here we only handle other
+        // status codes.
+        if (res.status !== 401) {
+          toast.error(
+            `Erro ao exportar CSV (status ${res.status}). Tente novamente.`
+          )
+        }
+        return
+      }
+      const blob = await res.blob()
+      // Try to honor the server-provided filename; fall back to a sane
+      // default if the Content-Disposition header is missing/odd.
+      const cd = res.headers.get('Content-Disposition') || ''
+      const match = cd.match(/filename="?([^";]+)"?/)
+      const filename = match
+        ? match[1]
+        : `session-${sessionCode}-results.csv`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('CSV exportado!')
+    } catch {
+      toast.error('Erro ao exportar CSV. Verifique sua conexão.')
+    } finally {
+      setExportingCsvCode(null)
     }
   }
 
@@ -1881,10 +1936,16 @@ export default function AdminPage() {
   // ── LOGIN SCREEN ─────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4">
-        <Card className="w-full max-w-md shadow-2xl border-0">
+      <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#00338C] via-[#001d52] to-[#050A1A] p-4 overflow-hidden">
+        {/* Animated grid background pattern */}
+        <div className="absolute inset-0 uems-bg-grid pointer-events-none opacity-60" aria-hidden />
+        {/* Soft radial highlights */}
+        <div className="absolute top-1/4 left-1/4 w-[420px] h-[420px] bg-[#C8A84B]/5 rounded-full blur-[140px] pointer-events-none" aria-hidden />
+        <div className="absolute bottom-1/4 right-1/4 w-[380px] h-[380px] bg-[#00338C]/20 rounded-full blur-[140px] pointer-events-none" aria-hidden />
+
+        <Card className="uems-card-enter relative w-full max-w-md shadow-2xl border-0">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
+            <div className="uems-icon-glow-navy mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-[#00338C]">
               <Lock className="size-8 text-white" />
             </div>
             <CardTitle className="text-2xl font-bold text-[#00338C]">
@@ -1908,23 +1969,26 @@ export default function AdminPage() {
                     setAuthError('')
                   }}
                   autoFocus
+                  className="uems-input-glow border-[#1A2A5E] focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30"
                 />
                 {authError && (
-                  <p className="text-sm text-destructive">{authError}</p>
+                  <p className="text-sm text-destructive" style={{ animation: 'fadeIn 0.25s ease-out' }}>{authError}</p>
                 )}
               </div>
               <Button
                 type="submit"
                 disabled={authLoading}
-                className="w-full bg-[#00338C] hover:bg-[#00338C]/90 text-white"
+                className="uems-btn-shine w-full bg-[#00338C] hover:bg-[#0044B8] text-white disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {authLoading && <Loader2 className="size-4 animate-spin" />}
-                Entrar
+                <span className="relative z-[2] flex items-center justify-center gap-2">
+                  {authLoading && <Loader2 className="size-4 animate-spin" />}
+                  {authLoading ? 'Entrando...' : 'Entrar'}
+                </span>
               </Button>
             </form>
           </CardContent>
         </Card>
-        <footer className="mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
+        <footer className="relative mt-auto pt-8 text-center text-xs text-[#3A4A7E]">
           <div className="flex items-center justify-center gap-2">
             <img src="/logo.png" alt="UEMS" className="h-4 w-4 object-contain opacity-50" />
             <span>UEMS / DIGES — Sistema ENADE Quiz</span>
@@ -3484,6 +3548,21 @@ export default function AdminPage() {
                       >
                         <Settings2 className="size-3.5" />
                         <span className="sm:hidden">Gerenciar</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 sm:flex-none"
+                        disabled={exportingCsvCode === session.code}
+                        onClick={() => handleExportCsv(session.code)}
+                        title="Exportar resultados em CSV"
+                      >
+                        {exportingCsvCode === session.code ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Download className="size-3.5" />
+                        )}
+                        <span className="sm:hidden">CSV</span>
                       </Button>
                       <Button
                         variant="outline"

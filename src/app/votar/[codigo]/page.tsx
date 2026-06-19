@@ -30,6 +30,18 @@ const ALT_COLORS: Record<string, string> = {
   E: '#F44336',
 }
 
+// ─── Confetti (finish screen celebration) ────────────────────────────────────
+// Generated once on the finished screen so confetti only fires once.
+const CONFETTI_COLORS = ['#C8A84B', '#00338C', '#E8EDFF', '#C8A84B', '#C8A84B']
+const CONFETTI_PIECES = Array.from({ length: 28 }, (_, i) => ({
+  id: i,
+  left: `${(i * 3.7 + (i % 5) * 2) % 100}%`,
+  delay: `${(i % 7) * 0.25}s`,
+  duration: `${3 + (i % 4) * 0.6}s`,
+  bg: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  rotate: `${(i * 33) % 360}deg`,
+}))
+
 // ─── CSS Keyframes ──────────────────────────────────────────────────────────
 const ANIMATION_STYLES = `
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -763,13 +775,47 @@ export default function StudentVotingPage({
 
   // Finished state
   if (pageState === 'finished') {
+    // Celebrate when the student got at least 60% of answered questions right.
+    const scoreRatio = answeredCount > 0 ? correctCount / answeredCount : 0
+    const isHighScore = answeredCount > 0 && scoreRatio >= 0.6
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#050A1A' }}>
+      <div className="relative min-h-screen flex flex-col items-center justify-center p-6 overflow-hidden" style={{ background: '#050A1A' }}>
         <style dangerouslySetInnerHTML={{ __html: ANIMATION_STYLES }} />
-        <div className="max-w-sm w-full text-center" style={{ animation: 'fadeInUp 0.7s ease-out' }}>
+
+        {/* Confetti celebration (only for high scores) */}
+        {isHighScore && (
+          <div className="absolute inset-0 pointer-events-none" aria-hidden>
+            {CONFETTI_PIECES.map((p) => (
+              <span
+                key={p.id}
+                className="uems-confetti"
+                style={{
+                  left: p.left,
+                  background: p.bg,
+                  animationDelay: p.delay,
+                  animationDuration: p.duration,
+                  transform: `rotate(${p.rotate})`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Soft glow background */}
+        {isHighScore && (
+          <div
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full blur-[140px] pointer-events-none"
+            style={{ background: 'rgba(200,168,75,0.18)' }}
+            aria-hidden
+          />
+        )}
+
+        <div className="relative max-w-sm w-full text-center" style={{ animation: 'fadeInUp 0.7s ease-out' }}>
           {/* Trophy */}
           <div className="mb-4" style={{ animation: 'rotateScaleIn 0.8s ease-out' }}>
-            <span className="text-7xl">🏆</span>
+            <span className={`text-7xl inline-block ${isHighScore ? 'uems-trophy-celebrate' : ''}`} style={{ animation: isHighScore ? 'rotateScaleIn 0.8s ease-out, uems-trophy-glow 1.6s ease-in-out 0.8s infinite' : 'rotateScaleIn 0.8s ease-out' }}>
+              🏆
+            </span>
           </div>
 
           <h1
@@ -791,15 +837,20 @@ export default function StudentVotingPage({
               >
                 {correctCount}/{answeredCount} acertos
               </span>
+              {isHighScore && (
+                <p className="mt-2 text-sm text-[#C8A84B] font-medium" style={{ animation: 'fadeIn 0.5s ease-out 1s both' }}>
+                  {scoreRatio === 1 ? '🎉 Pontuação máxima!' : '🎉 Excelente desempenho!'}
+                </p>
+              )}
             </div>
           )}
 
           <div style={{ animation: 'fadeIn 0.4s ease-out 0.7s both' }}>
             <Button
               onClick={() => router.push('/')}
-              className="bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
+              className="uems-btn-shine bg-[#C8A84B] hover:bg-[#B8983B] text-[#050A1A] font-semibold px-6"
             >
-              Voltar ao início
+              <span className="relative z-[2]">Voltar ao início</span>
             </Button>
           </div>
         </div>
@@ -1056,15 +1107,13 @@ export default function StudentVotingPage({
         {/* ── State: Waiting ───────────────────────────────────────────── */}
         {pageState === 'waiting' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
-            {/* Pulsing dots */}
-            <div className="flex items-center justify-center gap-2 mb-6">
-              {[0, 1, 2].map((i) => (
+            {/* Animated bouncing dots loader */}
+            <div className="flex items-center justify-center gap-2 mb-6" role="status" aria-label="Aguardando próxima questão">
+              {[0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="w-3 h-3 rounded-full bg-[#C8A84B]"
-                  style={{
-                    animation: `dotPulse 1.2s ease-in-out ${i * 0.4}s infinite`,
-                  }}
+                  className="uems-dot-loader w-3 h-3 rounded-full bg-[#C8A84B]"
+                  style={{ animationDelay: `${i * 0.16}s` }}
                 />
               ))}
             </div>
@@ -1123,11 +1172,15 @@ export default function StudentVotingPage({
                     key={letter}
                     onClick={() => handleVote(letter as 'A' | 'B' | 'C' | 'D' | 'E')}
                     disabled={isSubmitting}
-                    className="w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-[#0D1B3E] border-[#1A2A5E] hover:border-[#C8A84B] hover:shadow-[0_0_15px_rgba(200,168,75,0.15)] active:bg-[#1A2A5E] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-left"
-                    style={{ animation: `slideInLeft 0.3s ease-out ${idx * 0.06}s both` }}
+                    className="uems-alt-btn group w-full min-h-14 rounded-xl text-base font-medium flex items-center gap-3 px-4 py-3 border-2 transition-all duration-150 bg-[#0D1B3E] border-[#1A2A5E] hover:border-[#C8A84B] hover:shadow-[0_0_15px_rgba(200,168,75,0.15)] hover:bg-[#0F1F46] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed text-left"
+                    style={{
+                      animation: `slideInLeft 0.3s ease-out ${idx * 0.06}s both`,
+                      // Per-letter accent color used by .uems-alt-btn::before
+                      ['--uems-alt-color' as string]: color,
+                    }}
                   >
                     <span
-                      className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0 transition-transform duration-150 group-hover:scale-110"
                       style={{ backgroundColor: color }}
                     >
                       {letter}
@@ -1143,13 +1196,13 @@ export default function StudentVotingPage({
         {/* ── State: Already voted ─────────────────────────────────────── */}
         {pageState === 'voted' && currentQuestion && selectedChoice && (
           <div className="flex-1 flex flex-col items-center justify-center text-center" style={{ animation: 'fadeInUp 0.3s ease-out' }}>
-            {/* Gold checkmark */}
+            {/* Gold checkmark — confirmation animation */}
             <div className="mb-6" style={{ animation: 'scaleIn 0.4s ease-out' }}>
               <div
                 className="w-20 h-20 rounded-full bg-[#C8A84B]/15 border-2 border-[#C8A84B] flex items-center justify-center"
                 style={{ animation: 'glowPulse 2s ease-in-out infinite' }}
               >
-                <span className="text-[#C8A84B] text-3xl font-bold">✓</span>
+                <span className="uems-check-pop text-[#C8A84B] text-3xl font-bold">✓</span>
               </div>
             </div>
 

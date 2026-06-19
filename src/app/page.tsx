@@ -71,13 +71,13 @@ export default function Home() {
             <img
               src="/logo.png"
               alt="UEMS"
-              className="w-36 h-36 sm:w-40 sm:h-40 object-contain drop-shadow-[0_0_30px_rgba(200,168,75,0.35)]"
-              style={{ animation: 'scaleIn 0.6s ease-out 0.2s both' }}
+              className="w-36 h-36 sm:w-40 sm:h-40 object-contain drop-shadow-[0_0_30px_rgba(200,168,75,0.35)] uems-float"
+              style={{ animation: 'scaleIn 0.6s ease-out 0.2s both, uems-float 4s ease-in-out 0.8s infinite' }}
             />
 
             {/* Title */}
             <h1
-              className="text-4xl sm:text-5xl font-bold font-[family-name:var(--font-space-grotesk)] text-[#C8A84B] text-center tracking-tight"
+              className="text-4xl sm:text-5xl font-bold font-[family-name:var(--font-space-grotesk)] text-[#C8A84B] text-center tracking-tight uems-title-underline"
               style={{ animation: 'fadeInUp 0.6s ease-out 0.4s both' }}
             >
               ENADE Quiz
@@ -113,16 +113,18 @@ export default function Home() {
                 onChange={(e) => setCodigo(e.target.value)}
                 onKeyDown={handleKeyDown}
                 maxLength={6}
-                className="h-14 text-center text-xl font-semibold tracking-[0.2em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl transition-all"
+                className="uems-input-glow h-14 text-center text-xl font-semibold tracking-[0.2em] uppercase bg-[#050A1A] border-[#1A2A5E] text-[#E8EDFF] placeholder:text-[#3A4A7E] placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus-visible:border-[#C8A84B] focus-visible:ring-[#C8A84B]/30 focus-visible:ring-[3px] rounded-xl"
               />
 
               <Button
                 onClick={handleEntrar}
                 disabled={codigo.trim().length === 0}
-                className="h-13 text-lg font-semibold bg-[#00338C] hover:bg-[#0044B8] text-white rounded-xl transition-all duration-200 shadow-lg shadow-[#00338C]/30 hover:shadow-[#0044B8]/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="uems-btn-shine h-13 text-lg font-semibold bg-[#00338C] hover:bg-[#0044B8] text-white rounded-xl transition-all duration-200 shadow-lg shadow-[#00338C]/30 hover:shadow-[#0044B8]/40 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                Entrar
-                <ArrowRight className="w-5 h-5 ml-1" />
+                <span className="relative z-[2] flex items-center">
+                  Entrar
+                  <ArrowRight className="w-5 h-5 ml-1" />
+                </span>
               </Button>
             </div>
 

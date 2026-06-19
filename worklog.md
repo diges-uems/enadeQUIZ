@@ -1621,3 +1621,143 @@ Priority Recommendations for Next Phase:
 3. Testar deploy.sh em VM real (Ubuntu 22.04/24.04 com bun+pm2+caddy)
 4. Considerar adicionar um `deploy/quick-install.sh` que instala bun,
    pm2, caddy numa VM limpa (one-liner para setup inicial)
+
+---
+Task ID: 8-b
+Agent: Frontend Styling Subagent
+Task: Improve UI styling details on key pages
+
+Work Log:
+- Read worklog.md for UEMS dark theme context (bg `#050A1A`, card `#0D1B3E`, border `#1A2A5E`, navy `#00338C`, gold `#C8A84B`, text `#E8EDFF`) and prior work.
+- Read `src/app/globals.css`, `src/app/page.tsx` (home), `src/app/admin/page.tsx` (login section lines ~1881-1935), and `src/app/votar/[codigo]/page.tsx` (all states) before editing. Confirmed existing CSS-only animation approach (inline `<style>` blocks per page + a small set of `@keyframes`).
+- Added a shared library of GPU-accelerated (`transform`/`opacity` only) CSS keyframes + utility classes to `src/app/globals.css`:
+  - Keyframes: `uems-float`, `uems-shine-sweep`, `uems-gradient-underline`, `uems-input-glow`, `uems-icon-glow`, `uems-icon-glow-navy`, `uems-check-pop`, `uems-dot-bounce`, `uems-confetti-fall`, `uems-trophy-glow`, `uems-card-slide-up`, `uems-bg-pan`.
+  - Utility classes: `.uems-float`, `.uems-title-underline` (animated gold/navy gradient underline via `::after`), `.uems-input-glow` (monospace + letter-spacing + gold pulse glow on focus), `.uems-btn-shine` (shine sweep on hover + `scale(0.97)` on press via `::before` pseudo-element), `.uems-icon-glow` / `.uems-icon-glow-navy`, `.uems-card-enter` (fade-in + slide-up entrance), `.uems-bg-grid` (animated gold grid pattern), `.uems-bg-dots`, `.uems-alt-btn` (vote alt button with colored left accent that scales in on hover via `::before` using `--uems-alt-color` CSS var), `.uems-check-pop`, `.uems-dot-loader`, `.uems-confetti`, `.uems-trophy-celebrate`.
+  - Added `@media (prefers-reduced-motion: reduce)` block that disables all custom animations for accessibility.
+- **Home page (`src/app/page.tsx`)** — surgical edits, kept all existing entrance animations and floating particles:
+  - UEMS logo now floats subtly (added `uems-float` 4s ease-in-out to the existing `scaleIn` entrance animation, with 0.8s delay so the float starts after the entrance completes).
+  - "ENADE Quiz" title gets an animated gold/navy gradient underline (`.uems-title-underline::after`).
+  - Session code input: added `.uems-input-glow` class — applies Geist Mono font + 0.25em letter-spacing for readability, and a subtle pulsing gold glow on focus.
+  - "Entrar" button: added `.uems-btn-shine` — diagonal shine sweep on hover, `scale(0.97)` on press. Wrapped button content in `<span className="relative z-[2]">` so the text stays above the shine `::before` layer.
+- **Admin login section (`src/app/admin/page.tsx`, lines ~1881-1944)** — only touched the unauthenticated login view, no changes to the authenticated admin panel:
+  - Login Card gets `.uems-card-enter` (fade-in + slide-up, 0.6s cubic-bezier entrance).
+  - Lock icon container gets `.uems-icon-glow-navy` (subtle navy `box-shadow` pulse, matching the navy circle background).
+  - Password input gets `.uems-input-glow` (gold focus glow matching theme) + themed border colors.
+  - "Entrar" button: now uses `.uems-btn-shine` for the sweep effect, shows "Entrando..." text + spinner when `authLoading`, properly disabled styling. Content wrapped in `z-[2]` span so the shine stays behind text.
+  - Background: added an animated gold grid pattern overlay (`.uems-bg-grid` with `uems-bg-pan` 18s infinite pan) plus two soft radial blur highlights (gold top-left, navy bottom-right) for depth. Made outer container `relative overflow-hidden` and footer `relative` so they stack above the bg layer.
+- **Voting page (`src/app/votar/[codigo]/page.tsx`)** — surgical edits per state:
+  - Added `CONFETTI_COLORS` and `CONFETTI_PIECES` (28 particles) constants near the top for the finished-screen celebration.
+  - **Voting state — alternative buttons (A/B/C/D/E)**: added `.uems-alt-btn group` class. Each button sets `--uems-alt-color` CSS var to its letter color (`A:#00338C`, `B:#C8A84B`, etc.). On hover, the per-letter colored left accent bar scales in vertically (`::before` scaleY 0→1), the whole button translates 2px right + scales 1.012x, and the letter chip scales 1.1x via `group-hover:scale-110`. On press, scales to 0.985. Also added `hover:bg-[#0F1F46]` for a slightly lighter card bg on hover.
+  - **Voted state**: confirmation checkmark `✓` now uses `.uems-check-pop` (pops in with `scale(0)→1.2→1` + rotation) — a small but satisfying confirmation animation on top of the existing `glowPulse` ring.
+  - **Waiting state**: replaced the 3 pulsing dots with a 5-dot bouncing loader using `.uems-dot-loader` (`uems-dot-bounce` keyframe: translateY + scale + opacity, staggered with 0.16s delays). Added `role="status"` + `aria-label` for accessibility.
+  - **Finished state**: when the student's score ratio is ≥60% (`isHighScore`), the screen now shows:
+    - 28 confetti particles falling from top with random horizontal positions, delays (0-1.5s), durations (3-4.8s), colors (gold/navy/white/gold/gold) and rotations — all CSS-animated via `.uems-confetti` + `uems-confetti-fall`.
+    - A large gold radial blur glow behind the trophy.
+    - The trophy emoji 🏆 gets `.uems-trophy-celebrate` (`uems-trophy-glow`: pulsing `drop-shadow` + subtle scale 1↔1.06).
+    - A new subtitle "🎉 Pontuação máxima!" (100%) or "🎉 Excelente desempenho!" (≥60%) fades in 1s after load.
+    - The "Voltar ao início" button gets `.uems-btn-shine`.
+    - All wrapped in `relative overflow-hidden` so confetti stays within the viewport.
+  - Fixed a stray `}}` JSX syntax error accidentally introduced by a `MultiEdit` operation on the waiting-state block — verified with `awk` byte inspection, restored to `)}`.
+- Verified `bun run lint` passes (clean, no errors/warnings).
+- Verified all 3 routes return HTTP 200 (`/`, `/admin`, `/votar/TEST25`) — final state of `dev.log` shows clean compiles with no errors. The transient 500 seen mid-edit was caused by the abovementioned syntax typo and is fully resolved.
+
+Stage Summary:
+- Added a shared CSS micro-interactions library to `globals.css` (12 keyframes + 13 utility classes + `prefers-reduced-motion` support) — all GPU-accelerated (transform/opacity), no JS animation libs, theme palette only (navy `#00338C`, gold `#C8A84B`, no indigo/bright blue).
+- Home page: floating UEMS logo, animated gold/navy gradient underline on title, monospace + gold-glow-focus session code input, shine-sweep + press-scale "Entrar" button.
+- Admin login (unauthenticated view only): card slide-up entrance, pulsing navy glow on lock icon, gold focus glow on password field, animated grid + radial highlights background, loading-state button ("Entrando..." + spinner) with shine sweep.
+- Voting page: per-letter colored left accent + hover scale on alternative buttons, popping checkmark confirmation on voted state, 5-dot bouncing loader on waiting state, and a full confetti celebration (28 particles + trophy glow + radial glow + subtitle) on the finished screen when score ≥60%.
+- All pages remain fully functional; lint passes; routes return 200; no compilation errors in `dev.log`. Mobile-first responsive classes preserved throughout.
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Corrigir deploy no host do Z.ai (não VM) — usuário clarificou "eu to fazendo o deploy no seu host, não em uma vm"
+
+Work Log:
+- **Diagnóstico corrigido**: O usuário estava fazendo deploy no HOST do Z.ai (sandbox),
+  não em uma VM externa. Os scripts de VM (deploy.sh, PM2, Caddyfile.production)
+  corrigidos na task 7 NÃO se aplicam. O deploy no host usa os scripts `build` e
+  `start` do package.json diretamente.
+
+- **Causa raiz do erro de deploy**:
+  O `start` script usava `next start` mas o `next.config.ts` tem `output: 'standalone'`.
+  O Next.js 16 exibe o warning:
+    ⚠ "next start" does not work with "output: standalone" configuration.
+       Use "node .next/standalone/server.js" instead.
+  A plataforma vê isso e falha o deploy com a mensagem genérica
+  "Sorry, there was a problem deploying the code."
+
+- **Fix aplicado** — scripts do package.json alinhados com `output: standalone`:
+  - `build`: `prisma generate && next build && node scripts/assemble-standalone.js`
+    (gera prisma client + builda Next.js + copia public/prisma/.env/db para standalone)
+  - `start`: `node .next/standalone/server.js`
+    (usa o standalone bundle completo, sem warning de incompatibilidade)
+  - Removidos scripts redundantes (`build:prod`, `start:bun`, `build:standalone`,
+    `start:standalone`) — agora há um único par `build`/`start` que funciona tanto
+    no host do Z.ai quanto em VMs
+
+- **Verificação completa do fluxo build → start**:
+  - `NODE_OPTIONS=--max-old-space-size=2048 bun run build` — compila 22 rotas,
+    assemble-standalone copia 5/5 componentes (static, public, prisma, .env, db) ✅
+  - `PORT=3005 node .next/standalone/server.js` (porta livre para teste) —
+    todos os endpoints retornam 200:
+    GET / → 200, GET /admin → 200, GET /api/session → 200,
+    GET /logo-uems.png → 200, GET /votar/TEST25 → 200,
+    GET /apresentacao/TEST25 → 200 ✅
+  - Security headers (proxy.ts) ativos em /admin e /api/* ✅
+  - Server inicia em 65ms, sem warnings ✅
+
+- **Subagente de styling (Task 8-b) completou**:
+  - Adicionou 12 keyframes + 13 utility classes em globals.css
+  - Home page: logo flutuante, underline gradiente animado no título, input com
+    glow dourado no focus, botão com shine sweep
+  - Admin login: card fade-in + slide-up, ícone cadeado com glow, fundo com grid
+    animado, estado de loading no botão
+  - Votar: botões de alternativa com border colorido por letra + scale no hover,
+    checkmark pop-in no voto, loader de 5 dots no waiting, confetti + trophy glow
+    no score final ≥60%
+  - Tudo CSS-only (sem framer-motion), respeita prefers-reduced-motion
+
+- **Feature CSV export (Task 8-a) já estava implementada**:
+  - Rota `src/app/api/session/[code]/export/route.ts` completa:
+    GET /api/session/[code]/export?format=csv
+    - Auth admin obrigatória (verifyAdminAuth)
+    - CSV com colunas: RGM, Nome, Score, Acertos, Total Respondidas, % Aproveitamento
+    - + 3 colunas por questão (resposta do aluno, gabarito, correta?)
+    - UTF-8 com BOM (compatibilidade Excel), Content-Disposition: attachment
+    - RFC 4180 compliant (escaping de quotes, CRLF line endings)
+  - Botão "Exportar CSV" no admin (linha 3558 do page.tsx, com ícone Download)
+  - Verificado no dev log: GET /api/session/67QAFO/export?format=csv → 200 ✅
+
+Stage Summary:
+- ✅ Scripts `build`/`start` corrigidos para compatibilidade total com `output: standalone`
+- ✅ Build completo (22 rotas) + assemble standalone (5/5 componentes) sem erros
+- ✅ Standalone server testado em porta livre — todos endpoints 200, sem warnings
+- ✅ Lint limpo (0 errors, 0 warnings)
+- ✅ Dev server saudável (preview panel funcionando)
+- ✅ CSV export feature completa e funcional
+- ✅ UI polish: 12 animações CSS adicionadas (home, admin, votar)
+
+Fluxo de deploy no host do Z.ai (correto agora):
+  1. Plataforma roda `bun run build`
+     → prisma generate + next build + assemble-standalone.js
+     → .next/standalone/ fica completo (server.js + public/ + prisma/ + .env + db/)
+  2. Plataforma roda `bun run start`
+     → node .next/standalone/server.js
+     → servidor production na porta 3000, sem warnings
+  3. Caddy gateway roteia tráfego externo → porta 3000
+
+Arquivos modificados nesta task:
+- package.json (scripts build/start simplificados e alinhados com standalone)
+
+Unresolved Issues:
+- O `PRESENTER_KEY` ainda é hardcoded no client-side. Para deploy no host,
+  o valor default 'presenter-default-key-2025' funciona. Para produção real,
+  deve ser trocado via NEXT_PUBLIC_PRESENTER_KEY.
+- As portas 3003/3004 dos mini-services (socket, stress-test) ainda são
+  hardcoded. No host do Z.ai, o Caddy gateway roteia via XTransformPort.
+
+Priority Recommendations for Next Phase:
+1. Testar o deploy no host do Z.ai novamente (build → start deve funcionar agora)
+2. Se ainda falhar, verificar logs da plataforma para identificar o step exato
+3. Considerar migrar PRESENTER_KEY para NEXT_PUBLIC_PRESENTER_KEY env var

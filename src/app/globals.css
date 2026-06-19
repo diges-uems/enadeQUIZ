@@ -148,3 +148,271 @@
 .uems-logo {
   filter: brightness(0) invert(1);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   UEMS ENADE Quiz — Custom micro-interactions & animations
+   (CSS-only, GPU-accelerated: transform + opacity)
+   ════════════════════════════════════════════════════════════════════ */
+
+@keyframes uems-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes uems-shine-sweep {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
+}
+
+@keyframes uems-gradient-underline {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes uems-input-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.18), 0 0 18px rgba(200, 168, 75, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.28), 0 0 28px rgba(200, 168, 75, 0.22);
+  }
+}
+
+@keyframes uems-icon-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(200, 168, 75, 0);
+  }
+  50% {
+    box-shadow: 0 0 18px 2px rgba(200, 168, 75, 0.45);
+  }
+}
+
+@keyframes uems-icon-glow-navy {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 51, 140, 0);
+  }
+  50% {
+    box-shadow: 0 0 18px 2px rgba(0, 51, 140, 0.55);
+  }
+}
+
+@keyframes uems-check-pop {
+  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+  60% { transform: scale(1.2) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes uems-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0) scale(0.6); opacity: 0.4; }
+  40% { transform: translateY(-8px) scale(1); opacity: 1; }
+}
+
+@keyframes uems-confetti-fall {
+  0% { transform: translateY(-20vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes uems-trophy-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(200, 168, 75, 0.4));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 24px rgba(200, 168, 75, 0.8));
+    transform: scale(1.06);
+  }
+}
+
+@keyframes uems-card-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes uems-bg-pan {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 60px 60px; }
+}
+
+/* ── Utility classes ─────────────────────────────────────────────── */
+
+/* Floating logo animation */
+.uems-float {
+  animation: uems-float 4s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Title with animated gold gradient underline */
+.uems-title-underline {
+  position: relative;
+  display: inline-block;
+}
+.uems-title-underline::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -10px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #C8A84B 25%,
+    #00338C 50%,
+    #C8A84B 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: uems-gradient-underline 4s ease-in-out infinite;
+}
+
+/* Code/password input: monospace + gold glow on focus */
+.uems-input-glow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.25em;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.uems-input-glow:focus,
+.uems-input-glow:focus-visible {
+  animation: uems-input-glow 2s ease-in-out infinite;
+}
+
+/* Button with shine sweep on hover + scale on press */
+.uems-btn-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.uems-btn-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  transform: translateX(-150%) skewX(-20deg);
+  pointer-events: none;
+  z-index: 1;
+}
+.uems-btn-shine:hover::before {
+  animation: uems-shine-sweep 0.9s ease-out;
+}
+.uems-btn-shine:active {
+  transform: scale(0.97);
+}
+
+/* Icon container with subtle gold pulse glow */
+.uems-icon-glow {
+  animation: uems-icon-glow 2.4s ease-in-out infinite;
+}
+.uems-icon-glow-navy {
+  animation: uems-icon-glow-navy 2.4s ease-in-out infinite;
+}
+
+/* Card entrance: fade + slide up (one-shot) */
+.uems-card-enter {
+  animation: uems-card-slide-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Background grid pattern (admin login) */
+.uems-bg-grid {
+  background-image:
+    linear-gradient(rgba(200, 168, 75, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 168, 75, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 0 0;
+  animation: uems-bg-pan 18s linear infinite;
+}
+
+/* Background dot pattern (alt) */
+.uems-bg-dots {
+  background-image: radial-gradient(rgba(200, 168, 75, 0.12) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* Vote alternative button — left colored accent on hover */
+.uems-alt-btn {
+  position: relative;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  will-change: transform;
+}
+.uems-alt-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12%;
+  bottom: 12%;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--uems-alt-color, #C8A84B);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform 0.2s ease;
+}
+.uems-alt-btn:hover {
+  transform: translateX(2px) scale(1.012);
+}
+.uems-alt-btn:hover::before {
+  transform: scaleY(1);
+}
+.uems-alt-btn:active {
+  transform: translateX(0) scale(0.985);
+}
+
+/* Confirmation checkmark that pops in on vote */
+.uems-check-pop {
+  animation: uems-check-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Bouncing dots loader */
+.uems-dot-loader {
+  animation: uems-dot-bounce 1.4s ease-in-out infinite both;
+}
+
+/* Confetti particle (combine with inline left/animation-delay/bg) */
+.uems-confetti {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation: uems-confetti-fall linear forwards;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* Trophy celebration glow */
+.uems-trophy-celebrate {
+  animation: uems-trophy-glow 1.6s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .uems-float,
+  .uems-btn-shine::before,
+  .uems-input-glow:focus,
+  .uems-input-glow:focus-visible,
+  .uems-icon-glow,
+  .uems-icon-glow-navy,
+  .uems-title-underline::after,
+  .uems-bg-grid,
+  .uems-alt-btn,
+  .uems-alt-btn::before,
+  .uems-check-pop,
+  .uems-dot-loader,
+  .uems-confetti,
+  .uems-trophy-celebrate,
+  .uems-card-enter {
+    animation: none !important;
+    transition: none !important;
+  }
+}
