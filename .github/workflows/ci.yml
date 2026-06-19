@@ -1,7 +1,3 @@
-# ENADE Quiz - CI/CD Pipeline
-# Validates that the project builds cleanly in a fresh Ubuntu environment
-# WITHOUT any network access to Google Fonts / Prisma engines (mirrors the
-# restricted CI/CD environment used by Z.ai and similar platforms).
 name: CI
 
 "on":
@@ -13,13 +9,11 @@ name: CI
       - main
   workflow_dispatch:
 
-# Cancel in-progress runs for the same ref to save CI minutes.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Job 1 - Lint + Type-check (fast, fails fast on obvious errors)
   lint:
     name: Lint and Type-check
     runs-on: ubuntu-latest
@@ -27,27 +21,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
       - name: Generate Prisma Client
         run: bunx prisma generate
-
       - name: Lint
         run: bun run lint
         continue-on-error: true
-
       - name: Type-check
         run: bunx tsc --noEmit
         continue-on-error: true
 
-  # Job 2 - Production Build (the critical test)
   build:
     name: Production Build
     runs-on: ubuntu-latest
@@ -55,36 +43,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - name: Setup Node (some postinstall scripts need it)
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
-
       - name: Generate Prisma Client
         run: bunx prisma generate
-
-      - name: Build (production)
+      - name: Build production
         env:
-          DATABASE_URL: "file:./db/custom.db"
-          ADMIN_SECRET_KEY: "enade2024"
-          PRESENTER_KEY: "presenter-default-key-2025"
+          DATABASE_URL: file:./db/custom.db
+          ADMIN_SECRET_KEY: enade2024
+          PRESENTER_KEY: presenter-default-key-2025
           NEXT_TELEMETRY_DISABLED: "1"
         run: bun run build
-
-      - name: Smoke-test the production server
+      - name: Smoke test production server
         env:
-          DATABASE_URL: "file:./db/custom.db"
-          ADMIN_SECRET_KEY: "enade2024"
-          PRESENTER_KEY: "presenter-default-key-2025"
+          DATABASE_URL: file:./db/custom.db
+          ADMIN_SECRET_KEY: enade2024
+          PRESENTER_KEY: presenter-default-key-2025
           PORT: "3000"
         run: |
           bun run start &
@@ -107,7 +89,6 @@ jobs:
           curl -sS -o /dev/null -w "Status: %{http_code}\n" http://localhost:3000/admin
           kill $SERVER_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-
       - name: Upload build artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -118,41 +99,35 @@ jobs:
             db/custom.db
           retention-days: 7
 
-  # Job 3 - Build with NO network access (Z.ai simulation)
   build-offline:
-    name: Build (Offline - Z.ai simulation)
+    name: Build Offline Z.ai simulation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install dependencies (network required once)
+      - name: Install dependencies
         run: bun install --frozen-lockfile
-
-      - name: Generate Prisma Client (offline-safe - engine cached)
+      - name: Generate Prisma Client
         run: bunx prisma generate
-
-      - name: Build with NO network access
+      - name: Build with no network access
         env:
-          DATABASE_URL: "file:./db/custom.db"
-          ADMIN_SECRET_KEY: "enade2024"
-          PRESENTER_KEY: "presenter-default-key-2025"
+          DATABASE_URL: file:./db/custom.db
+          ADMIN_SECRET_KEY: enade2024
+          PRESENTER_KEY: presenter-default-key-2025
           NEXT_TELEMETRY_DISABLED: "1"
-          http_proxy: "http://127.0.0.1:1"
-          https_proxy: "http://127.0.0.1:1"
-          HTTP_PROXY: "http://127.0.0.1:1"
-          HTTPS_PROXY: "http://127.0.0.1:1"
+          http_proxy: http://127.0.0.1:1
+          https_proxy: http://127.0.0.1:1
+          HTTP_PROXY: http://127.0.0.1:1
+          HTTPS_PROXY: http://127.0.0.1:1
           NO_PROXY: ""
           no_proxy: ""
         run: bun run build
