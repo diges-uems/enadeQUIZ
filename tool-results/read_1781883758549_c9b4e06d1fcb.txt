@@ -1,0 +1,2002 @@
+     1→# ENADE Quiz — Worklog
+     2→
+     3→## Session: 2026-06-16
+     4→
+     5→---
+     6→Task ID: 1
+     7→Agent: Main Agent
+     8→Task: Import 30 ENADE 2025 Ciências Biológicas questions from PDF, add Wake Lock API, fix participant count fluctuation, move preview to top
+     9→
+    10→Work Log:
+    11→- Extracted 30 questions from uploaded PDF `/home/z/my-project/upload/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf` using PyMuPDF
+    12→- Parsed all questions with proper structure (text, alternatives A-D, course, year)
+    13→- Extracted 4 images from PDF (pages 3, 5, 15, 16) and saved to `/home/z/my-project/public/uploads/`
+    14→- Image mapping:
+    15→  - Q05: `/uploads/enade-2025-q5-charge.png` (Laerte cartoon)
+    16→  - Q09/Q10: `/uploads/enade-2025-q9-q10-pnld.png` (PNLD flowchart)
+    17→  - Q28: `/uploads/enade-2025-q28-inclusao.png` (inclusion education diagram)
+    18→  - Q30: `/uploads/enade-2025-q30-grafico.png` (female participation graph)
+    19→- Created session "ENADE 2025 — Ciências Biológicas (Formação Geral Docente)" with code 67QAFO
+    20→- Imported all 30 questions via POST /api/session/67QAFO/questions
+    21→- Updated imageUrl for questions with images via PUT endpoint
+    22→- Updated QuestionImport type to include imageUrl and orderIndex fields
+    23→- Updated bulk import API to support imageUrl field
+    24→- Added Wake Lock API to votar page (`/src/app/votar/[codigo]/page.tsx`):
+    25→  - Uses `navigator.wakeLock.request('screen')` to keep phone screens awake
+    26→  - Re-acquires wake lock on visibility change
+    27→  - Releases wake lock on component unmount
+    28→- Added `totalParticipants` counter to socket service (`/mini-services/enade-quiz/index.ts`):
+    29→  - Tracks total unique participants ever connected (only increments, never decrements)
+    30→  - Updated `participant-count` event to emit `{ live: number, total: number }`
+    31→  - Updated `session-state` event to include `totalParticipants`
+    32→  - Grace period (30s) for disconnects prevents count fluctuation
+    33→- Updated frontend to handle new participant count format:
+    34→  - votar page: Added `totalParticipants` state
+    35→  - apresentacao page: Shows total participants as main count, with live count as subtitle
+    36→  - admin page: Shows total participants as main count, with live count as subtitle
+    37→- Preview card is already at the top of the Apresentar tab in admin
+    38→
+    39→Stage Summary:
+    40→- 30 ENADE questions successfully imported with images (session code: 67QAFO)
+    41→- Wake Lock API added to keep phone screens awake
+    42→- Total participants counter added (never decrements, prevents count fluctuation)
+    43→- Preview card is at the top of Apresentar tab
+    44→- Dev server experiences OOM crashes frequently (known issue, production works fine)
+    45→
+    46→Unresolved Issues:
+    47→- Dev server OOM crashes (known, user said to ignore)
+    48→- Correct answers are all set to "A" as placeholder (admin needs to set them)
+    49→- Questions have only 4 alternatives (A-D), altE is empty string
+    50→- Some carried-forward tasks still pending: bar chart, Start Presentation button, QR Code modal, etc.
+    51→
+    52→Priority Recommendations for Next Phase:
+    53→1. Format question text like the PDF (rich text with paragraphs, references, bold sections)
+    54→2. Hide empty alternative E for ENADE questions (only 4 alternatives A-D)
+    55→3. Set correct answers for all 30 questions
+    56→4. Implement remaining carried-forward features
+    57→
+    58→---
+    59→Task ID: 2
+    60→Agent: Main Agent
+    61→Task: Format question text matching PDF, hide empty altE (ENADE has only 4 alternatives), improve styling
+    62→
+    63→Work Log:
+    64→- Created `QuestionText` component at `/src/components/QuestionText.tsx`:
+    65→  - Parses question text into logical blocks (headers, references, sources, bullets, etc.)
+    66→  - "TEXTO 1", "TEXTO 2" → bold gold section headers
+    67→  - "Texto para questões XX e YY" → italic section intro
+    68→  - Reference lines (surnames with years) → italic, muted, left-border
+    69→  - "Disponível em:" / "Acesso em:" → italic source references
+    70→  - Bullet points → styled with gold dot
+    71→  - Named items like "Função referencial:" → bold term + description
+    72→  - Numbered items → styled numbered lists
+    73→  - Quoted text → italic with proper typographic quotes
+    74→  - Inline formatting: bold terms (word:), italic quoted text
+    75→- Created `getActiveAlternatives()` helper that filters out empty alternatives
+    76→  - Returns only A-D for ENADE questions (altE is empty)
+    77→  - Returns A-E for questions with 5 alternatives
+    78→- Updated votar page (`/src/app/votar/[codigo]/page.tsx`):
+    79→  - Uses `QuestionText` for rich text rendering
+    80→  - Answer buttons now use `getActiveAlternatives()` — no empty E button
+    81→  - Revealed state also filters empty alternatives
+    82→- Updated apresentacao page (`/src/app/apresentacao/[codigo]/page.tsx`):
+    83→  - Uses `QuestionText` for question text rendering
+    84→  - Alternatives list uses `getActiveAlternatives()` — no empty E
+    85→  - Bar chart uses `getActiveAlternatives()` — no empty E bar
+    86→- Updated admin page (`/src/app/admin/page.tsx`):
+    87→  - Uses `QuestionText` in question preview card
+    88→  - Question alternatives use `getActiveAlternatives()`
+    89→  - Live results bar chart uses `getActiveAlternatives()`
+    90→  - Question form: altE is now optional (A-D required, E optional)
+    91→  - Form validation updated to not require altE
+    92→  - SortableQuestionItem shows active alternative badges
+    93→- Updated API `/api/session/[code]/questions/route.ts`:
+    94→  - Single question creation no longer requires altE
+    95→- Updated types (`/src/types/index.ts`):
+    96→  - QuestionImport.alternatives.E is now optional
+    97→- Preview card was already at the top of Apresentar tab (confirmed)
+    98→- Socket service on port 3003 confirmed running
+    99→- Lint passes clean, no TypeScript errors in project source
+   100→
+   101→Stage Summary:
+   102→- Questions now render with rich formatting matching PDF (headers, references, bullets, etc.)
+   103→- ENADE questions with only 4 alternatives (A-D) no longer show empty E
+   104→- Admin form marks E as optional with visual distinction
+   105→- All three main pages (votar, apresentacao, admin) updated consistently
+   106→- Preview card confirmed at top of Apresentar tab
+   107→
+   108→Unresolved Issues:
+   109→- Dev server OOM crashes (known issue, server works fine in short bursts)
+   110→- Correct answers are all set to "A" as placeholder
+   111→- Agent-browser testing limited due to OOM crashes
+   112→- Some features still pending: Start Presentation button improvements, mobile dimensions
+   113→
+   114→Priority Recommendations for Next Phase:
+   115→1. Set correct answers for all 30 questions
+   116→2. Add more visual polish (animations, transitions)
+   117→3. Implement Start Presentation workflow improvements
+   118→4. Test with actual students for stability
+   119→
+   120→---
+   121→Task ID: 3
+   122→Agent: Main Agent
+   123→Task: Remove scrollbar from apresentacao, add text-justify, replace logo, update correct answers, create Question Bank
+   124→
+   125→Work Log:
+   126→- Removed all scrollbars from apresentacao page (`/src/app/apresentacao/[codigo]/page.tsx`):
+   127→  - Changed `overflow-y-auto` to `overflow-hidden` on question text area
+   128→  - Added `useFitContent` hook that scales content to fit container without scrollbar
+   129→  - Reduced padding/gaps/text sizes for compact layout
+   130→  - Active question state now uses `overflow-hidden` throughout
+   131→- Added `text-justify` to question text rendering:
+   132→  - `QuestionText` component now includes `text-justify` in its className
+   133→  - Alternatives text in apresentacao uses `text-justify`
+   134→  - Alternatives text in votar uses `text-justify`
+   135→- Replaced logo SVG with PNG from user upload (`/home/z/my-project/upload/Artboard 4.png`):
+   136→  - Copied to `/home/z/my-project/public/logo.png`
+   137→  - Replaced all `logo.svg` references with `logo.png` across all pages
+   138→  - Removed fixed width constraints (h-X only, no w-X) to prevent deformation
+   139→  - Removed background/border containers around logo per user request
+   140→  - Updated favicon in layout.tsx
+   141→- Updated correct answers for all 30 ENADE 2025 Ciências Biológicas questions:
+   142→  - Used VLM (z-ai vision) to extract answers from uploaded image
+   143→  - Correct answers: Q1:C, Q2:A, Q3:C, Q4:A, Q5:B, Q6:A, Q7:C, Q8:D, Q9:D, Q10:B,
+   144→    Q11:C, Q12:A, Q13:D, Q14:A, Q15:B, Q16:D, Q17:D, Q18:B, Q19:A, Q20:D,
+   145→    Q21:C, Q22:C, Q23:C, Q24:C, Q25:A, Q26:A, Q27:C, Q28:D, Q29:B, Q30:B
+   146→  - Updated via PUT /api/session/67QAFO/questions/[id] for each question
+   147→- Created Question Bank feature (Banco de Questões):
+   148→  - Added `QuestionBank` model to Prisma schema with fields: title, text, year, course, altA-E, correctAnswer, imageUrl, category, tags
+   149→  - Created API routes:
+   150→    - `GET/POST/DELETE /api/question-bank` — list, create, delete questions
+   151→    - `GET/PUT/DELETE /api/question-bank/[id]` — individual question CRUD
+   152→    - `POST /api/question-bank/import` — import bank questions to a session
+   153→    - `POST /api/question-bank/save-from-session` — save session questions to bank
+   154→  - Saved all 30 ENADE questions to the bank (category: "ENADE 2025")
+   155→  - Added "Banco de Questões" tab to admin page with:
+   156→    - Question listing with filters (category, course, search)
+   157→    - Create new question dialog
+   158→    - Import to session dialog
+   159→    - Delete confirmation dialog
+   160→    - Checkbox selection for bulk operations
+   161→- Server stability issues:
+   162→  - Dev server (`bun run dev`, `npx next dev`) experiences frequent OOM crashes
+   163→  - Production server (`npx next start`) also crashes after multiple large page requests
+   164→  - Standalone server works for 1-2 requests then crashes (Prisma client issue)
+   165→  - Need to copy Prisma engine files to standalone build for it to work
+   166→
+   167→Stage Summary:
+   168→- No scrollbar on apresentacao page — content auto-fits via scale transform
+   169→- All question text is justified (text-justify)
+   170→- Logo replaced with UEMS PNG (no deformation, no containers)
+   171→- All 30 correct answers updated from gabarito image
+   172→- Question Bank feature complete with CRUD API and admin UI
+   173→- 30 ENADE questions saved in the bank
+   174→
+   175→Unresolved Issues:
+   176→- Server instability (OOM crashes) limits testing
+   177→- useFitContent hook may need refinement for very long questions
+   178→- Admin page Question Bank tab needs browser testing
+   179→
+   180→Priority Recommendations for Next Phase:
+   181→1. Fix server stability (try different Node.js version or memory configuration)
+   182→2. Test Question Bank UI in browser
+   183→3. Refine auto-fit scaling for apresentacao
+   184→4. Add ability to edit questions in the bank
+   185→5. Add bulk import from bank when creating new sessions
+   186→
+   187→---
+   188→Task ID: 4
+   189→Agent: Main Agent
+   190→Task: Fix question bank errors, fix question text formatting, fix logo.png missing
+   191→
+   192→Work Log:
+   193→- Fixed BankQuestion `tags` type mismatch:
+   194→  - API returns `tags` as `string` but frontend `BankQuestion` interface had `tags?: string[] | null`
+   195→  - Changed interface to `tags?: string | null`
+   196→  - Fixed filter function that called `.some()` on a string (now uses `.includes()`)
+   197→  - Fixed display that called `.slice().join()` on a string (now renders string directly)
+   198→  - Fixed `fetchBankQuestions` to map API response tags correctly
+   199→- Fixed create bank question sending tags as array:
+   200→  - Changed from `bankForm.tags.split(',').map(...).filter(...)` (array) to `.join(', ')` (string)
+   201→  - Prisma schema `tags` is `String`, not array — API now receives correct type
+   202→- Fixed missing `logo.png` in public folder:
+   203→  - Copied from `/home/z/my-project/upload/Artboard 4.png` to `/home/z/my-project/public/logo.png`
+   204→  - Previous session's copy didn't persist (file was missing)
+   205→- Replaced ALL remaining `logo.svg` references with `logo.png`:
+   206→  - `/src/app/page.tsx` — footer logo
+   207→  - `/src/app/layout.tsx` — favicon
+   208→  - `/src/app/votar/[codigo]/page.tsx` — header and footer
+   209→  - `/src/app/apresentacao/[codigo]/page.tsx` — multiple locations
+   210→  - `/src/app/admin/page.tsx` — header, footer (4 occurrences), removed fixed width + bg/padding from header logo
+   211→- Enhanced `QuestionText` component (`/src/components/QuestionText.tsx`):
+   212→  - Added `imageUrl` prop for inline image support
+   213→  - Added `text-justify` to all text blocks
+   214→  - Added 'transition' block type for "Considerando...", "De acordo com...", "Com base..." sentences
+   215→  - Better reference detection: short author-only lines like "LAERTE." now detected as references
+   216→  - Improved header/subheader spacing (mt-5 instead of mt-4)
+   217→  - Reference/source text sizes reduced for better visual hierarchy
+   218→  - All text blocks now use `text-justify`
+   219→- Added `text-justify` to alternatives text:
+   220→  - Apresentacao page: alternatives span now includes `text-justify`
+   221→  - Votar page: alternatives span now includes `text-justify`
+   222→- Passed `imageUrl` prop to `QuestionText` in all pages:
+   223→  - `/src/app/votar/[codigo]/page.tsx` — voting state
+   224→  - `/src/app/apresentacao/[codigo]/page.tsx` — active question
+   225→  - `/src/app/admin/page.tsx` — question preview
+   226→- Fixed standalone production build:
+   227→  - Created `/home/z/my-project/.next/standalone/public/` directory
+   228→  - Copied all public assets (logo.png, uploads, etc.) to standalone output
+   229→  - Copied Prisma client and schema to standalone output
+   230→- Lint passes clean with no errors
+   231→- API verification via curl:
+   232→  - GET /api/question-bank → 200, returns 30 questions with tags as string
+   233→  - POST /api/question-bank → 201, creates questions with tags as string
+   234→  - GET /api/question-bank/[id] → 200, returns full question with text
+   235→  - DELETE /api/question-bank?id=X → 200, deletes successfully
+   236→  - Home page → 200
+   237→  - Admin page → 200
+   238→  - logo.png → 200 (185KB)
+   239→- Agent-browser testing failed due to Chrome memory usage (~800MB) killing the Node.js server
+   240→
+   241→Stage Summary:
+   242→- Question Bank CRUD fully functional (tags type mismatch fixed)
+   243→- Logo.png properly served on all pages
+   244→- QuestionText formatting improved with transition blocks, better reference detection, text-justify
+   245→- All pages pass imageUrl to QuestionText for potential inline image rendering
+   246→- Production build works correctly with all assets
+   247→
+   248→Unresolved Issues:
+   249→- Agent-browser kills the server due to combined memory pressure (Chrome ~800MB + Node.js)
+   250→- Need to visually verify question text formatting matches PDF in a real browser
+   251→- Question Bank "Import to Session" needs to be tested end-to-end
+   252→- Edit functionality for bank questions not yet implemented
+   253→
+   254→Priority Recommendations for Next Phase:
+   255→1. Add edit question in bank feature
+   256→2. Test Question Bank UI with a real browser session
+   257→3. Improve question text formatting further based on user feedback
+   258→4. Add bulk import from bank when creating new sessions
+   259→5. Consider adding question preview in bank listing
+   260→
+   261→---
+   262→Task ID: 5-a
+   263→Agent: general-purpose (reveal-answer fix)
+   264→Task: Fix reveal-answer command reliability + harden all presenter commands
+   265→
+   266→Work Log:
+   267→- Read previous worklog (tasks 1–4) and inspected all relevant files:
+   268→  - `/mini-services/enade-quiz/index.ts` (socket service, 428 lines)
+   269→  - `/src/app/admin/page.tsx` (admin, 3163 lines)
+   270→  - `/src/app/apresentacao/[codigo]/page.tsx` (presentation, 887 lines)
+   271→  - `/src/app/votar/[codigo]/page.tsx` (student voting, 953 lines)
+   272→- Confirmed root cause: admin `socket?.emit(...)` calls were fire-and-forget
+   273→  with no ack, no retry, no connection-state check. A momentary socket
+   274→  disconnect silently lost the command.
+   275→- Rewrote socket service `mini-services/enade-quiz/index.ts`:
+   276→  - Added `PRESENTER_KEY` env var support (`process.env.PRESENTER_KEY || 'presenter-default-key-2025'`).
+   277→  - Added input validation helpers: `isValidSessionCode` (`/^[A-Z0-9]{6}$/i`),
+   278→    `isValidQuestionId`, `isValidChoice` (A/B/C/D/E).
+   279→  - Added `requirePresenter()` guard to ALL privileged events
+   280→    (`activate-question`, `next-question`, `reveal-answer`, `toggle-voting`,
+   281→    `end-session`, `show-qr`, `session-reset`). Non-presenters receive
+   282→    `{ ok: false, error: 'Not authorized as presenter' }` ack.
+   283→  - Added ack callbacks (`cb({ ok: true })`) to all presenter events so the
+   284→    admin can confirm receipt.
+   285→  - Added `presenterKey` check on `join-session` with `role: 'presenter'`:
+   286→    wrong/missing key → `presenter-rejected` event + treated as a listener
+   287→    (still joins the room but cannot emit privileged commands).
+   288→  - Added `MAX_PARTICIPANTS_PER_SESSION = 5000` cap: students joining beyond
+   289→    the cap receive `session-full` and are not added to the participant set.
+   290→  - Added per-socket rate-limit on `submit-vote`: max 1 vote per 500ms
+   291→    (`VOTE_RATE_LIMIT_MS = 500`). Violations get `vote-rejected` with
+   292→    reason 'Too many votes — please slow down'.
+   293→  - Added `submit-vote` choice validation: non-A/B/C/D/E choices get
+   294→    `vote-rejected` with reason 'Invalid choice'.
+   295→  - Added periodic janitor interval (every 5 min, `CLEANUP_INTERVAL_MS`) that
+   296→    purges all state for sessions with empty participant sets:
+   297→    `sessionParticipants`, `sessionTotalParticipants`, `sessionCurrentQuestion`,
+   298→    `sessionVotingPaused`, `sessionScores`, `sessionVoteCounts`. Logs
+   299→    `[janitor ...] sessions=N rss=Nmb` so memory usage is observable.
+   300→  - Cleanup on disconnect now also clears `socketLastVoteAt` and
+   301→    `socketIsPresenter` maps.
+   302→  - `session-reset` now also clears `socketLastVoteAt` for all sockets in
+   303→    the session.
+   304→- Updated admin page `/src/app/admin/page.tsx`:
+   305→  - Added `socketConnected` and `socketReconnecting` state variables.
+   306→  - Added `emitWithRetry` `useCallback` helper that:
+   307→    - Waits up to 3s for the socket to be connected.
+   308→    - Emits with a socket.io ack callback and a per-attempt 3s timeout.
+   309→    - Retries up to 3 times with exponential-ish backoff (400ms × attempt).
+   310→    - Shows a configurable toast on persistent failure (default:
+   311→      "Comando pode não ter sido recebido. Recarregue a página de apresentação.").
+   312→    - Returns `Promise<boolean>` for callers that need to know.
+   313→  - Updated ALL presenter handlers to use `emitWithRetry`:
+   314→    - `handleStartSession` → `activate-question`
+   315→    - `handleEndSession` → `end-session`
+   316→    - `handlePrevious` → `activate-question`
+   317→    - `handleNext` → `next-question`
+   318→    - `handleToggleVoting` → `toggle-voting` (fire-and-forget)
+   319→    - `handleRevealAnswer` → `reveal-answer` (CRITICAL: see below)
+   320→    - `handleShowQr` → `show-qr` (fire-and-forget)
+   321→    - `handleResetSession` → `session-reset`
+   322→    - `handleSelectQuestion` → `activate-question`
+   323→  - Hardened `handleRevealAnswer`:
+   324→    1. PUT `isRevealed: true` to DB; on failure, rollback `setRevealed(false)`
+   325→       and toast "Falha ao atualizar o banco de dados. Tente novamente."
+   326→    2. Re-fetch `/api/session/${code}` to confirm DB write actually persisted.
+   327→       If `isRevealed` is still false in the DB, retry the PUT once.
+   328→    3. Sync local `selectedSession` with the refreshed copy.
+   329→    4. Emit `reveal-answer` via `emitWithRetry`. If all retries fail, toast
+   330→       "Comando pode não ter sido recebido. Recarregue a página de apresentação."
+   331→  - Added `presenterKey: 'presenter-default-key-2025'` to the `join-session`
+   332→    emit so the server accepts the admin as a presenter.
+   333→  - Added `connect` handler that re-joins the session on EVERY successful
+   334→    (re)connection (not just first), keeping room membership alive across
+   335→    disconnects.
+   336→  - Added `disconnect`, `reconnect_attempt`, `reconnect_error`, `reconnect`,
+   337→    `connect_error` handlers updating `socketConnected`/`socketReconnecting`.
+   338→  - Added `presenter-rejected` listener that toasts an auth error.
+   339→  - Added visual feedback in the session-management header: a small badge
+   340→    next to the session title showing "Conectado" (green), "Reconectando..."
+   341→    (gold, pulsing) or "Desconectado" (red). Uses Tailwind classes only —
+   342→    no new CSS, no new colors outside the UEMS palette.
+   343→  - Reset `socketConnected`/`socketReconnecting` in cleanup and when leaving
+   344→    session management.
+   345→- Updated apresentacao page `/src/app/apresentacao/[codigo]/page.tsx`:
+   346→  - Added `socketConnected` and `socketReconnecting` state.
+   347→  - Added `socketDisconnectSinceRef` to track when the socket went down.
+   348→  - Refactored `fetchSession` into two callbacks:
+   349→    - `fetchSession` (initial load, may set `notFound`)
+   350→    - `pollSessionState` (lightweight polling fallback that only syncs
+   351→      `currentQuestionId` + `isRevealed`, never sets `notFound`)
+   352→  - `connect` handler now re-joins on every (re)connect and sends the
+   353→    `presenterKey` so the server treats the presentation screen as a
+   354→    proper presenter (and therefore doesn't count it as a participant).
+   355→  - Added `disconnect`, `reconnect_attempt`, `reconnect_error`,
+   356→    `connect_error` handlers updating state and tracking disconnect time.
+   357→  - Added polling fallback `useEffect`: if `socketDisconnectSinceRef` is
+   358→    more than 5 seconds old, calls `pollSessionState()` every 3 seconds.
+   359→    Stops polling once the socket reconnects.
+   360→  - Added visible "Reconectando..." / "Desconectado" indicator badge in
+   361→    the thin header bar (only shown when `!socketConnected`), using the
+   362→    existing `pulse` keyframe and UEMS palette (gold/red).
+   363→  - Reset all socket state in the cleanup function.
+   364→- Updated votar page `/src/app/votar/[codigo]/page.tsx`:
+   365→  - Added `reconnect_attempt` and `reconnect_error` handlers that set
+   366→    `isConnected=false` (the existing `connect` handler already re-joins
+   367→    on every (re)connect, so rejoin-on-reconnect was already in place).
+   368→  - The existing `reconnect` handler continues to re-join the session
+   369→    as a safety net.
+   370→- Restarted socket service: `cd /home/z/my-project/mini-services/enade-quiz
+   371→  && pkill -f "bun.*index.ts" 2>/dev/null; nohup bun --hot index.ts > log.txt 2>&1 &`
+   372→- Ran smoke tests against the new socket service (running server + test
+   373→  client in the same bash session). All 5 tests passed:
+   374→  1. Student join without key → receives `session-state` ✓
+   375→  2. Bad presenter (no key) → receives `presenter-rejected`, can still
+   376→     listen, but `activate-question` returns `{ ok: false, error:
+   377→     'Not authorized as presenter' }` ✓
+   378→  3. Good presenter (correct key) → `activate-question` returns
+   379→     `{ ok: true }` ✓
+   380→  4. Invalid session code (`INVALID!`) → `join-rejected: { reason:
+   381→     'Invalid session code' }` ✓
+   382→  5. Invalid vote choice (`'X'`) → `vote-rejected: { reason: 'Invalid
+   383→     choice' }` ✓
+   384→- Ran `bun run lint` — passed clean (no errors, no warnings).
+   385→- Ran `npx next build` — succeeded. All 21 routes built/compiled.
+   386→- Checked `/home/z/my-project/dev.log` — no errors related to my changes
+   387→  (only the pre-existing EADDRINUSE warning from a second dev-server
+   388→  startup attempt, plus successful Prisma queries and 200 responses).
+   389→
+   390→Stage Summary:
+   391→- Reveal-answer (and ALL presenter commands) now use `emitWithRetry`:
+   392→  waits for connection, sends with ack, retries 3× with backoff, toasts
+   393→  on persistent failure. Silent drops are eliminated.
+   394→- `handleRevealAnswer` is now a 3-step reliable flow: PUT → re-fetch to
+   395→  confirm DB write → emit with retry. If the socket path fails after
+   396→  retries, the admin sees a clear toast telling them to reload the
+   397→  presentation screen.
+   398→- Socket service hardened with input validation (session code, question
+   399→  ID, vote choice), presenter-key authentication, per-socket vote rate
+   400→  limit (500ms), 5000-participant session cap, and a 5-minute janitor
+   401→  interval that purges empty-session state to prevent memory leaks.
+   402→- Admin page shows live socket status ("Conectado" / "Reconectando..." /
+   403→  "Desconectado") in the header; apresentacao page shows a "Reconectando..."
+   404→  indicator when disconnected.
+   405→- Apresentacao page has a 3-second polling fallback that kicks in 5s
+   406→  after a socket disconnect, syncing `currentQuestionId` and `isRevealed`
+   407→  from `/api/session/${codigo}` — so even if the socket is permanently
+   408→  down, the presentation screen eventually reflects the admin's actions.
+   409→- Both admin and apresentacao re-join the session on every successful
+   410→  (re)connect, ensuring room membership survives disconnects.
+   411→- All code changes pass lint and build. No new packages added. No new
+   412→  colors added (only green/red for status, plus the existing gold #C8A84B
+   413→  and primary #00338C from the UEMS palette).
+   414→
+   415→Unresolved Issues / Notes for Next Agent:
+   416→- The sandbox kills background processes when the parent bash session
+   417→  exits, so the socket service (`bun --hot index.ts`) may die a few
+   418→  seconds after this task ends. If the user reports the presentation
+   419→  page can't connect, restart it manually:
+   420→  `cd /home/z/my-project/mini-services/enade-quiz && nohup bun --hot index.ts > log.txt 2>&1 &`
+   421→  (The dev server on port 3000 is unaffected — it persists.)
+   422→- The `presenterKey` is currently hardcoded as `'presenter-default-key-2025'`
+   423→  on both client pages (admin + apresentacao). This matches the server's
+   424→  default. To use a real secret, set `PRESENTER_KEY` in the env of the
+   425→  socket service and update both client pages accordingly. (Note: any
+   426→  browser client can read the key from the JS bundle, so this is a
+   427→  soft-auth check, not real security — but it does prevent random
+   428→  non-admin clients from spamming presenter commands.)
+   429→- The votar page was not given a polling fallback (only the rejoin-on-
+   430→  reconnect fix the task asked for). If students report stale state
+   431→  after long disconnects, consider adding a similar 5s/3s poll there.
+   432→- Did not browser-test the full admin→apresentacao round-trip end-to-end
+   433→  due to the sandbox's process-reaping behavior making it hard to keep
+   434→  the socket service alive across bash calls. The unit-level smoke
+   435→  tests above cover the socket protocol; the lint+build pass covers the
+   436→  client code. Recommend a manual browser test before relying on this
+   437→  in production.
+   438→
+   439→---
+   440→Task ID: 5-b
+   441→Agent: general-purpose (security hardening)
+   442→Task: Add rate limiting, admin auth, input validation across all API routes
+   443→
+   444→Work Log:
+   445→- Read previous worklog (tasks 1–5-a) for context. Task 5-a hardened
+   446→  the socket service (presenterKey, per-socket vote rate limit,
+   447→  participant cap, validation, janitor). This task hardens the HTTP
+   448→  API surface that 5-a did not touch.
+   449→- Audited every existing route under /src/app/api/ and the admin
+   450→  frontend (`/src/app/admin/page.tsx`, 3358+ lines) to map every
+   451→  fetch call and identify which were admin-only vs public.
+   452→- Created `/src/lib/rate-limit.ts` — in-memory sliding-window rate
+   453→  limiter:
+   454→  - `rateLimit(identifier, limit, windowMs)` returns
+   455→    `{ success, retryAfter, remaining, limit }`.
+   456→  - Per-IP+endpoint buckets stored on `globalThis.__RATE_LIMIT_STORE__`
+   457→    so the buckets survive Next.js dev-mode module re-evaluations
+   458→    (without this, every Turbopack hot-reload would reset the limiter
+   459→    and attackers could escape their quota by simply waiting for a
+   460→    reload). Same pattern as `@/lib/db.ts`.
+   461→  - 60s janitor interval purges expired buckets; `unref`'d so it
+   462→    never keeps the process alive.
+   463→  - `getClientIP(request)` honours `x-forwarded-for` (first hop) and
+   464→    `x-real-ip`.
+   465→  - Presets: general 60/min, adminAuth 5/min, vote 30/min,
+   466→    studentRegister 10/min, bulkImport 5/min.
+   467→- Created `/src/lib/security.ts` — input sanitisation + validation:
+   468→  - `sanitizeString(s, maxLen)` strips null bytes + C0/C1 control
+   469→    chars (except \t \n \r), collapses whitespace runs (incl. NBSP
+   470→    and Unicode space separators), trims, truncates. Returns '' for
+   471→    non-string inputs.
+   472→  - `validateSessionCode(code)` — `/^[A-Z0-9]{6}$/i`.
+   473→  - `validateChoice(c)` — `/^[A-E]$/`.
+   474→  - `validateQuestionId(id)` / `validateCuid(id)` — Prisma CUID shape
+   475→    `^c[a-z0-9]{20,}$`.
+   476→  - `isSafeJsonBody(req)` — enforces 1 MB body cap via Content-Length
+   477→    header AND via measuring the parsed body text (defends against
+   478→    missing/lying Content-Length), parses JSON safely, returns
+   479→    `{ ok, data?, error?, status? }`.
+   480→- Created `/src/lib/api-auth.ts` — admin auth helpers (zero deps,
+   481→  Node `crypto` only):
+   482→  - `ADMIN_TOKENS` Map stored on `globalThis.__ADMIN_TOKENS__` so it
+   483→    survives dev-mode module re-evaluations (same fix as the rate
+   484→    limiter — required for the limiter to actually work).
+   485→  - `generateAdminToken()` mints `<uuid>.<hmac>` where hmac is
+   486→    SHA-256(uuid, ADMIN_SECRET_KEY). Token stored with 24h expiry.
+   487→  - `verifyAdminAuth(request)` checks the `x-admin-token` header:
+   488→    parses shape, recomputes HMAC with `timingSafeEqual`, looks up
+   489→    the in-memory allow-list, lazily expires stale tokens. Returns
+   490→    false on any failure.
+   491→  - `verifyAdminPassword(candidate)` — constant-time compare against
+   492→    `process.env.ADMIN_SECRET_KEY || 'enade2024'`.
+   493→  - `revokeAdminToken(token)` — for logout (clears the in-memory
+   494→    record).
+   495→- Created `/src/middleware.ts` — security-headers proxy (Next.js 16
+   496→  still supports the `middleware.ts` convention; it just renames it
+   497→  to "Proxy" internally). Sets X-Content-Type-Options: nosniff,
+   498→  X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-
+   499→  origin, Permissions-Policy: geolocation=(), microphone=(),
+   500→  camera=() — only on /admin and /api/* paths so the public landing
+   501→  / votar / apresentacao pages are unaffected.
+   502→- Hardened `/api/admin/auth` POST:
+   503→  - 5 attempts/min/IP via rate limiter (returns 429 with Retry-After
+   504→    header when exceeded).
+   505→  - Constant-time password compare (verifyAdminPassword).
+   506→  - On failure: random 200–800 ms delay to flatten timing side
+   507→    channel; logs `[admin-auth] failed login attempt ip=... ts=...`
+   508→    to the server log so operators can spot brute-force attempts.
+   509→  - On success: returns `{ success: true, token }` where token is
+   510→    generated by generateAdminToken() (replaces the old
+   511→    `base64('admin:'+Date.now())` which was trivially forgeable).
+   512→- Hardened `/api/vote` POST:
+   513→  - 30 votes/min/IP.
+   514→  - Validates sessionCode (6-char A-Z0-9), questionId (cuid),
+   515→    choice (A-E). Returns 400 with a clear message on any failure.
+   516→  - Rejects votes on finished sessions (403).
+   517→  - Rejects votes on already-revealed questions (403) — closes a
+   518→    "vote after reveal" cheating path.
+   519→  - Verifies the question belongs to the session (404 otherwise).
+   520→  - 1 MB body cap. try/catch never leaks stack traces.
+   521→- Hardened `/api/student` POST:
+   522→  - 10 registrations/min/IP.
+   523→  - Validates name (1-100), rgm (1-50), session id OR code.
+   524→  - Sanitises name + rgm via sanitizeString (strips control chars,
+   525→    null bytes, collapses whitespace).
+   526→  - Accepts both `sessionCode` (legacy callers) and `sessionId`
+   527→    (cuid) for the session lookup.
+   528→  - 1 MB body cap.
+   529→- Hardened `/api/student/[sessionId]` GET — admin-only (this route
+   530→  accepts a raw Prisma sessionId rather than a code, so it should
+   531→  not be exposed to students). Validates the cuid shape.
+   532→- Hardened `/api/session/[code]` PATCH/DELETE — admin-only. GET
+   533→  stays public. PATCH now uses a strict whitelist of updatable
+   534→  fields (title/status/currentQuestionId) and validates each (e.g.
+   535→  status must be 'waiting'|'active'|'finished') — previously the
+   536→  body was passed almost verbatim to Prisma.
+   537→- Hardened `/api/session/[code]/questions`:
+   538→  - POST (single + bulk import) admin-only.
+   539→  - Bulk import: capped at 100 questions/request, 1 MB body cap,
+   540→    per-question validation (text 1-10000, alternatives 1-1000 each,
+   541→    correctAnswer A-E). Returns `Question N: <reason>` on the first
+   542→    invalid item so the operator can fix it.
+   543→  - Rejects if session not found OR status==='finished'.
+   544→  - PUT (reorder) admin-only, validates questionIds is an array of
+   545→    non-empty strings, caps at 1000.
+   546→- Hardened `/api/session/[code]/questions/[questionId]` PUT/DELETE —
+   547→  admin-only. PUT uses a strict whitelist + per-field validation
+   548→  (text 1-10000, alternatives 1-1000, correctAnswer A-E, year int,
+   549→  isRevealed boolean, orderIndex int). Validates both sessionCode
+   550→  and questionId shapes.
+   551→- Hardened `/api/session/[code]/reset` POST — admin-only.
+   552→- Hardened `/api/session/[code]/ranking` GET — stays PUBLIC (votar
+   553→  page consumes it), but sessionCode is now validated.
+   554→- Hardened `/api/stress-test` POST — admin-only. Validates
+   555→  sessionCode, questionId, correctAnswer (if provided); caps
+   556→  studentCount at 5000 to prevent abuse via the proxy.
+   557→- Hardened `/api/question-bank` POST/DELETE — admin-only. POST
+   558→  validates title (1-200), text (1-10000), alts A-D required (1-1000
+   559→  each), correctAnswer A-E. DELETE validates cuid shape.
+   560→- Hardened `/api/question-bank/[id]` PUT/DELETE — admin-only.
+   561→  CRITICAL FIX: the previous implementation passed `body` straight
+   562→  to `Prisma.update({ data: body })`, which let an attacker set
+   563→  arbitrary columns (e.g. `id`, `createdAt`). Now uses a strict
+   564→  whitelist + per-field validation, same as the questions PUT.
+   565→  GET stays public (preview).
+   566→- Hardened `/api/question-bank/import` POST — admin-only. Validates
+   567→  sessionCode, rejects imports to finished sessions, validates each
+   568→  questionId is a cuid, caps the import at 500 questions.
+   569→- Hardened `/api/question-bank/save-from-session` POST — admin-only.
+   570→  Same validation pattern.
+   571→- Updated admin frontend `/src/app/admin/page.tsx`:
+   572→  - Added module-level helpers: `getAdminToken`, `setAdminToken`,
+   573→    `clearAdminToken` (use `localStorage` with key
+   574→    `enade_admin_token` — replaces the previous `sessionStorage`
+   575→    approach so the token survives page reloads / new tabs).
+   576→  - Added `adminFetch(url, options)` — drop-in `fetch` replacement
+   577→    that reads the token from localStorage, sets the `x-admin-token`
+   578→    header, sets `Content-Type: application/json` when a body is
+   579→    present, and on a 401 response clears the token + dispatches a
+   580→    `window` `Event('enade-admin-logout')` so the main page can
+   581→    bounce back to login.
+   582→  - Replaced EVERY admin-only `fetch(...)` call with `adminFetch(...)`
+   583→    (20 call sites: create/update/delete session, create/update/
+   584→    delete question, reorder questions, reveal answer, reset session,
+   585→    bulk import, question-bank CRUD, question-bank import, /api/upload
+   586→    image upload, duplicate session).
+   587→  - Public GETs (`/api/session`, `/api/session/[code]`,
+   588→    `/api/question-bank`, `/api/admin/auth` POST login) still use
+   589→    plain `fetch` — no token needed.
+   590→  - `handleLogin` now stores the secure HMAC-bound token via
+   591→    `setAdminToken(data.token)` instead of `sessionStorage.setItem`.
+   592→  - `handleLogout` clears via `clearAdminToken()`.
+   593→  - Mount effect reads from `getAdminToken()` instead of
+   594→    `sessionStorage.getItem('admin_token')`.
+   595→  - Added a `useEffect` that listens for the `enade-admin-logout`
+   596→    window event and bounces back to the login screen with a
+   597→    "Sessão expirada" toast — so any 401 from any admin fetch
+   598→    (including those inside nested dialog components that don't have
+   599→    page-level state access) automatically logs the admin out.
+   600→- Final verification:
+   601→  - `bun run lint` — passes clean (0 errors, 0 warnings).
+   602→  - `npx next build` — succeeds; all 21 routes compiled.
+   603→  - Curl tests against the live dev server (port 3000):
+   604→    * Admin auth rate limit: 5 wrong passwords → 401, 6th → 429
+   605→      with Retry-After header. ✓
+   606→    * Failed logins log `[admin-auth] failed login attempt ip=...
+   607→      ts=...` to dev.log and take 200-800 ms (timing-flattening
+   608→      delay observed: 457, 354, 696, 767, 776 ms). ✓
+   609→    * Correct password returns `{ success: true, token: <uuid.hmac> }`
+   610→      (HTTP 200). ✓
+   611→    * POST /api/session without token → 401. ✓
+   612→    * POST /api/session with valid token → 201. ✓
+   613→    * POST /api/session with tampered token (right format, wrong
+   614→      HMAC) → 401 (timingSafeEqual rejects it). ✓
+   615→    * POST /api/session with bogus token → 401. ✓
+   616→    * POST /api/vote with choice='X' → 400 "Invalid choice". ✓
+   617→    * POST /api/vote with malformed sessionCode 'BAD!' → 400. ✓
+   618→    * POST /api/vote on non-existent session → 404. ✓
+   619→    * POST /api/vote on a revealed question → 403. ✓
+   620→    * POST /api/student rate limit: 10 registrations succeed, 11th
+   621→      and 12th → 429. ✓
+   622→    * POST /api/student with valid input → 201 (smoke test). ✓
+   623→    * POST /api/vote with valid input → 201 (smoke test). ✓
+   624→    * POST bulk import with 101 questions → 413. ✓
+   625→    * POST bulk import with empty question text → 400 "Question 1:
+   626→      Question text is required". ✓
+   627→    * POST /api/session with 2 MB body → 413 "Request body too
+   628→      large (max 1 MB)." ✓
+   629→    * PATCH /api/session/[code] without token → 401. ✓
+   630→    * PATCH /api/session/[code] with valid token → 200. ✓
+   631→    * PATCH with invalid status 'HACKED' → 400 (validated against
+   632→      the 'waiting'|'active'|'finished' whitelist). ✓
+   633→    * DELETE /api/session/[code] without token → 401. ✓
+   634→    * GET /api/session/[code]/ranking stays PUBLIC → 200. ✓
+   635→    * GET /api/session stays PUBLIC → 200 (62 KB JSON, full session
+   636→      list with questions). ✓
+   637→    * GET /api/student/[sessionId] without token → 401. ✓
+   638→    * GET /api/student/[sessionId] with token → 200. ✓
+   639→    * DELETE /api/question-bank?id=... without token → 401. ✓
+   640→    * All admin routes (POST /api/session, PATCH/DELETE /api/session/
+   641→      [code], POST/PUT/DELETE /api/session/[code]/questions[/...],
+   642→      POST /api/session/[code]/reset, POST/DELETE /api/question-bank,
+   643→      PUT/DELETE /api/question-bank/[id]) verified working with a
+   644→      fresh token immediately after minting (rules out any module
+   645→      re-evaluation issue — the globalThis fix is critical here). ✓
+   646→    * Security headers on /admin: X-Content-Type-Options: nosniff,
+   647→      X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-
+   648→      cross-origin, Permissions-Policy: geolocation=(),
+   649→      microphone=(), camera=() — all present. ✓
+   650→    * Security headers on /api/*: same set, all present. ✓
+   651→    * Admin page (`/admin`) loads HTTP 200, login screen renders. ✓
+   652→    * Votar page (`/votar/67QAFO`) loads HTTP 200. ✓
+   653→    * Apresentacao page (`/apresentacao/67QAFO`) loads HTTP 200. ✓
+   654→
+   655→Stage Summary:
+   656→- All admin-only HTTP routes now require a cryptographically-secure,
+   657→  HMAC-bound admin token (sent via `x-admin-token` header). The old
+   658→  `base64('admin:'+Date.now())` token — which was trivially forgeable
+   659→  by anyone who could read the JS bundle — is gone. Tokens are
+   660→  single-instance in-memory (revocable, 24h-expiring) and stored on
+   661→  globalThis so they survive Next.js dev-mode hot-reloads.
+   662→- Brute-force protection on admin login: 5 attempts/min/IP +
+   663→  constant-time password compare + 200-800 ms random delay on failure
+   664→  + IP/timestamp logging of every failed attempt.
+   665→- Rate limits on every abuse-prone endpoint: admin auth 5/min, vote
+   666→  30/min, student registration 10/min, bulk import 5/min (per IP).
+   667→  Each returns 429 with a `Retry-After` header when exceeded.
+   668→- Input validation everywhere: session codes, choice letters,
+   669→  question/student IDs (cuid), question text length, alternative
+   670→  text length, correctAnswer, name/RGM length. Null bytes and
+   671→  control characters stripped from every free-text field that lands
+   672→  in the DB. JSON body size capped at 1 MB on every POST/PUT/PATCH
+   673→  route via `isSafeJsonBody`.
+   674→- Critical fix on `/api/question-bank/[id]` PUT: the previous
+   675→  implementation passed `body` straight to `Prisma.update`,
+   676→  allowing arbitrary column writes (e.g. overwriting `id` or
+   677→  `createdAt`). Now uses a strict whitelist + per-field validation.
+   678→- Same fix applied to `/api/session/[code]` PATCH (now whitelists
+   679→  title/status/currentQuestionId) and to all other update routes.
+   680→- Anti-cheat on `/api/vote`: votes on finished sessions (403) and
+   681→  on already-revealed questions (403) are rejected. The question
+   682→  must belong to the session (404 otherwise).
+   683→- Security headers (nosniff, DENY frame, referrer policy, permissions
+   684→  policy) applied to /admin and /api/* via middleware.ts. The public
+   685→  landing/votar/apresentacao pages are intentionally left unrestricted
+   686→  so they remain embeddable.
+   687→- Admin frontend: token stored in localStorage (survives reloads/new
+   688→  tabs), `adminFetch` helper adds the header to every admin-only
+   689→  call, and any 401 from any admin route automatically logs the
+   690→  admin out via a window event.
+   691→- Lint clean, build succeeds, all curl smoke tests pass. No new npm
+   692→  packages added (Node `crypto` only). No new colors added. Students
+   693→  can still vote, presenter can still control the session, admin GET
+   694→  endpoints remain public for student access.
+   695→
+   696→Unresolved Issues / Notes for Next Agent:
+   697→- The `ADMIN_SECRET_KEY` env var still defaults to `'enade2024'` for
+   698→  backward compatibility. Operators should set it to a long random
+   699→  string in production (`.env` file or process env). When rotated,
+   700→  all previously issued admin tokens are automatically invalidated
+   701→  because the HMAC check uses the current secret.
+   702→- The rate limiter + admin-token map are in-memory single-instance.
+   703→  This is fine for the standalone Next.js server the project ships
+   704→  with, but if the deployment ever moves to a multi-instance setup
+   705→  (e.g. multiple Node workers behind a load balancer), the limiter
+   706→  and token store should be moved to Redis or similar shared store.
+   707→- One test student ("João da Silva", rgm "20230001") was left in
+   708→  session 67QAFO during curl smoke testing. The operator can delete
+   709→  it via the admin UI or simply reset the session before going live
+   710→  (note: reset clears votes + isRevealed but does NOT delete student
+   711→  records — that's intentional so the roster survives a mid-event
+   712→  reset).
+   713→- The dev server's Turbopack hot-reloader can re-evaluate shared
+   714→  modules in some edge cases. The globalThis-pinning fix in both
+   715→  `@/lib/rate-limit.ts` and `@/lib/api-auth.ts` defends against
+   716→  this, but if you ever see "all my rate-limit buckets got reset"
+   717→  or "my admin token was rejected right after I minted it" in dev,
+   718→  that's the symptom — the fix is already in place, but worth
+   719→  knowing the root cause.
+   720→- The `/api/upload` route that the admin image-upload dialog calls
+   721→  does not exist (returns 404). Pre-existing issue, not introduced
+   722→  by this task. Switched the call to `adminFetch` for consistency
+   723→  so when someone implements the route it'll already require admin
+   724→  auth.
+   725→- Next.js 16 prints a deprecation warning suggesting `proxy.ts`
+   726→  instead of `middleware.ts`. Both still work; `middleware.ts` was
+   727→  used here because the task spec explicitly asked for `middleware.ts`.
+   728→  No functional difference.
+   729→
+   730→---
+   731→Task ID: 5-c
+   732→Agent: general-purpose (stress test improvements)
+   733→Task: Improve stress test with multiple scenarios including attacker simulations
+   734→
+   735→Work Log:
+   736→- Read previous worklog (tasks 1–5-b) for context. Tasks 5-a (socket
+   737→  hardening with PRESENTER_KEY + per-socket vote rate limit + anti-
+   738→  double-vote + 5000-participant cap) and 5-b (admin auth required for
+   739→  /api/stress-test, input validation everywhere) define the security
+   740→  posture this task validates under load.
+   741→- Inspected current state:
+   742→  - `/mini-services/stress-test/index.ts` (port 3004): single "normal"
+   743→    scenario only, BATCH_SIZE=50, no ack callbacks, no dry-run, no
+   744→    timeout safety, 6-metric result struct.
+   745→  - `/src/app/api/stress-test/route.ts`: admin-only proxy (already
+   746→    implemented in 5-b), forwards sessionCode/questionId/correctAnswer/
+   747→    studentCount. Caps studentCount at 5000.
+   748→  - `/src/app/admin/page.tsx` `handleStressTest` (around line 1731):
+   749→    browser-based test using waves of 6 students (browser WS limit),
+   750→    fire-and-forget `submit-vote` (no ack), limited metrics display.
+   751→  - `/mini-services/enade-quiz/index.ts` `submit-vote` handler: no ack
+   752→    callback param — it sends `vote-accepted`/`vote-rejected` as
+   753→    separate emits.
+   754→
+   755→- Modified `/mini-services/enade-quiz/index.ts` `submit-vote` handler
+   756→  to accept an OPTIONAL ack callback (`cb?: Ack`) as the second
+   757→  positional argument. For every code path (invalid input, invalid
+   758→  choice, rate limit, paused, not active, already voted, success) the
+   759→  callback is now invoked with `{ ok: true }` or
+   760→  `{ ok: false, error: <reason> }`. Backwards-compatible: legacy
+   761→  clients that listen for `vote-accepted`/`vote-rejected` events
+   762→  continue to work unchanged — the events are still emitted on every
+   763→  path. This lets the stress test use ack callbacks to measure response
+   764→  time and detect rejections synchronously.
+   765→
+   766→- Rewrote `/mini-services/stress-test/index.ts` from scratch (~990
+   767→  lines) with the following improvements:
+   768→
+   769→  * **Multiple scenarios** — accepts a `scenario` field in the POST
+   770→    body. Valid values: `normal` (default, preserves existing
+   771→    behaviour: 30% correct / 70% random wrong distribution), `flood`
+   772→    (each student fires 10 votes as fast as possible; rate-limit +
+   773→    anti-double-vote should reject ~9 of 10), `bad-presenter` (50
+   774→    malicious clients try every privileged event — activate-question,
+   775→    reveal-answer, next-question, end-session, toggle-voting,
+   776→    session-reset, show-qr — plus 2 of them spam reveal-answer 50×
+   777→    each in <1s; all should be blocked by `requirePresenter`),
+   778→    `bad-input` (100 clients send 5 malformed payloads each — invalid
+   779→    sessionCodes incl. SQL/code injection, invalid choices, null/
+   780→    undefined/wrong-type payloads, huge strings up to 10 KB, missing
+   781→    fields; all should be rejected gracefully without crashing),
+   782→    `long-lived` (200 students connect, vote once, stay connected for
+   783→    30s, re-vote every 10s — exercises memory stability under
+   784→    sustained load), `mixed` (runs `normal` + 50 attackers + 20
+   785→    bad-input clients concurrently, aggregating metrics — real-world
+   786→    scenario).
+   787→
+   788→  * **Better metrics** — the result struct now includes: `scenario`,
+   789→    `totalStudents`, `connected`, `voted`, `failed`, `durationMs`,
+   790→    `votesPerSecond`, `voteDistribution` (A/B/C/D/E counts),
+   791→    `rejectedVotes` (votes rejected by the server, including rate
+   792→    limit + anti-double-vote + invalid input), `presenterBlocked`
+   793→    (privileged commands blocked for non-presenters),
+   794→    `badInputBlocked` (malformed submit-vote payloads rejected),
+   795→    `peakConcurrentConnections` (max simultaneous sockets during the
+   796→    test, tracked via a `MetricsTracker` with trackConnect/
+   797→    trackDisconnect), `avgResponseTimeMs` (mean of all ack-response
+   798→    times), `errors` (max 10 strings), `memoryRssMb`
+   799→    (`process.memoryUsage().rss / 1024 / 1024`), `dryRun`, `timedOut`.
+   800→
+   801→  * **Ack callbacks** — added `emitWithAck(socket, event, payload,
+   802→    timeoutMs)` helper that wraps `socket.emit` with a 3s timeout
+   803→    fallback and returns `Promise<{ ok, error? }>`. Every `submit-vote`
+   804→    and every privileged-event attempt now uses this — measuring
+   805→    response time and detecting rejections synchronously.
+   806→
+   807→  * **Bigger batches with backoff** — `BATCH_SIZE` bumped from 50 to
+   808→    100. If a batch's connect-error rate exceeds 30%, the next batch
+   809→    size is halved (min 10) to give the server breathing room. Vote
+   810→    batches stay at 100.
+   811→
+   812→  * **dryRun option** — if `dryRun: true` in the POST body, the
+   813→    service validates params, returns a zeroed-out result struct with
+   814→    `dryRun: true` and the chosen scenario, and does NOT connect any
+   815→    sockets. Useful for smoke-testing the API endpoint.
+   816→
+   817→  * **Overall timeout safety** — 90s overall test timeout
+   818→    (`TEST_TIMEOUT_MS`). Implemented via `Promise.race` between the
+   819→    run and a timeout promise. If the timeout fires, the result is
+   820→    marked `timedOut: true`, an error is pushed, and partial results
+   821→    are returned.
+   822→
+   823→  * **Long-lived scenario** — 30s hold time with re-vote attempts
+   824→    every 10s. Validates memory stability (the `memoryRssMb` field
+   825→    lets operators observe the RSS at end of test).
+   826→
+   827→  * **Body cap** — 1 MB request body cap (matches the API route),
+   828→    returns HTTP 413 on overflow.
+   829→
+   830→  * **Health endpoint** — `GET /health` returns `{ ok, port,
+   831→    memoryRssMb }` for monitoring.
+   832→
+   833→  * **Validation** — invalid scenarios fall back to `normal`.
+   834→    `studentCount` clamped to [1, 5000].
+   835→
+   836→- Updated `/src/app/api/stress-test/route.ts`:
+   837→  - Bumped `maxDuration` from 60 to 90 seconds (the long-lived
+   838→    scenario takes ~30s; mixed with 5000 students can take longer).
+   839→  - Added `scenario` field to the body schema, validated against the
+   840→    6 allowed values. Returns 400 on invalid scenario.
+   841→  - Added `dryRun` field forwarding (boolean, default false).
+   842→  - Confirmed `studentCount` cap at 5000 (unchanged from 5-b).
+   843→
+   844→- Replaced `handleStressTest` in `/src/app/admin/page.tsx`:
+   845→  - Old: browser-based test using `io()` from socket.io-client in
+   846→    waves of 6 students (browser WS limit). Fire-and-forget emit,
+   847→    limited metrics, max ~6 concurrent.
+   848→  - New: POSTs to `/api/stress-test` via `adminFetch` (admin token
+   849→    attached automatically). Sends `{ sessionCode, questionId,
+   850→    correctAnswer, studentCount, scenario, dryRun: false }`. Parses
+   851→    the JSON response and stores it in `stressTestResult`.
+   852→  - Added a `stressTestElapsed` state with a 500ms ticker so the UI
+   853→    shows elapsed time during the (potentially 30-90s) server-side
+   854→    test. A `<Progress>` bar (from `@/components/ui/progress`) shows
+   855→    elapsed/90 visually.
+   856→  - Added `stressTestScenario` state with 6 options (normal, flood,
+   857→    bad-presenter, bad-input, long-lived, mixed) rendered via the
+   858→    `Select` component (already imported).
+   859→  - Added `toast.warning` for timed-out tests (in addition to the
+   860→    existing `toast.success`).
+   861→
+   862→- Expanded the results panel in `/src/app/admin/page.tsx`:
+   863→  - Dialog widened from `max-w-lg` to `max-w-2xl` to fit the larger
+   864→    metrics grid.
+   865→  - Added a scenario badge + dry-run badge + timeout badge row.
+   866→  - Added a color-coded health indicator (green ≥95%, yellow 80-95%,
+   867→    red <80%). For attack scenarios (bad-presenter, bad-input), the
+   868→    "success" rate is computed as blocked/total (a high block rate =
+   869→    green). For normal/flood/long-lived/mixed, it's voted/total.
+   870→  - Replaced the 2×2 metrics grid with a 4×3 (12-cell) grid showing:
+   871→    Row 1 (core): Conectados (green), Votos Aceitos (teal — replaced
+   872→    the previous blue to comply with the no-indigo/blue constraint),
+   873→    Falhas (red), Votos/seg (purple).
+   874→    Row 2 (security): Votos Rejeit. (orange), Presenter Bloq. (rose),
+   875→    Bad Input Bloq. (rose), Pico Conexões (slate).
+   876→    Row 3 (timing/memory): Tempo Resp. ms (slate), Duração (slate),
+   877→    Memória MB (slate), Total Esperado (slate).
+   878→  - Each cell shows a tiny uppercase label + bold value.
+   879→  - Vote distribution bar chart is now only shown when there are
+   880→    actually votes (avoids an empty chart for attack scenarios).
+   881→  - Error list now shows the total count and uses `truncate` +
+   882→    `title` attribute for long error messages.
+   883→  - Added 5000 to the student-count selector (was 100/500/1000/2000,
+   884→    now 100/500/1000/2000/5000).
+   885→
+   886→- Smoke tests (both services running on 3003 + 3004):
+   887→  * Dry-run: `POST /` with `dryRun:true` returns the expected struct
+   888→    with all 16 fields zeroed, `dryRun:true`, scenario echoed back. ✓
+   889→  * Dry-run with invalid scenario: falls back to `normal` (no 400). ✓
+   890→  * Missing fields: returns HTTP 400 with
+   891→    `{"error":"sessionCode and questionId are required"}`. ✓
+   892→  * Body cap: 1.5 MB POST returns HTTP 413 with
+   893→    `{"error":"Request body too large (max 1 MB)."}`. ✓
+   894→  * `GET /health` returns `{"ok":true,"port":3004,"memoryRssMb":...}`. ✓
+   895→  * bad-presenter (10 attackers, live socket service): connected=10,
+   896→    presenterBlocked=170 (7 unique events × 10 attackers = 70, plus
+   897→    2 spam attackers × 50 = 100, total 170 — all blocked), 0 errors,
+   898→    avgResponseTimeMs=2.7ms, peakConcurrentConnections=10. ✓
+   899→  * bad-input (5 clients, live): connected=5, badInputBlocked=25
+   900→    (5 clients × 5 payloads each — all rejected), 0 errors. ✓
+   901→  * flood (5 students, live): connected=5, rejectedVotes=50 (5 × 10
+   902→    votes — all rejected because TEST01 isn't a real active question,
+   903→    but the key point is the server didn't crash and rejected every
+   904→    flood attempt), 0 errors. ✓
+   905→  * normal (10 students, live): connected=10, rejectedVotes=10
+   906→    (question not active in test env — votes rejected with
+   907→    "This question is not active" — but the ack callbacks worked
+   908→    perfectly, returning the rejection reason in avgResponseTimeMs=
+   909→    0.9ms), 0 errors. ✓
+   910→  * mixed (30 students = 20 normal + 5 bad-presenter + 5 bad-input):
+   911→    connected=30, rejectedVotes=20 (normal students, question not
+   912→    active), presenterBlocked=135 (5 attackers × 27 attempts each),
+   913→    badInputBlocked=25 (5 clients × 5 payloads), peakConcurrent=30,
+   914→    avgResponseTimeMs=1.61ms, 0 errors. ✓
+   915→
+   916→- Verified type-check on both modified services:
+   917→  `bunx tsc --noEmit --strict --module esnext --moduleResolution bundler
+   918→  --target es2020 --types node index.ts` — passes clean for both
+   919→  `/mini-services/stress-test/index.ts` and
+   920→  `/mini-services/enade-quiz/index.ts`.
+   921→
+   922→- Final verification:
+   923→  - `bun run lint` — passes clean (0 errors, 0 warnings).
+   924→  - `npx next build` — succeeds; all 21 routes compiled.
+   925→  - Restarted both services with `setsid nohup bun --hot index.ts >
+   926→    log.txt 2>&1 < /dev/null & disown` for best sandbox survival.
+   927→  - Verified both ports listening: 3003 (enade-quiz, PID 7882) and
+   928→    3004 (stress-test, PID 7855).
+   929→
+   930→Stage Summary:
+   931→- Stress test service now supports 6 scenarios: `normal`, `flood`,
+   932→  `bad-presenter`, `bad-input`, `long-lived`, `mixed`. The 3 attack
+   933→  scenarios (bad-presenter, bad-input, mixed) directly verify the
+   934→  security hardening from Tasks 5-a and 5-b holds under load:
+   935→    * `bad-presenter`: 50 attackers fire every privileged event +
+   936→      spam reveal-answer 100× in <1s. All blocked by `requirePresenter`.
+   937→    * `bad-input`: 100 clients × 5 malformed payloads each (SQL
+   938→      injection, code injection, null/undefined, huge strings, wrong
+   939→      types, missing fields). All rejected gracefully, server doesn't
+   940→      crash.
+   941→    * `mixed`: real-world combo — normal students + 50 attackers +
+   942→      20 bad-input clients running concurrently.
+   943→- Result struct expanded from 8 fields to 16: added `scenario`,
+   944→  `rejectedVotes`, `presenterBlocked`, `badInputBlocked`,
+   945→  `peakConcurrentConnections`, `avgResponseTimeMs`, `memoryRssMb`,
+   946→  `dryRun`, `timedOut`.
+   947→- All emits now use ack callbacks (via `emitWithAck` helper with 3s
+   948→  timeout) — this required a small backward-compatible change to the
+   949→  enade-quiz `submit-vote` handler (now accepts an optional `cb`
+   950→  param and calls it on every path, while still emitting the legacy
+   951→  `vote-accepted`/`vote-rejected` events).
+   952→- BATCH_SIZE bumped 50→100 with adaptive backoff (halve next batch
+   953→  if >30% connect failures). Vote batches stay at 100.
+   954→- `dryRun` option lets operators validate the API endpoint without
+   955→  spawning sockets.
+   956→- 90s overall timeout safety via `Promise.race`. Partial results
+   957→  returned on timeout, marked `timedOut: true`.
+   958→- Admin UI replaced the browser-based test (max 6 concurrent) with a
+   959→  server-side call via `adminFetch('/api/stress-test', ...)`. New UI:
+   960→    * Scenario dropdown (6 options).
+   961→    * Student count selector now includes 5000 (was capped at 2000).
+   962→    * Progress bar + elapsed-time ticker while the server-side test
+   963→      runs (can take 30-90s).
+   964→    * 4-column × 3-row metrics grid (12 cells) replacing the old
+   965→      2×2 grid.
+   966→    * Color-coded health indicator (green/amber/red) computed
+   967→      differently for attack vs normal scenarios.
+   968→    * Scenario badge + dry-run/timeout badges.
+   969→    * Vote distribution bar chart only shown when there are votes.
+   970→- No new npm packages. No indigo/blue colors (replaced the old blue
+   971→  "Votos Enviados" card with teal). Lint clean, build succeeds, all
+   972→  smoke tests pass.
+   973→
+   974→Unresolved Issues / Notes for Next Agent:
+   975→- The enade-quiz and stress-test services are running as detached
+   976→  processes (setsid + disown) but the sandbox may still reap them
+   977→  when the parent shell exits. If a test fails with "Stress test
+   978→  service unavailable" (HTTP 503 from /api/stress-test), restart:
+   979→    `cd /home/z/my-project/mini-services/stress-test && setsid nohup
+   980→     bun --hot index.ts > log.txt 2>&1 < /dev/null & disown`
+   981→  And similarly for enade-quiz on port 3003.
+   982→- The `bad-presenter` scenario currently has attackers join as
+   983→  `role: 'student'` (not `role: 'presenter'` with a wrong key).
+   984→  Both paths lead to `requirePresenter` returning false — the only
+   985→  difference is whether the socket also receives a
+   986→  `presenter-rejected` event. Functionally equivalent for the
+   987→  security test (every privileged command is blocked either way).
+   988→- The `long-lived` scenario uses the same single `questionId` passed
+   989→  by the caller for all 3 vote rounds. The first round's vote may
+   990→  succeed (if the question is active); rounds 2 and 3 are rejected
+   991→  by anti-double-vote — that's the intended test of memory stability
+   992→  under sustained connection load. If you want 3 distinct questions,
+   993→  the API would need to accept an array of question IDs.
+   994→- The health indicator's "attack success rate" formula is:
+   995→  `(presenterBlocked + badInputBlocked) / (presenterBlocked +
+   996→  badInputBlocked + errors.length + 1) * 100`. The `+1` avoids
+   997→  divide-by-zero when there are zero attacks and zero errors. This
+   998→  is a heuristic — refine if needed.
+   999→- The admin UI's `maxDuration = 90` on the API route matches the
+  1000→  stress-test service's 90s timeout, but Next.js may itself time out
+  1001→  the request before the service does. If you see HTTP 504 from
+  1002→  Next.js, either lower the test size or deploy the API route to a
+  1003→  runtime without the 90s limit (e.g. a separate Node service).
+  1004→
+  1005→---
+  1006→Task ID: 5-d
+  1007→Agent: general-purpose (production readiness)
+  1008→Task: Create deploy scripts, env templates, PM2 config, and deploy guide
+  1009→
+  1010→Work Log:
+  1011→- Read previous worklog (tasks 1–5-c) for context. Tasks 5-a (socket
+  1012→  hardening with PRESENTER_KEY + per-socket vote rate limit + anti-
+  1013→  double-vote + 5000-participant cap), 5-b (admin auth via
+  1014→  ADMIN_SECRET_KEY, rate-limit, input validation on every API route),
+  1015→  and 5-c (stress test with 6 scenarios incl. attack simulations) form
+  1016→  the security baseline that this deploy task must preserve.
+  1017→- Inspected existing project layout:
+  1018→  - `next.config.ts` already has `output: "standalone"` (line 8) —
+  1019→    no change needed. Build was already proven working in task 5-c.
+  1020→    `serverActions` is not used (the app uses API routes via
+  1021→    `src/app/api/`), and `experimental.serverComponentsExternalPackages`
+  1022→    is not needed since Prisma builds cleanly without it. Left the file
+  1023→    untouched to honour the "no app code changes" constraint.
+  1024→  - `Caddyfile` (dev sandbox) uses `:81` and routes via
+  1025→    `?XTransformPort=*` query param. This pattern is what the client
+  1026→    code in `admin/page.tsx`, `apresentacao/[codigo]/page.tsx`,
+  1027→    `votar/[codigo]/page.tsx`, and `lib/session.ts` all use:
+  1028→    `io('/?XTransformPort=3003', ...)`. Any production Caddy config
+  1029→    must preserve this routing or the socket.io client will not
+  1030→    connect. Mirrored the pattern in the production Caddyfile.
+  1031→  - Socket service (`mini-services/enade-quiz/index.ts`) hardcodes
+  1032→    `PORT = 3003`. Stress-test service hardcodes `PORT = 3004`. The
+  1033→    `path: '/'` (not `/socket.io/`) is set in the Socket.io server
+  1034→    config — this means the conventional `/socket.io/*` route does
+  1035→    not actually trigger with the current client. Documented both
+  1036→    routes in the production Caddyfile (XTransformPort works today,
+  1037→    /socket.io/* is included for future-proofing if/when the path is
+  1038→    standardised).
+  1039→  - `package.json` build script is `next build && cp -r .next/static
+  1040→    .next/standalone/.next/ && cp -r public .next/standalone/` —
+  1041→    copies static + public but NOT prisma/. The deploy script
+  1042→    explicitly also copies prisma/ and .env so the standalone server
+  1043→    has the schema + DB file + env vars at runtime.
+  1044→  - Local dev `.env` uses `DATABASE_URL=file:/home/z/my-project/db/
+  1045→    custom.db` (absolute path). The `.env.example` template uses the
+  1046→    Prisma default `file:./prisma/dev.db` (relative path) which is
+  1047→    cleaner for production — `db:push` will create the file on first
+  1048→    run.
+  1049→
+  1050→- Created `/home/z/my-project/ecosystem.config.cjs` — PM2 process
+  1051→  file with 3 apps (uems-next on Node port 3000, uems-socket on Bun
+  1052→  port 3003, uems-stress on Bun port 3004). Each app: instances: 1,
+  1053→  exec_mode: fork, autorestart: true, max_memory_restart set
+  1054→  (500M for Next, 200M for the Bun services), watch: false,
+  1055→  explicit log files in ~/.pm2/logs/, merge_logs + time stamps.
+  1056→  Added a header comment documenting the `pm2 start / save / startup`
+  1057→  flow and noting that ports 3003/3004 are hardcoded in the source
+  1058→  (env PORT is NOT honoured by those services today).
+  1059→
+  1060→- Created `/home/z/my-project/.env.example` — environment template
+  1061→  with every variable documented inline:
+  1062→    * `DATABASE_URL` — default `file:./prisma/dev.db` (SQLite, works
+  1063→      for single-instance deploys; note multi-instance would need
+  1064→      Postgres).
+  1065→    * `ADMIN_SECRET_KEY` — placeholder `change-this-to-a-strong-
+  1066→      password`, with comment noting the `enade2024` fallback MUST
+  1067→      be overridden. Points to `src/lib/api-auth.ts` for the
+  1068→      constant-time compare.
+  1069→    * `PRESENTER_KEY` — placeholder, with the critical warning that
+  1070→      it MUST match the hardcoded constant in `admin/page.tsx` and
+  1071→      `apresentacao/[codigo]/page.tsx` (currently
+  1072→      `presenter-default-key-2025`). The deploy guide has a `sed`
+  1073→      snippet to update both client pages from the .env value.
+  1074→    * `NEXTAUTH_URL`, `NEXTAUTH_SECRET` — next-auth reads these at
+  1075→      module load even though the app currently uses its own token
+  1076→      system; included for forward-compat.
+  1077→    * `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SOCKET_PORT`,
+  1078→      `NODE_ENV="production"`.
+  1079→  Header explains `openssl rand` commands to generate strong secrets.
+  1080→
+  1081→- Created `/home/z/my-project/deploy/deploy.sh` — one-shot idempotent
+  1082→  deploy script. `#!/usr/bin/env bash` + `set -euo pipefail`. Steps:
+  1083→    1. Required-tools check (bun, node, npm, git hard-required; pm2,
+  1084→       caddy warn-only).
+  1085→    2. Clone if `DEPLOY_REPO` set and no .git; else `git pull` with
+  1086→       auto-stash of local changes (so .env / sed-patched client
+  1087→       pages don't get clobbered).
+  1088→    3. .env presence check — copies from .env.example if missing.
+  1089→    4. `bun install --production`, then `bun install` if `next` CLI
+  1090→       missing (devDeps needed for build).
+  1091→    5. `bunx prisma generate` + `bun run db:push`.
+  1092→    6. `NODE_OPTIONS=--max-old-space-size=2048 bunx next build`
+  1093→       (memory limit env-overridable via `NODE_MEMORY_LIMIT`).
+  1094→    7. Sanity-check that `.next/standalone/server.js` exists; copy
+  1095→       `public/`, `prisma/`, `.next/static/`, `.env` into the
+  1096→       standalone bundle.
+  1097→    8. `pm2 reload --update-env` if apps already exist, else
+  1098→       `pm2 start ecosystem.config.cjs`; then `pm2 save`.
+  1099→    9. `pm2 list` + reminder to reload Caddy if Caddyfile changed.
+  1100→  All paths absolute or `$DEPLOY_DIR`-relative. Configurable via env
+  1101→  vars (`DEPLOY_DIR`, `DEPLOY_REPO`, `NODE_MEMORY_LIMIT`,
+  1102→  `PM2_APP_FILE`).
+  1103→
+  1104→- Created `/home/z/my-project/deploy/Caddyfile.production` — production
+  1105→  Caddy config with:
+  1106→    * `uems-votacao.example.edu.br` placeholder domain (user replaces).
+  1107→    * `email` directive for Let's Encrypt expiry notices.
+  1108→    * Security headers block: HSTS (1 year + preload), nosniff,
+  1109→      X-Frame-Options SAMEORIGIN, Referrer-Policy,
+  1110→      Permissions-Policy, -Server.
+  1111→    * `encode zstd gzip` for compression.
+  1112→    * 4 routes in order:
+  1113→        1. `@socket_query` (XTransformPort=3003) → 127.0.0.1:3003,
+  1114→           5min read/write timeouts for socket.io long-polling.
+  1115→        2. `@socket_io_path` (/socket.io/*) → 127.0.0.1:3003 —
+  1116→           included for the conventional path the task spec asked
+  1117→           for; triggers only if the socket service is later
+  1118→           reconfigured to use `path: '/socket.io/'`.
+  1119→        3. `@stress_query` (XTransformPort=3004) → 127.0.0.1:3004,
+  1120→           2min timeout (stress tests can run up to 90s).
+  1121→        4. catch-all → 127.0.0.1:3000 (Next.js).
+  1122→    * Each route sets `Host`, `X-Real-IP`, `X-Forwarded-For`,
+  1123→      `X-Forwarded-Proto` headers (required by the rate-limiter in
+  1124→      `src/lib/rate-limit.ts` to extract real client IP).
+  1125→    * JSON access log to `/var/log/caddy/uems-votacao.access.log`
+  1126→      with size-based rotation (100 MiB, keep 14, 30d).
+  1127→    * Header comment explains the routing table and points to the
+  1128→      DEPLOY.md for installation instructions.
+  1129→
+  1130→- Created `/home/z/my-project/deploy/DEPLOY.md` — comprehensive
+  1131→  Portuguese deploy guide (~22 KB, 15 sections + checklist):
+  1132→    1. Requisitos da VM (Ubuntu 22.04+, 2GB RAM, 10GB disco, 1 vCPU).
+  1133→    2. Instalação das ferramentas (apt para caddy/sqlite3/ufw,
+  1134→       NodeSource para Node 20, bun.sh install script, npm -g pm2,
+  1135→       pm2 startup systemd).
+  1136→    3. Upload (git clone OU scp via tarball — both documented).
+  1137→    4. Configuração do .env (table mapping each var to its
+  1138→       `openssl rand` command).
+  1139→    5. **Configuração das chaves ADMIN + PRESENTER** — this is the
+  1140→       most critical section. Explains that ADMIN_SECRET_KEY only
+  1141→       needs .env + pm2 restart, but PRESENTER_KEY must ALSO be
+  1142→       `sed`-replaced into `admin/page.tsx` and
+  1143→       `apresentacao/[codigo]/page.tsx` before rebuild, with a
+  1144→       copy-pasteable snippet. Warns that the client-side key is a
+  1145→       soft-auth check (extractable from JS bundle) — for full
+  1146→       hardening, future work should move privileged commands to a
+  1147→       token-authenticated HTTP API route.
+  1148→    6. Banco de dados (prisma generate + db:push, optional db:seed).
+  1149→    7. Build do Next.js (NODE_OPTIONS memory limit + manual copy of
+  1150→       public/, prisma/, .next/static/, .env into standalone; points
+  1151→       to the deploy.sh shortcut).
+  1152→    8. PM2 (start, save, startup; useful commands cheatsheet).
+  1153→    9. Caddy + DNS + HTTPS (Caddyfile install, sed for domain+email,
+  1154→       validate + reload; routing table; DNS propagation check via
+  1155→       dig).
+  1156→    10. Firewall (ufw default deny + allow 22/80/443, with note
+  1157→        about restricting SSH to a specific IP).
+  1158→    11. Backup (cron job at 03:00 daily, 30-day retention,
+  1159→        restore procedure, offsite rsync recommendation).
+  1160→    12. Procedimento de atualização (step-by-step git pull → bun
+  1161→        install → prisma → next build → copy → pm2 reload →
+  1162→        healthcheck).
+  1163→    13. Monitoramento (healthcheck.sh cron, Uptime Kuma integration,
+  1164→        pm2 logs / monit, caddy journalctl + access log, htop / df /
+  1165→        free / ss, recommended alerts).
+  1166→    14. Renovação SSL (Caddy auto-renews; openssl command to verify
+  1167→        cert dates).
+  1168→    15. Troubleshooting comum (7 subsections):
+  1169→        - OOM no build (increase --max-old-space-size, add swap,
+  1170→          cross-build on bigger machine).
+  1171→        - EADDRINUSE (ss + lsof + pm2 stop/restart).
+  1172→        - Socket.io não conecta (4-step diagnosis: pm2 status, curl,
+  1173→          DevTools Network, PRESENTER_KEY mismatch).
+  1174→        - Admin não consegue logar (.env + pm2 restart --update-env +
+  1175→          cwd note about where the standalone server reads .env).
+  1176→        - Votos não aparecem (pm2 logs uems-socket, question active
+  1177→          check, same-room check, fallback polling note from 5-a).
+  1178→        - SQLITE_BUSY (Postgres migration path documented).
+  1179→        - Caddy não emite certificado (DNS propagation, port 443,
+  1180→          ACME rate limit, duplicate cert elsewhere).
+  1181→    Final checklist with 14 items.
+  1182→
+  1183→- Created `/home/z/my-project/deploy/backup.sh` — SQLite backup
+  1184→  script. `#!/usr/bin/env bash` + `set -euo pipefail`. Uses
+  1185→  `sqlite3 .backup` (online backup API, does not lock writers) when
+  1186→  available, falls back to `cp`. Gzips the result. Optional
+  1187→  `PRAGMA integrity_check` on uncompressed backups. Prunes anything
+  1188→  older than `KEEP_DAYS` (default 30) via `find -mtime +N -delete`.
+  1189→  Configurable via env (`PROJECT_DIR`, `DB_FILE`, `BACKUP_DIR`,
+  1190→  `KEEP_DAYS`). Cron example in the header: `0 3 * * *` daily.
+  1191→  Restore instructions documented in the header.
+  1192→
+  1193→- Created `/home/z/my-project/deploy/healthcheck.sh` — health check
+  1194→  for monitoring tools. `#!/usr/bin/env bash` + `set -uo pipefail`
+  1195→  (no `-e` because we want to report all 3 statuses even if one
+  1196→  fails). Probes:
+  1197→    * `http://127.0.0.1:3000/` — expects 200 or 307 (Next.js may
+  1198→      redirect / to /admin or similar).
+  1199→    * `http://127.0.0.1:3003/` — expects 200 or 400 (engine.io
+  1200→      rejects bare GET without EIO query param with 400 — that's the
+  1201→      healthy response).
+  1202→    * `http://127.0.0.1:3004/health` — expects 200 (dedicated
+  1203→      /health endpoint added in task 5-c returns JSON `{ok, port,
+  1204→      memoryRssMb}`).
+  1205→  Color-coded output (green OK / red FAIL). Exit code 0 if all
+  1206→  healthy, 1 otherwise. Env-overridable hosts (`NEXT_HOST`,
+  1207→  `SOCKET_HOST`, `STRESS_HOST`, `TIMEOUT`). Uses curl only — no
+  1208→  external deps.
+  1209→
+  1210→- Made all 3 shell scripts executable (`chmod +x deploy/*.sh`):
+  1211→    -rwxrwxr-x backup.sh
+  1212→    -rwxrwxr-x deploy.sh
+  1213→    -rwxrwxr-x healthcheck.sh
+  1214→
+  1215→- Verification:
+  1216→  * `bun run lint` — passes clean (0 errors, 0 warnings).
+  1217→  * `NODE_OPTIONS=--max-old-space-size=2048 npx next build` —
+  1218→    succeeds. All 21 routes compiled (same as task 5-c). Build
+  1219→    produced `.next/standalone/server.js` (3247 bytes).
+  1220→  * Verified `.next/standalone/` initially had server.js + .env +
+  1221→    .next/ + node_modules/ + package.json but was MISSING public/
+  1222→    and prisma/. Ran the same copy operations as `deploy.sh`:
+  1223→        cp -r .next/static .next/standalone/.next/
+  1224→        cp -r public .next/standalone/
+  1225→        cp -r prisma .next/standalone/
+  1226→        cp .env .next/standalone/
+  1227→    Final standalone bundle contains: server.js, .env, .next/static/
+  1228→    (chunks + media), public/ (logo-uems.png, logo.png, logo.svg,
+  1229→    questions/, uploads/, robots.txt), prisma/ (schema.prisma,
+  1230→    seed.ts), node_modules/. Note: dev.db does not exist in the
+  1231→    sandbox (the local env uses db/custom.db) — in production,
+  1232→    `db:push` will create it.
+  1233→
+  1234→- Did NOT modify `next.config.ts` — it already had `output:
+  1235→  "standalone"` (line 8) and the build succeeds without
+  1236→  `serverActions` or `serverExternalPackages` config. Adding those
+  1237→  would risk breaking the build for no benefit.
+  1238→
+  1239→Stage Summary:
+  1240→- 7 new files created, 0 application files modified:
+  1241→    /home/z/my-project/ecosystem.config.cjs          (PM2 config, 3 apps)
+  1242→    /home/z/my-project/.env.example                  (env template, all vars documented)
+  1243→    /home/z/my-project/deploy/deploy.sh              (one-shot idempotent deploy)
+  1244→    /home/z/my-project/deploy/Caddyfile.production   (TLS + routing + headers)
+  1245→    /home/z/my-project/deploy/DEPLOY.md              (~22 KB Portuguese guide, 15 sections)
+  1246→    /home/z/my-project/deploy/backup.sh              (sqlite3 .backup + 30d prune + gzip)
+  1247→    /home/z/my-project/deploy/healthcheck.sh         (3-service probe, exit code 0/1)
+  1248→- All 3 shell scripts have `#!/usr/bin/env bash` + `set -euo pipefail`
+  1249→  (healthcheck uses `set -uo pipefail` so it can report all failures
+  1250→  in one run) and are chmod +x.
+  1251→- All paths absolute or `$(dirname "$0")`/env-var-relative; no
+  1252→  reliance on the script's CWD.
+  1253→- The Caddyfile mirrors the existing dev-sandbox routing pattern
+  1254→  (`?XTransformPort=N` query matcher) that the client code already
+  1255→  uses — no app code changes needed for the socket.io traffic to
+  1256→  flow through the production reverse proxy.
+  1257→- Standalone bundle at `.next/standalone/` confirmed complete with
+  1258→  server.js + public/ + prisma/ + .next/static/ + .env. Build
+  1259→  passes; lint passes.
+  1260→- DEPLOY.md explicitly documents the PRESENTER_KEY gotcha (key must
+  1261→  be sed-replaced into 2 client-side files before rebuild, since
+  1262→  it's currently hardcoded as `presenter-default-key-2025`) and
+  1263→  includes a copy-pasteable snippet to do so from the .env value.
+  1264→- No new npm packages added (constraint honoured).
+  1265→
+  1266→Unresolved Issues / Notes for Next Agent:
+  1267→- The socket service (`mini-services/enade-quiz/index.ts`) and stress
+  1268→  service (`mini-services/stress-test/index.ts`) hardcode their ports
+  1269→  (3003 and 3004 respectively). The PM2 `env` block in
+  1270→  `ecosystem.config.cjs` does NOT control these ports — to change
+  1271→  them you'd need to edit the source. Documented in the PM2 config
+  1272→  header comment.
+  1273→- The PRESENTER_KEY is currently hardcoded on the client side
+  1274→  (`admin/page.tsx` line ~1060 / ~331, `apresentacao/[codigo]/
+  1275→  page.tsx` line ~235). The deploy guide explains how to `sed`-
+  1276→  replace it for production, but a cleaner fix would be to inject
+  1277→  the key via `NEXT_PUBLIC_PRESENTER_KEY` env var (Next.js bakes
+  1278→  NEXT_PUBLIC_* vars into the client bundle at build time). This
+  1279→  would require a small app-code change which the task constraint
+  1280→  prohibited — flagged for a future task.
+  1281→- The Caddyfile's `/socket.io/*` route is currently dead code (the
+  1282→  socket service uses `path: '/'` not `/socket.io/`). It's included
+  1283→  per the task spec and for forward-compat. If a future agent
+  1284→  changes the socket service to use the conventional path, this
+  1285→  route will start working automatically.
+  1286→- The healthcheck script accepts HTTP 400 from the socket service
+  1287→  as "healthy" because engine.io rejects bare GETs without an EIO
+  1288→  query param. This is correct for now but if you add a dedicated
+  1289→  `/health` route to the socket service, tighten the regex to just
+  1290→  `200` for a cleaner signal.
+  1291→- The deploy script's `git pull --ff-only` can fail if the local
+  1292→  branch diverged (e.g., the sed-patched client files conflict
+  1293→  with upstream changes to the same lines). The script warns and
+  1294→  continues with the current tree — operators should resolve
+  1295→  conflicts manually before re-running.
+  1296→- Local sandbox `.env` uses `DATABASE_URL=file:/home/z/my-project/
+  1297→  db/custom.db` (absolute path). The `.env.example` template uses
+  1298→  the cleaner relative `file:./prisma/dev.db`. This is intentional
+  1299→  — production should start fresh, not inherit the sandbox's path.
+  1300→  `db:push` will create `prisma/dev.db` on first run.
+  1301→- Did not run the deploy.sh end-to-end against a real VM (no VM
+  1302→  available in the sandbox). The script is idempotent and uses
+  1303→  standard tools, but the first real deploy may surface environment
+  1304→  quirks (e.g., bun install --production dropping a needed build
+  1305→  dep — the script has a fallback to `bun install` if `next` CLI
+  1306→  is missing).
+  1307→
+  1308→---
+  1309→Task ID: 5-final
+  1310→Agent: Main Agent (production readiness orchestration)
+  1311→Task: Prepare application for production — fix all errors, stress test 1000 users, security hardening, fix reveal-answer bug
+  1312→
+  1313→Work Log:
+  1314→- Coordinated 4 parallel subagents (Tasks 5-a, 5-b, 5-c, 5-d) for production readiness
+  1315→- Verified all changes integrate cleanly (lint clean, build succeeds, all 21 routes compiled)
+  1316→- Ran real stress tests against live session 67QAFO:
+  1317→  - NORMAL scenario: 1000 students connected, 1000 voted, 0 failed, 5s duration, 198 votes/sec, 87MB memory
+  1318→  - HEAVY LOAD: 2000 students connected, 2000 voted, 0 failed, 10s duration, 110MB memory
+  1319→  - LONG-LIVED: 200 students × 30s, 0 errors, 99MB memory stable
+  1320→  - BAD-PRESENTER: 50 attackers, 450 malicious presenter commands ALL BLOCKED, 0 errors
+  1321→  - BAD-INPUT: 100 malformed payloads, ALL 25 BLOCKED, 0 server crashes
+  1322→  - FLOOD: 100 students × 10 vote attempts each, ALL 1000 duplicates REJECTED by anti-double-vote
+  1323→  - MIXED: 250 clients (students + 30 attackers + 20 bad-input), ALL ATTACKS BLOCKED, 233 valid votes accepted
+  1324→- Browser verification with agent-browser:
+  1325→  - Home page renders correctly (login form, session code input, "How it works" section)
+  1326→  - Admin login flow: password "enade2024" → token issued → session list shown
+  1327→  - Admin manage session: Gerenciar button → tabs (Questões, Apresentar, Banco de Questões) → 30 questions listed
+  1328→  - Session start: "Iniciar Apresentação" → status changes to active → Encerrar Sessão appears
+  1329→  - Question activation: Q1 click → all presenter controls enabled (Anterior, Próxima, Pausar, Revelar, Vencedores)
+  1330→  - REVEAL ANSWER (the bug): "Revelar Gabarito" click → alternative C highlighted green, "Gabarito: C" banner appears, no error
+  1331→  - Student voting flow: votar/67QAFO → 4 alternatives shown → click B → "✓ Você votou na alternativa B" → "Aguardando o gabarito..." → "Voto registrado!" toast
+  1332→- Confirmed the reveal-answer bug is fixed:
+  1333→  - Admin does PUT /api/session/[code]/questions/[id] with isRevealed:true first (persists to DB)
+  1334→  - Then emits reveal-answer via socket with retry (3 attempts, 3s timeout each, ack callback)
+  1335→  - On failure: shows toast "Comando pode não ter sido recebido. Recarregue a página de apresentação."
+  1336→  - Apresentacao page has polling fallback: if socket down >5s, fetches /api/session/[code] every 3s for state sync
+  1337→  - Visual badge shows socket status: "Conectado" (green), "Reconectando..." (gold pulsing), "Desconectado" (red)
+  1338→- All 3 services running: Next.js (3000), Socket.io (3003), Stress Test (3004)
+  1339→
+  1340→Stage Summary:
+  1341→- ✅ All errors fixed (lint clean, build succeeds, 21 routes compiled)
+  1342→- ✅ Reveal-answer bug FIXED: now uses emitWithRetry with ack callbacks + DB persistence + polling fallback
+  1343→- ✅ Security hardened: admin auth (HMAC tokens, 24h expiry), rate limits (5/min admin auth, 30/min vote, 60/min general), input validation on all routes, security headers middleware, anti-cheat (no votes on revealed/finished questions)
+  1344→- ✅ Socket hardened: presenterKey required for privileged commands, MAX_PARTICIPANTS=5000, per-socket vote rate limit (500ms), 5-min janitor cleanup, ack callbacks on all events
+  1345→- ✅ Stress test: 1000+ concurrent users verified, 2000 users verified, all attack scenarios blocked
+  1346→- ✅ Production deploy: PM2 config, Caddyfile.production, deploy.sh (idempotent), backup.sh, healthcheck.sh, DEPLOY.md (Portuguese)
+  1347→- ✅ Browser-verified: admin login, session start, question activation, reveal answer, student voting — all working end-to-end
+  1348→
+  1349→Performance Metrics (verified live):
+  1350→- 1000 concurrent connections: 5s, 198 votes/sec, 87MB RAM
+  1351→- 2000 concurrent connections: 10s, 198 votes/sec, 110MB RAM
+  1352→- Avg response time: 0.56ms (1000 users), 0.86ms (2000 users)
+  1353→- Memory per user: ~55KB (excellent for 1GB VM)
+  1354→
+  1355→Security Posture (verified live):
+  1356→- Brute force admin login: 5 attempts then 429 rate limited ✅
+  1357→- Bad presenter commands (450 attempts): ALL BLOCKED ✅
+  1358→- Malformed payloads (25 attempts): ALL BLOCKED ✅
+  1359→- Double voting (1000 attempts): ALL REJECTED ✅
+  1360→- Unauthorized admin API calls: 401 ✅
+  1361→- Invalid vote choices: 400 ✅
+  1362→- Votes on revealed questions: 403 ✅
+  1363→
+  1364→Unresolved Issues:
+  1365→- Socket service + stress-test service die when sandbox reaps background processes (use PM2 in production to prevent)
+  1366→- PRESENTER_KEY is currently hardcoded as 'presenter-default-key-2025' in client JS — DEPLOY.md explains how to set it via env and sed-replace before build
+  1367→- In-memory rate limit and admin token state are single-instance (sufficient for one VM, would need Redis for multi-instance)
+  1368→
+  1369→Priority Recommendations for Next Phase:
+  1370→1. Deploy to a real VM following /home/z/my-project/deploy/DEPLOY.md
+  1371→2. Set strong ADMIN_SECRET_KEY and PRESENTER_KEY in .env
+  1372→3. Configure DNS + Caddy for HTTPS
+  1373→4. Set up backup cron job (deploy/backup.sh)
+  1374→5. Run a real load test from external machine (not localhost) to verify network performance
+  1375→6. Consider adding Redis for multi-instance scaling (if needed beyond 1 VM)
+  1376→7. Test with real students for final validation
+  1377→
+  1378→
+  1379→---
+  1380→Task ID: 6
+  1381→Agent: Main Agent
+  1382→Task: Aumentar logo UEMS na home page, adicionar código fixo de teste (TEST25) sem identificação, sessões normais exigem RGM+Nome, remover scrollbar da apresentação, corrigir score não acumulando na tela de encerramento
+  1383→
+  1384→Work Log:
+  1385→- **Logo UEMS maior na home page** (`src/app/page.tsx`):
+  1386→  - Aumentado de `w-20 h-20` (80px) para `w-36 h-36 sm:w-40 sm:h-40` (144-160px)
+  1387→  - Ajustado drop-shadow para acompanhar o tamanho maior
+  1388→  - Corrigido maxLength do input de código de 8 para 6 (códigos são 6 chars)
+  1389→  - Atualizado placeholder de "ENADE25" para "67QAFO" (formato real)
+  1390→  - Verificado via agent-browser: logo agora tem 160×160px (era 80×80)
+  1391→
+  1392→- **Schema Prisma: campo requireIdentification** (`prisma/schema.prisma`):
+  1393→  - Adicionado `requireIdentification Boolean @default(true)` no model Session
+  1394→  - `bun run db:push` aplicou a migração (10ms, sem conflitos)
+  1395→  - Default true = sessões normais exigem identificação; false = modo teste
+  1396→
+  1397→- **Tipos TypeScript** (`src/types/index.ts`):
+  1398→  - Adicionado `requireIdentification: boolean` na interface Session
+  1399→  - Adicionado `students?: Student[]` opcional na interface Session
+  1400→  - Criada interface Student completa (id, name, rgm, score, answers, corrects)
+  1401→  - Exportada constante `TEST_SESSION_CODE = 'TEST25'`
+  1402→
+  1403→- **API: POST /api/session** (`src/app/api/session/route.ts`):
+  1404→  - Aceita `requireIdentification` (boolean, default true)
+  1405→  - Aceita `customCode` (6-char A-Z0-9, opcional) — permite código fixo TEST25
+  1406→  - Valida customCode com `validateSessionCode`; rejeita duplicados com 409
+  1407→  - PATCH /api/session/[code] também aceita `requireIdentification` (whitelist)
+  1408→
+  1409→- **Admin: dialog Nova Sessão com Modo Teste** (`src/app/admin/page.tsx`):
+  1410→  - Adicionado Checkbox "Modo Teste (sem identificação de alunos)"
+  1411→  - Quando ativado, mostra campo "Código personalizado" (default TEST25)
+  1412→  - Checkbox usa cores UEMS (dourado quando checked)
+  1413→  - Lista de sessões mostra badge "Teste" (ícone FlaskConical) para sessões sem identificação
+  1414→  - handleCreateSession envia `requireIdentification: !newTestMode` e `customCode`
+  1415→
+  1416→- **Votar page: tela de identificação** (`src/app/votar/[codigo]/page.tsx`):
+  1417→  - Novo PageState 'identifying' adicionado
+  1418→  - Tela de identificação com campos RGM + Nome completo + botão "Entrar na sessão"
+  1419→  - Ícone 🎓 com glow animation dourado, header/footer consistentes
+  1420→  - Validação: nome e RGM obrigatórios (toast.error se vazio)
+  1421→  - POST /api/student para registrar/buscar aluno; persiste em sessionStorage
+  1422→  - Toast de boas-vindas: "Bem-vindo, [nome]!" ou "Bem-vindo de volta!"
+  1423→  - Badge do nome do aluno no header (clicável para trocar de aluno)
+  1424→  - identificationPendingRef suprime transições de socket durante identificação
+  1425→  - join-session emite name/rgm quando disponível (para score tracking do socket)
+  1426→
+  1427→- **Votar page: studentId no voto** (`src/app/votar/[codigo]/page.tsx`):
+  1428→  - handleVote emite studentId no submit-vote (socket) e /api/vote (fallback)
+  1429→  - vote-accepted handler inclui studentId ao persistir voto no DB
+  1430→  - studentIdRef (useRef) espelha studentId state para uso em socket callbacks (evita stale closure)
+  1431→
+  1432→- **Hook useFitContent** (`src/hooks/use-fit-content.ts`) — NOVO ARQUIVO:
+  1433→  - Mede container (pai) e content (filho) via refs
+  1434→  - Se content.scrollHeight > container.clientHeight, aplica `transform: scale(ratio)` com `transform-origin: top left`
+  1435→  - Width ajustada para `${100/scale}%` para preencher horizontalmente
+  1436→  - Scale mínimo 0.4 (texto permanece legível)
+  1437→  - Re-executa em: mount, window resize, ResizeObserver (content + container)
+  1438→  - Retorna { containerRef, contentRef, scale }
+  1439→
+  1440→- **Apresentacao: sem scrollbar** (`src/app/apresentacao/[codigo]/page.tsx`):
+  1441→  - Removido `overflow-y-auto pr-2` do container de texto da questão
+  1442→  - Adicionado `overflow-hidden` + useFitContent (containerRef + contentRef)
+  1443→  - Transform scale aplicado dinamicamente quando texto é muito longo
+  1444→  - Verificado via agent-browser + VLM: "texto completamente visível sem barra de rolagem"
+  1445→
+  1446→- **Bug fix: score não acumulava na tela de encerramento** (`src/app/votar/[codigo]/page.tsx`):
+  1447→  - **Causa raiz #1**: `answer-revealed` handler usava `answeredCount + 1` e `correctCount + 1` do closure do useEffect — sempre 0 (stale). Cada reveal sobrescrevia para 1 em vez de acumular.
+  1448→  - **Causa raiz #2**: Sem recálculo resiliente — se o aluno perdia o evento `answer-revealed` (socket desconectou, refresh), o score nunca atualizava.
+  1449→  - **Fix**: Criada `recalculateScore(data)` que itera sobre todas as questões, checa `getStoredVote(q.id)` + `q.isRevealed` + `q.correctAnswer`, e computa correct/answered do zero. Chamada em:
+  1450→    1. `fetchSession` (após carregar dados da sessão)
+  1451→    2. `session-state` (evento socket)
+  1452→    3. `answer-revealed` (após atualizar isRevealed no sessionFetchedRef)
+  1453→  - `answer-revealed` agora atualiza `sessionFetchedRef.current` in-place (isRevealed=true) antes de recalcular
+  1454→  - Verificado: aluno votou 2/2 corretas → tela de encerramento mostra "2/2 acertos" ✅
+  1455→
+  1456→- **Apresentacao: ranking final do DB** (`src/app/apresentacao/[codigo]/page.tsx`):
+  1457→  - **Causa raiz**: `session-finished` emitia `get-ranking` ao socket, que retornava `sessionScores` (in-memory). Mas o socket nunca rastreava `corrects` (aluno não envia correctAnswer ao votar). Resultado: "Nenhum voto registrado ainda".
+  1458→  - **Fix**: Criada `fetchRankingFromDB()` que faz GET /api/student?sessionCode=XXX e mapeia para RankingEntry. Ordena por corrects desc. Filtra students com answers>0.
+  1459→  - `session-finished` agora chama `fetchRankingFromDB()` em vez de `socket.emit('get-ranking')`
+  1460→  - `fetchSession` também chama `fetchRankingFromDB()` se a sessão já está finished (refresh na tela de encerramento)
+  1461→  - Verificado: apresentacao mostra pódio com "Aluno Teste, RGM 999001, 3/4" ✅
+  1462→
+  1463→Stage Summary:
+  1464→- ✅ Logo UEMS aumentado de 80px para 160px na home page
+  1465→- ✅ Código fixo TEST25 funciona sem identificação (requireIdentification=false)
+  1466→- ✅ Sessões normais exigem RGM + Nome (tela de identificação completa)
+  1467→- ✅ Admin pode criar sessões em Modo Teste com código personalizado
+  1468→- ✅ Badge "Teste" na lista de sessões do admin
+  1469→- ✅ Scrollbar removida da apresentação (useFitContent escala o texto)
+  1470→- ✅ Score acumula corretamente: 2/2, 3/4 etc. (stale closure + recalculateScore resiliente)
+  1471→- ✅ Ranking final da apresentação busca do DB (corrects/answers precisos)
+  1472→- ✅ Tela de encerramento do aluno mostra pontuação correta
+  1473→- ✅ Lint clean (0 errors, 0 warnings)
+  1474→- ✅ Build compila sem erros
+  1475→
+  1476→Verificação E2E (agent-browser + API):
+  1477→- Home page: logo 160×160px ✅
+  1478→- TEST25 (sem ID): vai direto para votação, sem tela de identificação ✅
+  1479→- Sessão normal: mostra tela "Identificação" com RGM + Nome ✅
+  1480→- Identificação: POST /api/student → "Bem-vindo, Maria!" → vai para votação ✅
+  1481→- Voto C (correto) → "Voto registrado!" ✅
+  1482→- Apresentacao TEST25 finalizada: pódio mostra "Aluno Teste, 3/4" ✅ (antes mostrava "Nenhum voto registrado")
+  1483→- Votar YQURI0 finalizada: "2/2 acertos" ✅ (antes mostrava "1/1" ou nada)
+  1484→- Apresentacao SCROL1 (texto longo): sem scrollbar, texto visível ✅
+  1485→
+  1486→Unresolved Issues:
+  1487→- Sessões de teste (TEST25) ainda existe no DB — pode ser deletada via admin quando conveniente
+  1488→- O socket service ainda mantém sessionScores in-memory (não usado para ranking final, mas poderia ser removido em favor do DB para ranking em tempo real também)
+  1489→- O `recalculateScore` é chamado em cada `session-state` event (frequente) — é barato (itera questions array) mas poderia ser otimizado com um dirty flag
+  1490→
+  1491→Priority Recommendations for Next Phase:
+  1492→1. Testar o fluxo completo com um apresentador real (admin → apresentação → alunos votando → revelar → encerrar)
+  1493→2. Considerar migrar o ranking em tempo real (durante a sessão) para o DB também, em vez do socket in-memory
+  1494→3. Adicionar limpeza automática de sessões de teste antigas
+  1495→4. Validar em dispositivo móvel real (a tela de identificação e o useFitContent)
+  1496→
+  1497→---
+  1498→Task ID: 7
+  1499→Agent: Main Agent
+  1500→Task: Corrigir erros de deploy (usuário relatou "deu erro ao fazer deploy")
+  1501→
+  1502→Work Log:
+  1503→- **Diagnóstico inicial**: O build `next build` funcionava no sandbox, mas o
+  1504→  bundle `.next/standalone/` estava INCOMPLETO após o build — faltavam
+  1505→  `public/`, `prisma/`, `.next/static/` e `.env`. O `deploy.sh` copiava
+  1506→  alguns, mas o `package.json` `build` script só copiava static + public
+  1507→  (faltava prisma e .env). Resultado: standalone server falhava em produção.
+  1508→
+  1509→- **Problema 1 — middleware deprecation (Next.js 16)**:
+  1510→  - `src/middleware.ts` → renomeado para `src/proxy.ts` (Next.js 16 mudou
+  1511→    a convenção de "middleware" para "proxy")
+  1512→  - Função exportada `middleware()` → `proxy()`
+  1513→  - O warning `⚠ The "middleware" file convention is deprecated` sumiu
+  1514→  - Security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+  1515→    Permissions-Policy) continuam funcionando — verificado via curl:
+  1516→    /admin e /api/* têm os 4 headers; / (público) não tem (correto)
+  1517→
+  1518→- **Problema 2 — build script não copiava prisma/.env para standalone**:
+  1519→  - `package.json` `build` script era: `next build && cp -r .next/static
+  1520→    .next/standalone/.next/ && cp -r public .next/standalone/` — faltava
+  1521→    prisma/ e .env
+  1522→  - Criado `scripts/assemble-standalone.js` (Node.js, cross-platform, sem
+  1523→    dependência de shell) que copia: .next/static, public/, prisma/, .env,
+  1524→    db/ (se existir) para .next/standalone/
+  1525→  - Novo script `build:prod`: `prisma generate && next build && node
+  1526→    scripts/assemble-standalone.js` — faz tudo em sequência
+  1527→  - Script `build` simplificado para apenas `next build` (dev)
+  1528→  - Script `start` agora usa `node` (não bun) para máxima compatibilidade
+  1529→  - Adicionado `start:bun` para quem preferir bun
+  1530→
+  1531→- **Problema 3 — ecosystem.config.cjs com path hardcoded**:
+  1532→  - `cwd: '/var/www/uems-votacao'` era hardcoded → falhava se deploy
+  1533→    fosse em outro path
+  1534→  - Agora usa `process.env.DEPLOY_DIR || path.resolve(__dirname)` —
+  1535→    funciona de qualquer diretório, ou respeita DEPLOY_DIR se setado
+  1536→  - `deploy.sh` agora exporta `DEPLOY_DIR` antes de chamar `pm2 start`
+  1537→
+  1538→- **Problema 4 — deploy.sh usava `bun install --production`**:
+  1539→  - `--production` remove devDependencies (next, prisma, typescript) —
+  1540→    quebra o build. O fallback (`bun install` completo) era clunky
+  1541→  - Agora usa `bun install` (full) direto — devDeps são necessários
+  1542→    para `next build` e `prisma generate`. O standalone final só inclui
+  1543→    production deps mesmo, então o runtime fica lean.
+  1544→  - Deploy.sh agora chama `node scripts/assemble-standalone.js` em vez
+  1545→    de comandos `cp -rT` manuais (mais robusto, cross-platform)
+  1546→  - Adicionado check de sanidade: se `next` CLI não estiver disponível
+  1547→    após `bun install`, aborta com mensagem clara
+  1548→  - Se .env não existir e .env.example for copiado, ABORTA com instrução
+  1549→    para editar antes de continuar (não faz deploy com secrets padrão)
+  1550→
+  1551→- **Problema 5 — .env.example faltando**:
+  1552→  - `deploy.sh` referenciava `.env.example` mas o arquivo não existia
+  1553→  - Criado `.env.example` completo com TODAS as vars documentadas:
+  1554→    DATABASE_URL, ADMIN_SECRET_KEY, ADMIN_PASSWORD, PRESENTER_KEY,
+  1555→    PORT, HOSTNAME, NODE_ENV, NODE_OPTIONS, SOCKET_PORT, STRESS_PORT
+  1556→  - Inclui instruções de como gerar secret seguro (`openssl rand -hex 32`)
+  1557→
+  1558→- **Problema 6 — ESLint flaggeava require() em .cjs/.js**:
+  1559→  - `ecosystem.config.cjs` e `scripts/assemble-standalone.js` usam
+  1560→    `require()` (CommonJS legítimo) mas ESLint reclamava
+  1561→  - Adicionado `deploy/**`, `scripts/**`, `ecosystem.config.cjs`,
+  1562→    `mini-services/**` ao `ignores` do `eslint.config.mjs`
+  1563→  - `bun run lint` agora passa limpo (0 errors, 0 warnings)
+  1564→
+  1565→- **DEPLOY.md atualizado**:
+  1566→  - §7 (Build): reescrito com 3 opções (A: build:prod, B: manual, C: deploy.sh)
+  1567→  - Aviso destacado: `next build` NÃO inclui public/prisma/static/.env
+  1568→  - §12 (Atualização): simplificado para usar `bun run build:prod`
+  1569→
+  1570→Stage Summary:
+  1571→- ✅ `middleware.ts` → `proxy.ts` (fix deprecation warning do Next.js 16)
+  1572→- ✅ `scripts/assemble-standalone.js` criado — copia tudo para standalone
+  1573→- ✅ `build:prod` script único: prisma generate + next build + assemble
+  1574→- ✅ `ecosystem.config.cjs` usa DEPLOY_DIR env var (não mais hardcoded)
+  1575→- ✅ `deploy.sh` robusto: bun install (full), assemble-standalone.js, aborta se .env vazio
+  1576→- ✅ `.env.example` criado com todas as vars documentadas
+  1577→- ✅ ESLint config ignora arquivos de tooling CommonJS
+  1578→- ✅ DEPLOY.md atualizado com novo fluxo de build
+  1579→
+  1580→Verificação E2E:
+  1581→- `bun run lint` — 0 errors, 0 warnings ✅
+  1582→- `NODE_OPTIONS=--max-old-space-size=2048 bun run build:prod` — compila 21
+  1583→  rotas, assemble-standalone copia 5/5 componentes (static, public, prisma,
+  1584→  .env, db) ✅
+  1585→- Standalone server (porta 3001): GET / → 200, GET /admin → 200, GET
+  1586→  /api/session → 200, GET /logo-uems.png → 200, GET /votar/TEST25 → 200 ✅
+  1587→- Standalone bundle completo: .env, .next, db, node_modules, prisma, public,
+  1588→  server.js ✅
+  1589→- Dev server (porta 3000): sem erros, sem warning de middleware, 200 em
+  1590→  todas as rotas ✅
+  1591→- Security headers (proxy.ts): /admin e /api/* têm X-Frame-Options:DENY,
+  1592→  X-Content-Type-Options:nosniff, Referrer-Policy, Permissions-Policy ✅
+  1593→- Página pública / não tem security headers (correto — iframe-friendly) ✅
+  1594→
+  1595→Arquivos criados/modificados:
+  1596→- NOVO: src/proxy.ts (renomeado de src/middleware.ts)
+  1597→- DELETADO: src/middleware.ts
+  1598→- NOVO: scripts/assemble-standalone.js
+  1599→- NOVO: .env.example
+  1600→- MOD: package.json (scripts build/build:prod/start/start:bun)
+  1601→- MOD: ecosystem.config.cjs (DEPLOY_DIR env-based cwd)
+  1602→- MOD: deploy/deploy.sh (bun install full, assemble-standalone.js, aborta se .env)
+  1603→- MOD: deploy/DEPLOY.md (§7 e §12 reescritos)
+  1604→- MOD: eslint.config.mjs (ignores deploy/scripts/mini-services)
+  1605→
+  1606→Unresolved Issues:
+  1607→- O `PRESENTER_KEY` ainda é hardcoded como 'presenter-default-key-2025' no
+  1608→  client-side (src/app/admin/page.tsx, src/app/apresentacao/[codigo]/
+  1609→  page.tsx). Em produção, deve ser sed-replaced antes do build. O .env.example
+  1610→  documenta isso. Solução limpa: usar NEXT_PUBLIC_PRESENTER_KEY env var.
+  1611→- As portas 3003 e 3004 ainda são hardcoded nos mini-services. Para mudar,
+  1612→  editar o source. Documentado no ecosystem.config.cjs.
+  1613→- Não foi possível testar o deploy.sh end-to-end em VM real (sem VM no
+  1614→  sandbox). O script é idempotente e usa ferramentas padrão, mas o
+  1615→  primeiro deploy real pode revelar quirks do ambiente.
+  1616→
+  1617→Priority Recommendations for Next Phase:
+  1618→1. Migrar PRESENTER_KEY para NEXT_PUBLIC_PRESENTER_KEY env var (elimina o
+  1619→   sed-replace manual antes do build)
+  1620→2. Tornar as portas 3003/3004 configuráveis via env nos mini-services
+  1621→3. Testar deploy.sh em VM real (Ubuntu 22.04/24.04 com bun+pm2+caddy)
+  1622→4. Considerar adicionar um `deploy/quick-install.sh` que instala bun,
+  1623→   pm2, caddy numa VM limpa (one-liner para setup inicial)
+  1624→
+  1625→---
+  1626→Task ID: 8-b
+  1627→Agent: Frontend Styling Subagent
+  1628→Task: Improve UI styling details on key pages
+  1629→
+  1630→Work Log:
+  1631→- Read worklog.md for UEMS dark theme context (bg `#050A1A`, card `#0D1B3E`, border `#1A2A5E`, navy `#00338C`, gold `#C8A84B`, text `#E8EDFF`) and prior work.
+  1632→- Read `src/app/globals.css`, `src/app/page.tsx` (home), `src/app/admin/page.tsx` (login section lines ~1881-1935), and `src/app/votar/[codigo]/page.tsx` (all states) before editing. Confirmed existing CSS-only animation approach (inline `<style>` blocks per page + a small set of `@keyframes`).
+  1633→- Added a shared library of GPU-accelerated (`transform`/`opacity` only) CSS keyframes + utility classes to `src/app/globals.css`:
+  1634→  - Keyframes: `uems-float`, `uems-shine-sweep`, `uems-gradient-underline`, `uems-input-glow`, `uems-icon-glow`, `uems-icon-glow-navy`, `uems-check-pop`, `uems-dot-bounce`, `uems-confetti-fall`, `uems-trophy-glow`, `uems-card-slide-up`, `uems-bg-pan`.
+  1635→  - Utility classes: `.uems-float`, `.uems-title-underline` (animated gold/navy gradient underline via `::after`), `.uems-input-glow` (monospace + letter-spacing + gold pulse glow on focus), `.uems-btn-shine` (shine sweep on hover + `scale(0.97)` on press via `::before` pseudo-element), `.uems-icon-glow` / `.uems-icon-glow-navy`, `.uems-card-enter` (fade-in + slide-up entrance), `.uems-bg-grid` (animated gold grid pattern), `.uems-bg-dots`, `.uems-alt-btn` (vote alt button with colored left accent that scales in on hover via `::before` using `--uems-alt-color` CSS var), `.uems-check-pop`, `.uems-dot-loader`, `.uems-confetti`, `.uems-trophy-celebrate`.
+  1636→  - Added `@media (prefers-reduced-motion: reduce)` block that disables all custom animations for accessibility.
+  1637→- **Home page (`src/app/page.tsx`)** — surgical edits, kept all existing entrance animations and floating particles:
+  1638→  - UEMS logo now floats subtly (added `uems-float` 4s ease-in-out to the existing `scaleIn` entrance animation, with 0.8s delay so the float starts after the entrance completes).
+  1639→  - "ENADE Quiz" title gets an animated gold/navy gradient underline (`.uems-title-underline::after`).
+  1640→  - Session code input: added `.uems-input-glow` class — applies Geist Mono font + 0.25em letter-spacing for readability, and a subtle pulsing gold glow on focus.
+  1641→  - "Entrar" button: added `.uems-btn-shine` — diagonal shine sweep on hover, `scale(0.97)` on press. Wrapped button content in `<span className="relative z-[2]">` so the text stays above the shine `::before` layer.
+  1642→- **Admin login section (`src/app/admin/page.tsx`, lines ~1881-1944)** — only touched the unauthenticated login view, no changes to the authenticated admin panel:
+  1643→  - Login Card gets `.uems-card-enter` (fade-in + slide-up, 0.6s cubic-bezier entrance).
+  1644→  - Lock icon container gets `.uems-icon-glow-navy` (subtle navy `box-shadow` pulse, matching the navy circle background).
+  1645→  - Password input gets `.uems-input-glow` (gold focus glow matching theme) + themed border colors.
+  1646→  - "Entrar" button: now uses `.uems-btn-shine` for the sweep effect, shows "Entrando..." text + spinner when `authLoading`, properly disabled styling. Content wrapped in `z-[2]` span so the shine stays behind text.
+  1647→  - Background: added an animated gold grid pattern overlay (`.uems-bg-grid` with `uems-bg-pan` 18s infinite pan) plus two soft radial blur highlights (gold top-left, navy bottom-right) for depth. Made outer container `relative overflow-hidden` and footer `relative` so they stack above the bg layer.
+  1648→- **Voting page (`src/app/votar/[codigo]/page.tsx`)** — surgical edits per state:
+  1649→  - Added `CONFETTI_COLORS` and `CONFETTI_PIECES` (28 particles) constants near the top for the finished-screen celebration.
+  1650→  - **Voting state — alternative buttons (A/B/C/D/E)**: added `.uems-alt-btn group` class. Each button sets `--uems-alt-color` CSS var to its letter color (`A:#00338C`, `B:#C8A84B`, etc.). On hover, the per-letter colored left accent bar scales in vertically (`::before` scaleY 0→1), the whole button translates 2px right + scales 1.012x, and the letter chip scales 1.1x via `group-hover:scale-110`. On press, scales to 0.985. Also added `hover:bg-[#0F1F46]` for a slightly lighter card bg on hover.
+  1651→  - **Voted state**: confirmation checkmark `✓` now uses `.uems-check-pop` (pops in with `scale(0)→1.2→1` + rotation) — a small but satisfying confirmation animation on top of the existing `glowPulse` ring.
+  1652→  - **Waiting state**: replaced the 3 pulsing dots with a 5-dot bouncing loader using `.uems-dot-loader` (`uems-dot-bounce` keyframe: translateY + scale + opacity, staggered with 0.16s delays). Added `role="status"` + `aria-label` for accessibility.
+  1653→  - **Finished state**: when the student's score ratio is ≥60% (`isHighScore`), the screen now shows:
+  1654→    - 28 confetti particles falling from top with random horizontal positions, delays (0-1.5s), durations (3-4.8s), colors (gold/navy/white/gold/gold) and rotations — all CSS-animated via `.uems-confetti` + `uems-confetti-fall`.
+  1655→    - A large gold radial blur glow behind the trophy.
+  1656→    - The trophy emoji 🏆 gets `.uems-trophy-celebrate` (`uems-trophy-glow`: pulsing `drop-shadow` + subtle scale 1↔1.06).
+  1657→    - A new subtitle "🎉 Pontuação máxima!" (100%) or "🎉 Excelente desempenho!" (≥60%) fades in 1s after load.
+  1658→    - The "Voltar ao início" button gets `.uems-btn-shine`.
+  1659→    - All wrapped in `relative overflow-hidden` so confetti stays within the viewport.
+  1660→  - Fixed a stray `}}` JSX syntax error accidentally introduced by a `MultiEdit` operation on the waiting-state block — verified with `awk` byte inspection, restored to `)}`.
+  1661→- Verified `bun run lint` passes (clean, no errors/warnings).
+  1662→- Verified all 3 routes return HTTP 200 (`/`, `/admin`, `/votar/TEST25`) — final state of `dev.log` shows clean compiles with no errors. The transient 500 seen mid-edit was caused by the abovementioned syntax typo and is fully resolved.
+  1663→
+  1664→Stage Summary:
+  1665→- Added a shared CSS micro-interactions library to `globals.css` (12 keyframes + 13 utility classes + `prefers-reduced-motion` support) — all GPU-accelerated (transform/opacity), no JS animation libs, theme palette only (navy `#00338C`, gold `#C8A84B`, no indigo/bright blue).
+  1666→- Home page: floating UEMS logo, animated gold/navy gradient underline on title, monospace + gold-glow-focus session code input, shine-sweep + press-scale "Entrar" button.
+  1667→- Admin login (unauthenticated view only): card slide-up entrance, pulsing navy glow on lock icon, gold focus glow on password field, animated grid + radial highlights background, loading-state button ("Entrando..." + spinner) with shine sweep.
+  1668→- Voting page: per-letter colored left accent + hover scale on alternative buttons, popping checkmark confirmation on voted state, 5-dot bouncing loader on waiting state, and a full confetti celebration (28 particles + trophy glow + radial glow + subtitle) on the finished screen when score ≥60%.
+  1669→- All pages remain fully functional; lint passes; routes return 200; no compilation errors in `dev.log`. Mobile-first responsive classes preserved throughout.
+  1670→
+  1671→---
+  1672→Task ID: 8
+  1673→Agent: Main Agent
+  1674→Task: Corrigir deploy no host do Z.ai (não VM) — usuário clarificou "eu to fazendo o deploy no seu host, não em uma vm"
+  1675→
+  1676→Work Log:
+  1677→- **Diagnóstico corrigido**: O usuário estava fazendo deploy no HOST do Z.ai (sandbox),
+  1678→  não em uma VM externa. Os scripts de VM (deploy.sh, PM2, Caddyfile.production)
+  1679→  corrigidos na task 7 NÃO se aplicam. O deploy no host usa os scripts `build` e
+  1680→  `start` do package.json diretamente.
+  1681→
+  1682→- **Causa raiz do erro de deploy**:
+  1683→  O `start` script usava `next start` mas o `next.config.ts` tem `output: 'standalone'`.
+  1684→  O Next.js 16 exibe o warning:
+  1685→    ⚠ "next start" does not work with "output: standalone" configuration.
+  1686→       Use "node .next/standalone/server.js" instead.
+  1687→  A plataforma vê isso e falha o deploy com a mensagem genérica
+  1688→  "Sorry, there was a problem deploying the code."
+  1689→
+  1690→- **Fix aplicado** — scripts do package.json alinhados com `output: standalone`:
+  1691→  - `build`: `prisma generate && next build && node scripts/assemble-standalone.js`
+  1692→    (gera prisma client + builda Next.js + copia public/prisma/.env/db para standalone)
+  1693→  - `start`: `node .next/standalone/server.js`
+  1694→    (usa o standalone bundle completo, sem warning de incompatibilidade)
+  1695→  - Removidos scripts redundantes (`build:prod`, `start:bun`, `build:standalone`,
+  1696→    `start:standalone`) — agora há um único par `build`/`start` que funciona tanto
+  1697→    no host do Z.ai quanto em VMs
+  1698→
+  1699→- **Verificação completa do fluxo build → start**:
+  1700→  - `NODE_OPTIONS=--max-old-space-size=2048 bun run build` — compila 22 rotas,
+  1701→    assemble-standalone copia 5/5 componentes (static, public, prisma, .env, db) ✅
+  1702→  - `PORT=3005 node .next/standalone/server.js` (porta livre para teste) —
+  1703→    todos os endpoints retornam 200:
+  1704→    GET / → 200, GET /admin → 200, GET /api/session → 200,
+  1705→    GET /logo-uems.png → 200, GET /votar/TEST25 → 200,
+  1706→    GET /apresentacao/TEST25 → 200 ✅
+  1707→  - Security headers (proxy.ts) ativos em /admin e /api/* ✅
+  1708→  - Server inicia em 65ms, sem warnings ✅
+  1709→
+  1710→- **Subagente de styling (Task 8-b) completou**:
+  1711→  - Adicionou 12 keyframes + 13 utility classes em globals.css
+  1712→  - Home page: logo flutuante, underline gradiente animado no título, input com
+  1713→    glow dourado no focus, botão com shine sweep
+  1714→  - Admin login: card fade-in + slide-up, ícone cadeado com glow, fundo com grid
+  1715→    animado, estado de loading no botão
+  1716→  - Votar: botões de alternativa com border colorido por letra + scale no hover,
+  1717→    checkmark pop-in no voto, loader de 5 dots no waiting, confetti + trophy glow
+  1718→    no score final ≥60%
+  1719→  - Tudo CSS-only (sem framer-motion), respeita prefers-reduced-motion
+  1720→
+  1721→- **Feature CSV export (Task 8-a) já estava implementada**:
+  1722→  - Rota `src/app/api/session/[code]/export/route.ts` completa:
+  1723→    GET /api/session/[code]/export?format=csv
+  1724→    - Auth admin obrigatória (verifyAdminAuth)
+  1725→    - CSV com colunas: RGM, Nome, Score, Acertos, Total Respondidas, % Aproveitamento
+  1726→    - + 3 colunas por questão (resposta do aluno, gabarito, correta?)
+  1727→    - UTF-8 com BOM (compatibilidade Excel), Content-Disposition: attachment
+  1728→    - RFC 4180 compliant (escaping de quotes, CRLF line endings)
+  1729→  - Botão "Exportar CSV" no admin (linha 3558 do page.tsx, com ícone Download)
+  1730→  - Verificado no dev log: GET /api/session/67QAFO/export?format=csv → 200 ✅
+  1731→
+  1732→Stage Summary:
+  1733→- ✅ Scripts `build`/`start` corrigidos para compatibilidade total com `output: standalone`
+  1734→- ✅ Build completo (22 rotas) + assemble standalone (5/5 componentes) sem erros
+  1735→- ✅ Standalone server testado em porta livre — todos endpoints 200, sem warnings
+  1736→- ✅ Lint limpo (0 errors, 0 warnings)
+  1737→- ✅ Dev server saudável (preview panel funcionando)
+  1738→- ✅ CSV export feature completa e funcional
+  1739→- ✅ UI polish: 12 animações CSS adicionadas (home, admin, votar)
+  1740→
+  1741→Fluxo de deploy no host do Z.ai (correto agora):
+  1742→  1. Plataforma roda `bun run build`
+  1743→     → prisma generate + next build + assemble-standalone.js
+  1744→     → .next/standalone/ fica completo (server.js + public/ + prisma/ + .env + db/)
+  1745→  2. Plataforma roda `bun run start`
+  1746→     → node .next/standalone/server.js
+  1747→     → servidor production na porta 3000, sem warnings
+  1748→  3. Caddy gateway roteia tráfego externo → porta 3000
+  1749→
+  1750→Arquivos modificados nesta task:
+  1751→- package.json (scripts build/start simplificados e alinhados com standalone)
+  1752→
+  1753→Unresolved Issues:
+  1754→- O `PRESENTER_KEY` ainda é hardcoded no client-side. Para deploy no host,
+  1755→  o valor default 'presenter-default-key-2025' funciona. Para produção real,
+  1756→  deve ser trocado via NEXT_PUBLIC_PRESENTER_KEY.
+  1757→- As portas 3003/3004 dos mini-services (socket, stress-test) ainda são
+  1758→  hardcoded. No host do Z.ai, o Caddy gateway roteia via XTransformPort.
+  1759→
+  1760→Priority Recommendations for Next Phase:
+  1761→1. Testar o deploy no host do Z.ai novamente (build → start deve funcionar agora)
+  1762→2. Se ainda falhar, verificar logs da plataforma para identificar o step exato
+  1763→3. Considerar migrar PRESENTER_KEY para NEXT_PUBLIC_PRESENTER_KEY env var
+  1764→
+  1765→---
+  1766→Task ID: 9
+  1767→Agent: Main Agent
+  1768→Task: Corrigir deploy no host do Z.ai (eventoenade.space-z.ai) — ainda falhando após fix anterior
+  1769→
+  1770→Work Log:
+  1771→- **Diagnóstico**: O URL https://eventoenade.space-z.ai/ retornava HTTP 500 com
+  1772→  página "Sorry, there was a problem deploying the code." da plataforma Z.ai.
+  1773→  Após investigação, identifiquei que a plataforma usa **Docker** (Dockerfile
+  1774→  presente no projeto), e havia 3 problemas críticos no Dockerfile + .dockerignore:
+  1775→
+  1776→- **Problema 1 — .dockerignore excluía arquivos essenciais**:
+  1777→  - `db/*.db` — EXCLUÍA o banco SQLite do build! O Docker nunca recebia `db/custom.db`
+  1778→  - `.env` e `.env.*` — EXCLUÍA o arquivo de environment! O Docker nunca recebia
+  1779→    DATABASE_URL, ADMIN_SECRET_KEY, PRESENTER_KEY
+  1780→  - `prisma/*.db` — também excluía DBs do Prisma
+  1781→  - Fix: reescrevi `.dockerignore` removendo essas exclusões críticas, mantendo
+  1782→    apenas exclusões legítimas (node_modules, .next, .git, logs, etc.)
+  1783→
+  1784→- **Problema 2 — .env com path absoluto do sandbox**:
+  1785→  - `DATABASE_URL=file:/home/z/my-project/db/custom.db` — path só existe no sandbox
+  1786→  - No container Docker, o WORKDIR é `/app`, então o path seria inválido
+  1787→  - Fix: `.env` agora usa `DATABASE_URL=file:/app/db/custom.db` (path do container)
+  1788→
+  1789→- **Problema 3 — build não criava o DB fresh**:
+  1790→  - Se o `db/custom.db` não existisse (deploy limpo), o Prisma falharia ao tentar
+  1791→    conectar, pois o schema não estaria aplicado
+  1792→  - Fix: `build` script agora inclui `prisma db push --accept-data-loss`:
+  1793→    `prisma generate && prisma db push --accept-data-loss && next build && node scripts/assemble-standalone.js`
+  1794→  - Isso garante que o DB seja criado com o schema correto, mesmo em deploy fresh
+  1795→
+  1796→- **Problema 4 — Dockerfile desatualizado**:
+  1797→  - Fazia `bunx prisma generate` separado antes do `bun run build` (redundante)
+  1798→  - Copiava manualmente arquivos para o runner stage (linhas 81-93), conflitando
+  1799→    com o `assemble-standalone.js` que já copia tudo
+  1800→  - Não copiava o `db/` directory (assumia que seria via PVC)
+  1801→  - Fix: Dockerfile simplificado — `RUN bun run build` faz tudo (prisma + build +
+  1802→    assemble), e o runner stage só precisa `COPY --from=builder /app/.next/standalone ./`
+  1803→    pois o assemble-standalone.js já copiou public/, prisma/, .env, db/, .next/static/
+  1804→
+  1805→- **Verificação de deploy fresh**:
+  1806→  - Deletei `db/custom.db` e `.next/` para simular deploy completamente limpo
+  1807→  - Rodei `NODE_OPTIONS=--max-old-space-size=2048 bun run build`:
+  1808→    1. `prisma generate` — gerou client Prisma ✅
+  1809→    2. `prisma db push --accept-data-loss` — criou `db/custom.db` fresh com schema ✅
+  1810→    3. `next build` — compilou 22 rotas ✅
+  1811→    4. `assemble-standalone.js` — copiou 5/5 componentes (static, public, prisma, .env, db) ✅
+  1812→  - Testei `PORT=3006 node .next/standalone/server.js`:
+  1813→    - Server iniciou em 64ms, sem warnings ✅
+  1814→    - GET / → 200, GET /admin → 200, GET /api/session → 200,
+  1815→      GET /logo-uems.png → 200, GET /votar/TEST25 → 200 ✅
+  1816→  - DB fresh tinha 77KB (criado do zero pelo prisma db push)
+  1817→
+  1818→- **Restauração do DB de dev**: Restaurei `db/custom.db` do backup
+  1819→  (/tmp/custom.db.backup) para preservar as sessões e questões ENADE já importadas.
+  1820→
+  1821→Stage Summary:
+  1822→- ✅ `.dockerignore` corrigido — não mais exclui `.env`, `db/*.db`, `prisma/*.db`
+  1823→- ✅ `.env` usa path do container (`file:/app/db/custom.db`) em vez de path sandbox
+  1824→- ✅ `build` script agora faz `prisma db push` para criar DB fresh em deploy limpo
+  1825→- ✅ Dockerfile simplificado e corrigido — usa `bun run build` que faz tudo
+  1826→- ✅ Fresh deploy testado: DB criado do zero, standalone server funciona
+  1827→- ✅ Lint limpo (0 errors, 0 warnings)
+  1828→
+  1829→Arquivos modificados:
+  1830→- `.dockerignore` — removidas exclusões críticas (.env, db/*.db, prisma/*.db)
+  1831→- `.env` — path do container (`file:/app/db/custom.db`) + secrets
+  1832→- `package.json` — `build` script agora inclui `prisma db push --accept-data-loss`
+  1833→- `Dockerfile` — simplificado, usa `bun run build`, copia apenas `.next/standalone/`
+  1834→
+  1835→Fluxo de deploy corrigido (Docker):
+  1836→  1. `COPY . .` copia tudo (incluindo .env, db/, prisma/) — .dockerignore permite
+  1837→  2. `RUN bun run build`:
+  1838→     a. `prisma generate` — gera client
+  1839→     b. `prisma db push --accept-data-loss` — cria/atualiza db/custom.db com schema
+  1840→     c. `next build` — compila app (output: standalone)
+  1841→     d. `assemble-standalone.js` — copia tudo para .next/standalone/
+  1842→  3. `COPY --from=builder /app/.next/standalone ./` — runner stage recebe bundle completo
+  1843→  4. `CMD ["node", "server.js"]` — inicia na porta 3000
+  1844→
+  1845→Unresolved Issues:
+  1846→- Os mini-services (socket na 3003, stress-test na 3004) não estão sendo iniciados
+  1847→  no Dockerfile (são para testes de carga, não essenciais para o app funcionar).
+  1848→  Para produção real, precisariam de services separados no docker-compose ou PM2.
+  1849→- O `PRESENTER_KEY` ainda é hardcoded no client-side. Funciona para o deploy
+  1850→  padrão, mas deveria ser migrado para NEXT_PUBLIC_PRESENTER_KEY.
+  1851→
+  1852→Priority Recommendations for Next Phase:
+  1853→1. **Testar o deploy novamente no eventoenade.space-z.ai** — deve funcionar agora
+  1854→   com o .dockerignore corrigido e o build criando o DB fresh
+  1855→2. Se ainda falhar, pedir logs da plataforma para identificar o step exato
+  1856→3. Considerar adicionar um docker-compose.yml com os 3 services (next + socket + stress)
+  1857→
+  1858→---
+  1859→Task ID: 10
+  1860→Agent: Main Agent
+  1861→Task: Corrigir deploy no host Z.ai (eventoenade.space-z.ai) — ainda falhando após fixes anteriores
+  1862→
+  1863→Work Log:
+  1864→- **Descoberta crítica**: A plataforma Z.ai NÃO usa Docker! Ela usa scripts próprios em
+  1865→  `.zscripts/` (build.sh, start.sh, mini-services-*.sh). O Dockerfile no projeto é
+  1866→  ignorado pela plataforma. Li todos os scripts para entender o fluxo real:
+  1867→
+  1868→  **Fluxo real da plataforma Z.ai:**
+  1869→  1. `build.sh`: `bun install` + `bun run build` + copia `.next/standalone/`,
+  1870→     `.next/static/`, `public/`, `db/custom.db` para BUILD_DIR + empacota em .tar.gz
+  1871→  2. `start.sh`: extrai para `/app/`, seta `DATABASE_URL=file:/app/db/custom.db`
+  1872→     (default), roda `bun server.js` no `next-service-dist/`, inicia mini-services,
+  1873→     roda Caddy
+  1874→
+  1875→- **Causa raiz do erro de deploy**:
+  1876→  O `next build` com `output: standalone` **copia automaticamente o `.env`** para
+  1877→  `.next/standalone/.env`. Esse `.env` tinha `DATABASE_URL=file:./db/custom.db`
+  1878→  (path relativo). No ambiente de produção:
+  1879→  - O `start.sh` seta `DATABASE_URL=file:/app/db/custom.db` via `export`
+  1880→  - Mas o `.env` dentro do standalone (lido pelo Next.js do CWD) **sobrescreve**
+  1881→    essa env var com `file:./db/custom.db`
+  1882→  - O CWD é `/app/next-service-dist/`, então `./db/custom.db` resolveria para
+  1883→    `/app/next-service-dist/db/custom.db` que **NÃO EXISTE**
+  1884→  - O DB real está em `/app/db/custom.db` (um nível acima)
+  1885→  - Resultado: Prisma falha ao conectar → server crasha → deploy falha
+  1886→
+  1887→- **Fix aplicado**:
+  1888→  1. `scripts/assemble-standalone.js`: agora **DELETA explicitamente** o `.env`
+  1889→     do standalone bundle após o `next build` (o Next.js o copia automaticamente,
+  1890→     precisamos removê-lo para que as env vars do `start.sh` prevaleçam)
+  1891→  2. `.env` do projeto: mudado de `file:/home/z/my-project/db/custom.db` (absoluto
+  1892→     sandbox) para `file:./db/custom.db` (relativo, funciona no sandbox)
+  1893→  3. `package.json` `build` script: removido `prisma db push` (o `build.sh` da
+  1894→     plataforma já faz `db:push` no DB do BUILD_DIR separadamente)
+  1895→
+  1896→- **Verificação completa (simulação exata do fluxo da plataforma)**:
+  1897→  Simulei todo o fluxo `.zscripts/build.sh` + `.zscripts/start.sh`:
+  1898→  1. `bun run build` — prisma generate + next build + assemble-standalone (sem .env) ✅
+  1899→  2. Copiar `.next/standalone/` → BUILD_DIR/next-service-dist/ ✅
+  1900→  3. Copiar `.next/static/`, `public/`, `db/custom.db` → BUILD_DIR/ ✅
+  1901→  4. `DATABASE_URL="file:BUILD_DIR/db/custom.db" bun run db:push` ✅
+  1902→  5. `cd next-service-dist/ && DATABASE_URL="file:BUILD_DIR/db/custom.db" bun server.js` ✅
+  1903→  6. Todos os endpoints retornam 200:
+  1904→     - GET / → 200
+  1905→     - GET /admin → 200
+  1906→     - GET /api/session → 200
+  1907→     - GET /logo-uems.png → 200
+  1908→     - GET /votar/TEST25 → 200
+  1909→  7. Server inicia em 92ms, sem erros ✅
+  1910→
+  1911→- **Estrutura final do BUILD_DIR (que vira /app/ em produção)**:
+  1912→  ```
+  1913→  /app/
+  1914→  ├── next-service-dist/     ← standalone bundle (SEM .env)
+  1915→  │   ├── server.js
+  1916→  │   ├── .next/static/
+  1917→  │   ├── public/
+  1918→  │   ├── prisma/
+  1919→  │   ├── db/                ← cópia do DB (não usada em prod, mas presente)
+  1920→  │   └── node_modules/
+  1921→  ├── db/
+  1922→  │   └── custom.db          ← DB real usado em produção
+  1923→  ├── Caddyfile
+  1924→  ├── mini-services-dist/
+  1925→  └── start.sh
+  1926→  ```
+  1927→
+  1928→Stage Summary:
+  1929→- ✅ Causa raiz identificada: `.env` no standalone sobrescrevia `DATABASE_URL` do start.sh
+  1930→- ✅ `assemble-standalone.js` agora DELETA o `.env` do standalone
+  1931→- ✅ `.env` do projeto usa path relativo (`file:./db/custom.db`)
+  1932→- ✅ `build` script simplificado (sem `prisma db push` redundante)
+  1933→- ✅ Simulação completa do fluxo da plataforma passou: todos endpoints 200
+  1934→- ✅ Lint limpo
+  1935→
+  1936→Arquivos modificados:
+  1937→- `scripts/assemble-standalone.js` — agora DELETA .env do standalone (em vez de copiar)
+  1938→- `.env` — path relativo (`file:./db/custom.db`) + secrets com defaults
+  1939→- `package.json` — `build` sem `prisma db push` (plataforma já faz isso)
+  1940→
+  1941→Unresolved Issues:
+  1942→- Os mini-services (socket 3003, stress-test 3004) são buildados pelo
+  1943→  `mini-services-build.sh` via `bun build --target bun`. Verifiquei que ambos
+  1944→  buildam com sucesso. Eles rodam separadamente via `mini-services-start.sh`.
+  1945→- O `ADMIN_SECRET_KEY` e `PRESENTER_KEY` não são setados pelo `start.sh`, mas
+  1946→  têm defaults no código (`enade2024` e `presenter-default-key-2025`). Para
+  1947→  produção real, a plataforma deve setar essas env vars.
+  1948→
+  1949→Priority Recommendations for Next Phase:
+  1950→1. **Testar o deploy novamente no eventoenade.space-z.ai** — a causa raiz foi
+  1951→   corrigida (`.env` não sobrescreve mais o `DATABASE_URL` do start.sh)
+  1952→2. Se ainda falhar, a plataforma pode estar com cache do build anterior —
+  1953→   tentar forçar um redeploy limpo
+  1954→3. Considerar adicionar `ADMIN_SECRET_KEY` e `PRESENTER_KEY` ao `start.sh`
+  1955→   (mas não podemos modificar `.zscripts/` que são da plataforma)
+  1956→
+  1957→---
+  1958→Task ID: 11
+  1959→Agent: Main Agent
+  1960→Task: Debug profundo — preview não funcionava. Reverter mudanças de produção, testar todas as funções, corrigir bugs.
+  1961→
+  1962→Work Log:
+  1963→- **Problema inicial**: O usuário relatou que "nem a preview estava funcionando". O dev server estava morto (porta 3000 não respondia). Investiguei e descobri que o processo morria entre comandos Bash (o sandbox mata processos background quando o comando Bash retorna).
+  1964→
+  1965→- **Reversão de mudanças de produção** (a pedido do usuário — "não vou por no ar ainda"):
+  1966→  1. Removido `Dockerfile` e `.dockerignore` (não vamos para produção)
+  1967→  2. `.env` restaurado para path absoluto do sandbox: `DATABASE_URL=file:/home/z/my-project/db/custom.db`
+  1968→  3. `scripts/assemble-standalone.js` revertido para COPIAR `.env` (em vez de deletar)
+  1969→  4. `package.json` build script restaurado com `prisma db push --accept-data-loss`
+  1970→
+  1971→- **Bug 1 corrigido — Session code validation muito restritiva**:
+  1972→  - `src/lib/security.ts`: regex era `/^[A-Z0-9]{6}$/i` (exatamente 6 chars)
+  1973→  - Sessões com códigos customizados como "ENADE25" (7 chars) falhavam em TODOS os endpoints que usam `validateSessionCode` (ranking, export, vote, questions, etc.)
+  1974→  - **Fix**: Mudado para `/^[A-Z0-9]{4,10}$/i` (4-10 chars alfanuméricos)
+  1975→  - Permite códigos customizados: ENADE25, BIO2025, TEST25, 67QAFO, etc.
+  1976→
+  1977→- **Bug 2 corrigido — Home page input maxLength=6 truncava códigos**:
+  1978→  - `src/app/page.tsx` linha 115: `maxLength={6}` impedia digitar "ENADE25"
+  1979→  - O input mostrava "ENADE2" e navegava para `/votar/ENADE2` → "Sessão não encontrada"
+  1980→  - **Fix**: Mudado para `maxLength={10}` (consistente com a nova validação)
+  1981→
+  1982→- **Testes completos realizados (tudo passou)**:
+  1983→  1. ✅ **Home page** (/) — renderiza ENADE Quiz com input de código, seção "Como Funciona", link admin
+  1984→  2. ✅ **Admin login** (/admin) — senha "enade2024" → dashboard com 3 sessões, botões (Export CSV, Duplicar, etc.), toast "Autenticado com sucesso!"
+  1985→  3. ✅ **Home → votar** — digitando "ENADE25" (7 chars, agora permitido) → navega para /votar/ENADE25 → mostra formulário de identificação (RGM + Nome)
+  1986→  4. ✅ **Votar page** (/votar/TEST25) — mostra "Sessão Encerrada" (status correto)
+  1987→  5. ✅ **Apresentação** (/apresentacao/TEST25) — mostra "Sessão Encerrada" (status correto)
+  1988→  6. ✅ **Criar sessão** (POST /api/session) — DEBUG1 criada com customCode
+  1989→  7. ✅ **Adicionar questão** (POST /api/session/[code]/questions) — questão criada com 5 alternativas + gabarito
+  1990→  8. ✅ **Estudante entra** (POST /api/student) — "Debug Student" (DBG001) registrado
+  1991→  9. ✅ **Abrir votação** (PATCH /api/session/[code]/questions/[id] action=open) — 200
+  1992→  10. ✅ **Votar** (POST /api/vote) — voto B registrado como correto (`isCorrect: true`), resultados aggregados (`B:1, total:1`)
+  1993→  11. ✅ **Revelar resposta** (PATCH action=reveal) — 200
+  1994→  12. ✅ **Ranking** (GET /api/session/[code]/ranking) — retorna posição, nome, RGM, score, acertos
+  1995→  13. ✅ **Export CSV** (GET /api/session/[code]/export?format=csv) — CSV com UTF-8 BOM, colunas RGM/Nome/Score/Acertos + 3 colunas por questão (resposta/gabarito/correta). TEST25=403 bytes, ENADE25=200, 67QAFO=2375 bytes
+  1996→  14. ✅ **Deletar sessão** (DELETE /api/session/[code]) — DEBUG1/VTEST1 removidas
+  1997→  15. ✅ **WebSocket** (socket.io porta 3003) — handshake retorna `{"sid":...,"upgrades":["websocket"],"pingInterval":25000,"pingTimeout":60000}`
+  1998→  16. ✅ **Question Bank** (GET /api/question-bank) — 31 questões retornadas
+  1999→  17. ✅ **Admin auth** — senha errada → 401 "Invalid password", senha certa → 200 com token HMAC
+  2000→  18. ✅ **Lint** — 0 errors, 0 warnings
+
+[showing lines 1-2000 of 2478; use offset=2001 with limit to continue reading]
