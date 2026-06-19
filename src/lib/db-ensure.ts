@@ -24,12 +24,15 @@ import path from 'node:path'
  * errors via the health check.
  */
 export async function ensureDatabase(): Promise<void> {
-  const url = process.env.DATABASE_URL
-
-  if (!url) {
-    console.warn('[db-ensure] DATABASE_URL not set — API routes will fail until it is configured')
-    return
+  // FALLBACK: If DATABASE_URL is not set (e.g. .env is gitignored and the
+  // platform doesn't inject it), default to the shipped DB file.
+  // `db/custom.db` is committed to the repo with tables + seed data.
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'file:db/custom.db'
+    console.log('[db-ensure] DATABASE_URL not set — defaulting to file:db/custom.db')
   }
+
+  const url = process.env.DATABASE_URL
 
   // Only handle SQLite file: URLs (we don't use postgres/mysql)
   const match = url.match(/^file:(.+)$/)

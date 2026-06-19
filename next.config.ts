@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
+// ─── Next.js Config (simplified for maximum platform compatibility) ───
+// Removemos `output: "standalone"` e customizações agressivas que podiam
+// quebrar o deploy em algumas plataformas. Este é o setup Next.js padrão
+// que funciona em qualquer plataforma (Vercel, Z.ai, Netlify, etc).
 const nextConfig: NextConfig = {
-  // ─── Standalone Output ────────────────────────────────────────────
-  // Gera um build autossuficiente em .next/standalone/ que não precisa
-  // de node_modules completo — reduz imagem Docker de ~1.5GB para ~150MB.
-  // O server.js gerado já inclui um servidor Node.js mínimo.
-  output: "standalone",
-
   // ─── TypeScript ───────────────────────────────────────────────────
   // Em CI/CD o type-check é feito separadamente (tsc --noEmit).
   // Ignorar aqui acelera o build em ~30%.
@@ -19,92 +17,17 @@ const nextConfig: NextConfig = {
   // flicker nos gráficos SVG e WebSocket connections duplicados.
   reactStrictMode: false,
 
-  // ─── Headers de Cache Agressivo ───────────────────────────────────
-  // Assets estáticos (_next/static/) têm hash no nome — podem ser
-  // cacheados para sempre pelo CDN/Browser. Páginas públicas usam ISR.
-  async headers() {
-    return [
-      {
-        // Assets com hash: cache imutável de 1 ano
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
-        // Fonts do Next.js: cache de 1 ano
-        source: "/_next/font/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
-        // Imagens otimizadas pelo next/image: cache de 1 dia
-        source: "/_next/image/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400, stale-while-revalidate=604800",
-          },
-        ],
-      },
-      {
-        // Uploads: cache de 1 hora, revalida em background
-        source: "/uploads/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=3600, stale-while-revalidate=86400",
-          },
-        ],
-      },
-      {
-        // Logo e assets públicos: cache de 1 dia
-        source: "/logo.svg",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400, stale-while-revalidate=604800",
-          },
-        ],
-      },
-      {
-        // API routes: SEM cache — sempre dinâmico
-        source: "/api/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "no-store, no-cache, must-revalidate, proxy-revalidate",
-          },
-        ],
-      },
-    ];
-  },
-
   // ─── Image Optimization ───────────────────────────────────────────
   // Desativar otimização de imagem para reduzir CPU/memória no servidor.
-  // Em produção, use um CDN/Proxy (nginx/CloudFront) para otimizar.
   images: {
     unoptimized: true,
   },
-
-  // ─── Compressão ───────────────────────────────────────────────────
-  // Desativada aqui porque o nginx/Ingress faz gzip melhor.
-  // Ativar ambos causa double-compression e desperdiça CPU.
-  compress: false,
 
   // ─── Dev Cross-Origin ─────────────────────────────────────────────
   // Permite acesso ao HMR/Turbopack a partir do preview do sandbox.
   allowedDevOrigins: [
     "localhost",
     "127.0.0.1",
-    "preview-chat-09f5e437-d332-4ecc-93b9-1d57c80c7cbe.space-z.ai",
   ],
 };
 
