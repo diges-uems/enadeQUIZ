@@ -34,14 +34,11 @@ server.log
 npm-debug.log*
 bun-debug.log*
 
-# ── Database files (should be mounted via PVC in production) ──
-prisma/dev.db
+# ── Prisma generated artifacts (regenerated during build) ──
 prisma/dev.db-journal
-prisma/*.db
-db/*.db
 
-# ── Uploaded files (should be mounted via PVC in production) ──
-public/uploads
+# ── Uploaded files (kept in image; persist via PVC in production if needed) ──
+# public/uploads is NOT ignored — we want seed images available.
 
 # ── Docker / K8s (no need to copy deployment files into image) ──
 Dockerfile
@@ -62,6 +59,8 @@ download/
 examples/
 *.tgz
 *.tar.gz
-.env
-.env.*
-!.env.example
+
+# ── IMPORTANT: Do NOT ignore these (needed at build/runtime) ──
+# .env          — DATABASE_URL, ADMIN_SECRET_KEY, PRESENTER_KEY are read at build & runtime
+# db/custom.db  — SQLite database (seeded data for the app)
+# prisma/       — schema.prisma (needed for prisma generate + db push)

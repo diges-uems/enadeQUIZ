@@ -1761,3 +1761,96 @@ Priority Recommendations for Next Phase:
 1. Testar o deploy no host do Z.ai novamente (build → start deve funcionar agora)
 2. Se ainda falhar, verificar logs da plataforma para identificar o step exato
 3. Considerar migrar PRESENTER_KEY para NEXT_PUBLIC_PRESENTER_KEY env var
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Corrigir deploy no host do Z.ai (eventoenade.space-z.ai) — ainda falhando após fix anterior
+
+Work Log:
+- **Diagnóstico**: O URL https://eventoenade.space-z.ai/ retornava HTTP 500 com
+  página "Sorry, there was a problem deploying the code." da plataforma Z.ai.
+  Após investigação, identifiquei que a plataforma usa **Docker** (Dockerfile
+  presente no projeto), e havia 3 problemas críticos no Dockerfile + .dockerignore:
+
+- **Problema 1 — .dockerignore excluía arquivos essenciais**:
+  - `db/*.db` — EXCLUÍA o banco SQLite do build! O Docker nunca recebia `db/custom.db`
+  - `.env` e `.env.*` — EXCLUÍA o arquivo de environment! O Docker nunca recebia
+    DATABASE_URL, ADMIN_SECRET_KEY, PRESENTER_KEY
+  - `prisma/*.db` — também excluía DBs do Prisma
+  - Fix: reescrevi `.dockerignore` removendo essas exclusões críticas, mantendo
+    apenas exclusões legítimas (node_modules, .next, .git, logs, etc.)
+
+- **Problema 2 — .env com path absoluto do sandbox**:
+  - `DATABASE_URL=file:/home/z/my-project/db/custom.db` — path só existe no sandbox
+  - No container Docker, o WORKDIR é `/app`, então o path seria inválido
+  - Fix: `.env` agora usa `DATABASE_URL=file:/app/db/custom.db` (path do container)
+
+- **Problema 3 — build não criava o DB fresh**:
+  - Se o `db/custom.db` não existisse (deploy limpo), o Prisma falharia ao tentar
+    conectar, pois o schema não estaria aplicado
+  - Fix: `build` script agora inclui `prisma db push --accept-data-loss`:
+    `prisma generate && prisma db push --accept-data-loss && next build && node scripts/assemble-standalone.js`
+  - Isso garante que o DB seja criado com o schema correto, mesmo em deploy fresh
+
+- **Problema 4 — Dockerfile desatualizado**:
+  - Fazia `bunx prisma generate` separado antes do `bun run build` (redundante)
+  - Copiava manualmente arquivos para o runner stage (linhas 81-93), conflitando
+    com o `assemble-standalone.js` que já copia tudo
+  - Não copiava o `db/` directory (assumia que seria via PVC)
+  - Fix: Dockerfile simplificado — `RUN bun run build` faz tudo (prisma + build +
+    assemble), e o runner stage só precisa `COPY --from=builder /app/.next/standalone ./`
+    pois o assemble-standalone.js já copiou public/, prisma/, .env, db/, .next/static/
+
+- **Verificação de deploy fresh**:
+  - Deletei `db/custom.db` e `.next/` para simular deploy completamente limpo
+  - Rodei `NODE_OPTIONS=--max-old-space-size=2048 bun run build`:
+    1. `prisma generate` — gerou client Prisma ✅
+    2. `prisma db push --accept-data-loss` — criou `db/custom.db` fresh com schema ✅
+    3. `next build` — compilou 22 rotas ✅
+    4. `assemble-standalone.js` — copiou 5/5 componentes (static, public, prisma, .env, db) ✅
+  - Testei `PORT=3006 node .next/standalone/server.js`:
+    - Server iniciou em 64ms, sem warnings ✅
+    - GET / → 200, GET /admin → 200, GET /api/session → 200,
+      GET /logo-uems.png → 200, GET /votar/TEST25 → 200 ✅
+  - DB fresh tinha 77KB (criado do zero pelo prisma db push)
+
+- **Restauração do DB de dev**: Restaurei `db/custom.db` do backup
+  (/tmp/custom.db.backup) para preservar as sessões e questões ENADE já importadas.
+
+Stage Summary:
+- ✅ `.dockerignore` corrigido — não mais exclui `.env`, `db/*.db`, `prisma/*.db`
+- ✅ `.env` usa path do container (`file:/app/db/custom.db`) em vez de path sandbox
+- ✅ `build` script agora faz `prisma db push` para criar DB fresh em deploy limpo
+- ✅ Dockerfile simplificado e corrigido — usa `bun run build` que faz tudo
+- ✅ Fresh deploy testado: DB criado do zero, standalone server funciona
+- ✅ Lint limpo (0 errors, 0 warnings)
+
+Arquivos modificados:
+- `.dockerignore` — removidas exclusões críticas (.env, db/*.db, prisma/*.db)
+- `.env` — path do container (`file:/app/db/custom.db`) + secrets
+- `package.json` — `build` script agora inclui `prisma db push --accept-data-loss`
+- `Dockerfile` — simplificado, usa `bun run build`, copia apenas `.next/standalone/`
+
+Fluxo de deploy corrigido (Docker):
+  1. `COPY . .` copia tudo (incluindo .env, db/, prisma/) — .dockerignore permite
+  2. `RUN bun run build`:
+     a. `prisma generate` — gera client
+     b. `prisma db push --accept-data-loss` — cria/atualiza db/custom.db com schema
+     c. `next build` — compila app (output: standalone)
+     d. `assemble-standalone.js` — copia tudo para .next/standalone/
+  3. `COPY --from=builder /app/.next/standalone ./` — runner stage recebe bundle completo
+  4. `CMD ["node", "server.js"]` — inicia na porta 3000
+
+Unresolved Issues:
+- Os mini-services (socket na 3003, stress-test na 3004) não estão sendo iniciados
+  no Dockerfile (são para testes de carga, não essenciais para o app funcionar).
+  Para produção real, precisariam de services separados no docker-compose ou PM2.
+- O `PRESENTER_KEY` ainda é hardcoded no client-side. Funciona para o deploy
+  padrão, mas deveria ser migrado para NEXT_PUBLIC_PRESENTER_KEY.
+
+Priority Recommendations for Next Phase:
+1. **Testar o deploy novamente no eventoenade.space-z.ai** — deve funcionar agora
+   com o .dockerignore corrigido e o build criando o DB fresh
+2. Se ainda falhar, pedir logs da plataforma para identificar o step exato
+3. Considerar adicionar um docker-compose.yml com os 3 services (next + socket + stress)

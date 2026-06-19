@@ -39,16 +39,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client (needed at build time for type checking and runtime)
-RUN bunx prisma generate
-
 # Set NODE_ENV=production so Next.js performs production optimizations
 ENV NODE_ENV=production
 
-# Build the Next.js app.
-# The project's build script already handles:
-#   next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
-# But we do it explicitly here for clarity and robustness.
+# The build script does everything:
+#   1. prisma generate    — generates the Prisma client
+#   2. next build          — compiles the Next.js app (output: standalone)
+#   3. assemble-standalone — copies public/, prisma/, .env, db/, .next/static/
+#      into .next/standalone/ so the runner only needs that one directory.
 RUN bun run build
 
 # Verify the standalone output exists
@@ -77,27 +75,25 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-# Copy standalone server (includes node_modules needed at runtime)
+# The assemble-standalone.js script (run during `bun run build`) already copied
+# everything needed into .next/standalone/:
+#   - server.js (the entry point)
+#   - .next/static/ (JS/CSS chunks)
+#   - public/ (logos, uploads, etc.)
+#   - prisma/ (schema.prisma)
+#   - .env (DATABASE_URL + secrets)
+#   - db/ (SQLite database file, if present)
+#   - node_modules/ (only production deps, bundled by Next.js)
+#
+# So the runner stage only needs to copy .next/standalone/ — nothing else.
 COPY --from=builder /app/.next/standalone ./
 
-# Copy static assets (not included in standalone by default)
-COPY --from=builder /app/.next/static ./.next/static
-
-# Copy public directory (static files served by Next.js)
-COPY --from=builder /app/public ./public
-
-# Copy Prisma schema + generated client (needed for SQLite queries at runtime)
-# The Prisma client was generated in node_modules during builder stage
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-
-# Create uploads directory and set ownership
-RUN mkdir -p /app/public/uploads && \
-    chown -R nextjs:nodejs /app/public/uploads
-
-# Ensure all files are owned by the non-root user
-RUN chown -R nextjs:nodejs /app
+# Ensure the db directory exists and is writable (SQLite needs to create
+# -wal and -shm files next to the .db file at runtime). If the .env points
+# to file:/app/db/custom.db but the db/ dir wasn't copied (fresh deploy
+# without an existing database), prisma db push will create it on first run.
+RUN mkdir -p /app/db && \
+    chown -R nextjs:nodejs /app
 
 USER nextjs
 
