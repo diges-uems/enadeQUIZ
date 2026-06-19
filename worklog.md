@@ -2099,3 +2099,70 @@ Priority Recommendations for Next Phase:
 2. Se ainda falhar, o problema pode ser memória durante o build (usar NODE_OPTIONS=--max-old-space-size=2048)
 3. Importar 15 questões do ENADE 2025 Administração (Formação Geral) com gabarito
 4. Bug dos comandos de revelar resposta na apresentação (às vezes não funcionam)
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: Diagnóstico do erro 500 em produção + correções de resiliência
+
+Work Log:
+- **Análise do screenshot do usuário**: O screenshot mostrava:
+  - GET https://eventoenade.space-z.ai/ → HTTP 500 Internal Server Error
+  - GET https://eventoenade.space-z.ai/favicon.ico → HTTP 500 Internal Server Error
+  - Mensagem genérica: "Sorry, there was a problem deploying the code."
+
+- **Diagnóstico**: O HTTP 500 (não 502) significa que o servidor Next.js ESTÁ rodando
+  mas retorna erro em TODAS as rotas, incluindo páginas estáticas. Isso aponta para
+  um crash no processamento da requisição, não no build.
+
+- **Possíveis causas identificadas**:
+  1. `sharp` no standalone SEM native bindings (`build/Release/` faltando) — pode
+     causar crash se Next.js tentar carregar o módulo
+  2. Falta de error boundary — qualquer runtime error vira 500 sem mensagem
+  3. Falta de health check endpoint — plataforma não consegue verificar saúde
+
+- **Correções aplicadas**:
+  1. **Removido `sharp` das dependências** — `images: { unoptimized: true }` já está
+     setado, sharp não é necessário. Remove risco de crash por native module faltando.
+  2. **Adicionado `src/app/error.tsx`** — Error boundary que captura runtime errors
+     e mostra mensagem amigável + stack trace + error ID (em vez de blank 500)
+  3. **Adicionado `src/app/global-error.tsx`** — Captura erros no root layout
+     (que error.tsx não consegue capturar)
+  4. **Adicionado `src/app/not-found.tsx`** — Página 404 estilizada
+  5. **Adicionado `src/app/api/health/route.ts`** — Health check endpoint:
+     - GET /api/health → 200 {ok:true, db:"connected"} ou 503 {ok:false, db:"error"}
+     - Púbico, sem auth, testa conexão DB com `SELECT 1`
+
+- **Verificação em simulação de produção**:
+  - `bun run build` → 22 rotas, standalone completo ✅
+  - `GET /api/health` → `{"ok":true,"db":"connected"}` ✅
+  - `GET /` → 200 ✅
+  - `GET /favicon.ico` → 404 (não mais 500!) ✅
+  - Sem `sharp` no standalone ✅
+  - Lint limpo ✅
+
+Stage Summary:
+- ✅ `sharp` removido (remove risco de crash por native module)
+- ✅ Error boundary adicionado (converte 500 em mensagem legível com stack trace)
+- ✅ Global error boundary adicionado (captura erros no layout)
+- ✅ Health check endpoint adicionado (/api/health)
+- ✅ 404 page adicionada
+- ✅ Build e runtime testados em simulação de produção
+
+Arquivos criados/modificados:
+- `src/app/error.tsx` — error boundary com stack trace
+- `src/app/global-error.tsx` — global error boundary
+- `src/app/not-found.tsx` — 404 page
+- `src/app/api/health/route.ts` — health check endpoint
+- `package.json` — removido `sharp` das dependencies
+
+Unresolved Issues:
+- O erro 500 em produção pode ter outras causas que só os logs da plataforma revelarão
+- O usuário precisa acessar os logs do servidor (não build logs) para ver o stack trace
+- O error.tsx agora vai mostrar o erro real em produção, ajudando no diagnóstico
+
+Priority Recommendations for Next Phase:
+1. **Fazer deploy novamente** — o error.tsx agora vai mostrar o erro real em vez de 500
+2. **Acessar /api/health no deploy** — vai mostrar se o DB está conectando
+3. **Procurar logs de runtime** no painel do Z.ai (não build logs)
+4. Se o erro persistir, o error.tsx vai mostrar exatamente o que está falhando
