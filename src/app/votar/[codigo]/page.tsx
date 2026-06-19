@@ -223,6 +223,27 @@ export default function StudentVotingPage({
   }, [session, currentQuestion])
 
   // ── Determine state from session data (no identification needed) ────────
+  // Also recalculates the student's score from the session data as a
+  // resilient fallback. The socket `answer-revealed` handler updates the
+  // score in real-time, but if the student misses that event (socket
+  // disconnect, page refresh, etc.) the score would be stale. This
+  // recalculation ensures the score is always derived from the source of
+  // truth: the session's question list + the student's stored votes.
+  const recalculateScore = useCallback((data: Session) => {
+    let correct = 0
+    let answered = 0
+    for (const q of data.questions) {
+      const vote = getStoredVote(q.id)
+      if (vote && q.isRevealed) {
+        answered++
+        if (vote === q.correctAnswer) correct++
+      }
+    }
+    setCorrectCount(correct)
+    setAnsweredCount(answered)
+    saveScore(correct, answered)
+  }, [getStoredVote, saveScore])
+
   const determineState = useCallback((data: Session, questionId: string | null, paused: boolean): PageState => {
     if (data.status === 'finished') return 'finished'
     if (!questionId) return 'waiting'
@@ -261,6 +282,10 @@ export default function StudentVotingPage({
         const data: Session = await res.json()
         setSession(data)
         sessionFetchedRef.current = data
+
+        // Recalculate the score from the session data (resilient fallback
+        // for missed socket events).
+        recalculateScore(data)
 
         // ── Identification gate ──────────────────────────────────────────
         // Sessions with requireIdentification=true require the student to
@@ -326,6 +351,11 @@ export default function StudentVotingPage({
               setPageState('finished')
             }
             return
+          }
+
+          // Recalculate score from session data (resilient fallback).
+          if (sessionFetchedRef.current) {
+            recalculateScore(sessionFetchedRef.current)
           }
 
           const newState = determineState(sessionFetchedRef.current!, state.currentQuestionId, state.votingPaused)
@@ -394,14 +424,21 @@ export default function StudentVotingPage({
           setVoteTimestamp(null)
           setElapsedSeconds(0)
 
-          // Update score tracking
-          const currentStoredVote = getStoredVote(data.questionId)
-          if (currentStoredVote) {
-            const newAnswered = answeredCount + 1
-            const newCorrect = data.correctAnswer === currentStoredVote ? correctCount + 1 : correctCount
-            setAnsweredCount(newAnswered)
-            setCorrectCount(newCorrect)
-            saveScore(newCorrect, newAnswered)
+          // Update the cached session data so recalculateScore sees the
+          // latest isRevealed state. Without this, sessionFetchedRef
+          // would still have isRevealed=false for this question.
+          if (sessionFetchedRef.current) {
+            const q = sessionFetchedRef.current.questions.find(
+              (qq) => qq.id === data.questionId
+            )
+            if (q) {
+              q.isRevealed = true
+              q.correctAnswer = data.correctAnswer as 'A' | 'B' | 'C' | 'D' | 'E'
+            }
+            // Recalculate the full score from the updated session data.
+            // This is resilient: even if previous answer-revealed events
+            // were missed, this will produce the correct total.
+            recalculateScore(sessionFetchedRef.current)
           }
         })
 

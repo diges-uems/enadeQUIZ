@@ -1375,3 +1375,121 @@ Priority Recommendations for Next Phase:
 6. Consider adding Redis for multi-instance scaling (if needed beyond 1 VM)
 7. Test with real students for final validation
 
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Aumentar logo UEMS na home page, adicionar código fixo de teste (TEST25) sem identificação, sessões normais exigem RGM+Nome, remover scrollbar da apresentação, corrigir score não acumulando na tela de encerramento
+
+Work Log:
+- **Logo UEMS maior na home page** (`src/app/page.tsx`):
+  - Aumentado de `w-20 h-20` (80px) para `w-36 h-36 sm:w-40 sm:h-40` (144-160px)
+  - Ajustado drop-shadow para acompanhar o tamanho maior
+  - Corrigido maxLength do input de código de 8 para 6 (códigos são 6 chars)
+  - Atualizado placeholder de "ENADE25" para "67QAFO" (formato real)
+  - Verificado via agent-browser: logo agora tem 160×160px (era 80×80)
+
+- **Schema Prisma: campo requireIdentification** (`prisma/schema.prisma`):
+  - Adicionado `requireIdentification Boolean @default(true)` no model Session
+  - `bun run db:push` aplicou a migração (10ms, sem conflitos)
+  - Default true = sessões normais exigem identificação; false = modo teste
+
+- **Tipos TypeScript** (`src/types/index.ts`):
+  - Adicionado `requireIdentification: boolean` na interface Session
+  - Adicionado `students?: Student[]` opcional na interface Session
+  - Criada interface Student completa (id, name, rgm, score, answers, corrects)
+  - Exportada constante `TEST_SESSION_CODE = 'TEST25'`
+
+- **API: POST /api/session** (`src/app/api/session/route.ts`):
+  - Aceita `requireIdentification` (boolean, default true)
+  - Aceita `customCode` (6-char A-Z0-9, opcional) — permite código fixo TEST25
+  - Valida customCode com `validateSessionCode`; rejeita duplicados com 409
+  - PATCH /api/session/[code] também aceita `requireIdentification` (whitelist)
+
+- **Admin: dialog Nova Sessão com Modo Teste** (`src/app/admin/page.tsx`):
+  - Adicionado Checkbox "Modo Teste (sem identificação de alunos)"
+  - Quando ativado, mostra campo "Código personalizado" (default TEST25)
+  - Checkbox usa cores UEMS (dourado quando checked)
+  - Lista de sessões mostra badge "Teste" (ícone FlaskConical) para sessões sem identificação
+  - handleCreateSession envia `requireIdentification: !newTestMode` e `customCode`
+
+- **Votar page: tela de identificação** (`src/app/votar/[codigo]/page.tsx`):
+  - Novo PageState 'identifying' adicionado
+  - Tela de identificação com campos RGM + Nome completo + botão "Entrar na sessão"
+  - Ícone 🎓 com glow animation dourado, header/footer consistentes
+  - Validação: nome e RGM obrigatórios (toast.error se vazio)
+  - POST /api/student para registrar/buscar aluno; persiste em sessionStorage
+  - Toast de boas-vindas: "Bem-vindo, [nome]!" ou "Bem-vindo de volta!"
+  - Badge do nome do aluno no header (clicável para trocar de aluno)
+  - identificationPendingRef suprime transições de socket durante identificação
+  - join-session emite name/rgm quando disponível (para score tracking do socket)
+
+- **Votar page: studentId no voto** (`src/app/votar/[codigo]/page.tsx`):
+  - handleVote emite studentId no submit-vote (socket) e /api/vote (fallback)
+  - vote-accepted handler inclui studentId ao persistir voto no DB
+  - studentIdRef (useRef) espelha studentId state para uso em socket callbacks (evita stale closure)
+
+- **Hook useFitContent** (`src/hooks/use-fit-content.ts`) — NOVO ARQUIVO:
+  - Mede container (pai) e content (filho) via refs
+  - Se content.scrollHeight > container.clientHeight, aplica `transform: scale(ratio)` com `transform-origin: top left`
+  - Width ajustada para `${100/scale}%` para preencher horizontalmente
+  - Scale mínimo 0.4 (texto permanece legível)
+  - Re-executa em: mount, window resize, ResizeObserver (content + container)
+  - Retorna { containerRef, contentRef, scale }
+
+- **Apresentacao: sem scrollbar** (`src/app/apresentacao/[codigo]/page.tsx`):
+  - Removido `overflow-y-auto pr-2` do container de texto da questão
+  - Adicionado `overflow-hidden` + useFitContent (containerRef + contentRef)
+  - Transform scale aplicado dinamicamente quando texto é muito longo
+  - Verificado via agent-browser + VLM: "texto completamente visível sem barra de rolagem"
+
+- **Bug fix: score não acumulava na tela de encerramento** (`src/app/votar/[codigo]/page.tsx`):
+  - **Causa raiz #1**: `answer-revealed` handler usava `answeredCount + 1` e `correctCount + 1` do closure do useEffect — sempre 0 (stale). Cada reveal sobrescrevia para 1 em vez de acumular.
+  - **Causa raiz #2**: Sem recálculo resiliente — se o aluno perdia o evento `answer-revealed` (socket desconectou, refresh), o score nunca atualizava.
+  - **Fix**: Criada `recalculateScore(data)` que itera sobre todas as questões, checa `getStoredVote(q.id)` + `q.isRevealed` + `q.correctAnswer`, e computa correct/answered do zero. Chamada em:
+    1. `fetchSession` (após carregar dados da sessão)
+    2. `session-state` (evento socket)
+    3. `answer-revealed` (após atualizar isRevealed no sessionFetchedRef)
+  - `answer-revealed` agora atualiza `sessionFetchedRef.current` in-place (isRevealed=true) antes de recalcular
+  - Verificado: aluno votou 2/2 corretas → tela de encerramento mostra "2/2 acertos" ✅
+
+- **Apresentacao: ranking final do DB** (`src/app/apresentacao/[codigo]/page.tsx`):
+  - **Causa raiz**: `session-finished` emitia `get-ranking` ao socket, que retornava `sessionScores` (in-memory). Mas o socket nunca rastreava `corrects` (aluno não envia correctAnswer ao votar). Resultado: "Nenhum voto registrado ainda".
+  - **Fix**: Criada `fetchRankingFromDB()` que faz GET /api/student?sessionCode=XXX e mapeia para RankingEntry. Ordena por corrects desc. Filtra students com answers>0.
+  - `session-finished` agora chama `fetchRankingFromDB()` em vez de `socket.emit('get-ranking')`
+  - `fetchSession` também chama `fetchRankingFromDB()` se a sessão já está finished (refresh na tela de encerramento)
+  - Verificado: apresentacao mostra pódio com "Aluno Teste, RGM 999001, 3/4" ✅
+
+Stage Summary:
+- ✅ Logo UEMS aumentado de 80px para 160px na home page
+- ✅ Código fixo TEST25 funciona sem identificação (requireIdentification=false)
+- ✅ Sessões normais exigem RGM + Nome (tela de identificação completa)
+- ✅ Admin pode criar sessões em Modo Teste com código personalizado
+- ✅ Badge "Teste" na lista de sessões do admin
+- ✅ Scrollbar removida da apresentação (useFitContent escala o texto)
+- ✅ Score acumula corretamente: 2/2, 3/4 etc. (stale closure + recalculateScore resiliente)
+- ✅ Ranking final da apresentação busca do DB (corrects/answers precisos)
+- ✅ Tela de encerramento do aluno mostra pontuação correta
+- ✅ Lint clean (0 errors, 0 warnings)
+- ✅ Build compila sem erros
+
+Verificação E2E (agent-browser + API):
+- Home page: logo 160×160px ✅
+- TEST25 (sem ID): vai direto para votação, sem tela de identificação ✅
+- Sessão normal: mostra tela "Identificação" com RGM + Nome ✅
+- Identificação: POST /api/student → "Bem-vindo, Maria!" → vai para votação ✅
+- Voto C (correto) → "Voto registrado!" ✅
+- Apresentacao TEST25 finalizada: pódio mostra "Aluno Teste, 3/4" ✅ (antes mostrava "Nenhum voto registrado")
+- Votar YQURI0 finalizada: "2/2 acertos" ✅ (antes mostrava "1/1" ou nada)
+- Apresentacao SCROL1 (texto longo): sem scrollbar, texto visível ✅
+
+Unresolved Issues:
+- Sessões de teste (TEST25) ainda existe no DB — pode ser deletada via admin quando conveniente
+- O socket service ainda mantém sessionScores in-memory (não usado para ranking final, mas poderia ser removido em favor do DB para ranking em tempo real também)
+- O `recalculateScore` é chamado em cada `session-state` event (frequente) — é barato (itera questions array) mas poderia ser otimizado com um dirty flag
+
+Priority Recommendations for Next Phase:
+1. Testar o fluxo completo com um apresentador real (admin → apresentação → alunos votando → revelar → encerrar)
+2. Considerar migrar o ranking em tempo real (durante a sessão) para o DB também, em vez do socket in-memory
+3. Adicionar limpeza automática de sessões de teste antigas
+4. Validar em dispositivo móvel real (a tela de identificação e o useFitContent)

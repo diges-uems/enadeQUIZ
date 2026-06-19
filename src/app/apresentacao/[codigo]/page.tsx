@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client'
 import { QRCode } from 'react-qrcode-logo'
 import { Users } from 'lucide-react'
 import { QuestionText, getActiveAlternatives } from '@/components/QuestionText'
+import { useFitContent } from '@/hooks/use-fit-content'
 
 // ─── Types ────────────────────────────────────────────────────────
 interface Question {
@@ -159,6 +160,12 @@ export default function ApresentacaoPage({
   const prevTotalVotes = useRef(0)
   const socketDisconnectSinceRef = useRef<number | null>(null)
 
+  // ── Fit-content scaling for the question text ──
+  // Measures the question text container and scales the content down
+  // (transform: scale) so it never overflows or shows a scrollbar.
+  const { containerRef: questionTextContainerRef, contentRef: questionTextContentRef, scale: questionTextScale } =
+    useFitContent<HTMLDivElement>([currentQuestionId, revealed])
+
   // ── Derived ──
   const currentQuestion = session?.questions.find(
     (q) => q.id === currentQuestionId
@@ -181,6 +188,8 @@ export default function ApresentacaoPage({
       setCurrentQuestionId(data.currentQuestionId)
       if (data.status === 'finished') {
         setSessionFinished(true)
+        // Session already finished — fetch the final ranking from DB.
+        fetchRankingFromDB()
       }
       if (data.currentQuestionId) {
         const q = data.questions.find((q) => q.id === data.currentQuestionId)
@@ -190,6 +199,36 @@ export default function ApresentacaoPage({
       setNotFound(true)
     } finally {
       setLoading(false)
+    }
+  }, [codigo])
+
+  // ── Fetch ranking from the database ──
+  // The socket service's in-memory scores only tracks `answers` (not
+  // `corrects`, because the student doesn't send the correctAnswer when
+  // voting). The database, however, has accurate `corrects`/`answers`/
+  // `score` because /api/vote checks isCorrect = choice === correctAnswer.
+  // So the final ranking MUST come from the DB, not the socket.
+  const fetchRankingFromDB = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/student?sessionCode=${codigo}`)
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        students: { name: string; rgm: string; score: number; answers: number; corrects: number }[]
+      }
+      // Sort by corrects desc (matching the podium layout), then score.
+      const sorted = [...(data.students || [])]
+        .filter((s) => s.answers > 0)
+        .sort((a, b) => b.corrects - a.corrects || b.score - a.score)
+        .map((s) => ({
+          name: s.name,
+          rgm: s.rgm,
+          score: s.score,
+          answers: s.answers,
+          corrects: s.corrects,
+        }))
+      setRanking(sorted)
+    } catch {
+      // Silently fail — the socket ranking may still be available.
     }
   }, [codigo])
 
@@ -320,7 +359,12 @@ export default function ApresentacaoPage({
     })
 
     socketInstance.on('session-finished', () => {
-      socketInstance.emit('get-ranking', { sessionCode: codigo })
+      // Fetch the final ranking from the DATABASE (not the socket's
+      // in-memory scores). The DB has accurate `corrects`/`answers`
+      // because /api/vote checks isCorrect server-side. The socket's
+      // in-memory scores don't track correctness (students don't send
+      // the correctAnswer when voting).
+      fetchRankingFromDB()
       setSessionFinished(true)
     })
 
@@ -852,17 +896,27 @@ export default function ApresentacaoPage({
                 </div>
               )}
 
-              {/* Question text */}
+              {/* Question text — scaled to fit without scrollbar */}
               <div
-                className="flex-1 min-h-0 overflow-y-auto pr-2"
+                ref={questionTextContainerRef}
+                className="flex-1 min-h-0 overflow-hidden"
                 style={{ animation: 'fadeInUp 0.5s ease-out 0.15s both' }}
               >
-                <QuestionText
-                  text={currentQuestion.text}
-                  textSize={currentQuestion.imageUrl ? 'lg' : '2xl'}
-                  className="text-[#E8EDFF]"
-                  imageUrl={currentQuestion.imageUrl}
-                />
+                <div
+                  ref={questionTextContentRef}
+                  style={{
+                    transform: questionTextScale !== 1 ? `scale(${questionTextScale})` : undefined,
+                    transformOrigin: 'top left',
+                    width: questionTextScale !== 1 ? `${100 / questionTextScale}%` : undefined,
+                  }}
+                >
+                  <QuestionText
+                    text={currentQuestion.text}
+                    textSize={currentQuestion.imageUrl ? 'lg' : '2xl'}
+                    className="text-[#E8EDFF]"
+                    imageUrl={currentQuestion.imageUrl}
+                  />
+                </div>
               </div>
 
               {/* Alternatives list — fills space when no image */}
